@@ -1,0 +1,34 @@
+[
+  {
+    "slug": "sandburg",
+    "name": "Sandburg",
+    "beschreibung": "Strandsaison 2026",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/sandburg.png"
+  },
+  {
+    "slug": "pokal",
+    "name": "Pokal",
+    "beschreibung": "Turnier-Saison",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": null
+  },
+  {
+    "slug": "leuchtturm",
+    "name": "Leuchtturm",
+    "beschreibung": "Küsten-Klassiker",
+    "preisRappen": 1200,
+    "neu": false,
+    "bild": null
+  },
+  {
+    "slug": "totenkopf",
+    "name": "Totenkopf",
+    "beschreibung": "Ride or die",
+    "preisRappen": 1200,
+    "neu": false,
+    "bild": null
+  }
+]
