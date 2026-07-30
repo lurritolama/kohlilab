@@ -388,9 +388,19 @@ function schildGeometrie(){
     : outlinePoints();
   // Abbildung der Designflaeche
   const beta = (P.winkel-90)*Math.PI/180, sb=Math.sin(beta), cb=Math.cos(beta);
-  const dS = P.dicke, HS = P.hoehe;
+  const dS = P.dicke, HS = P.hoehe, Tf = P.tiefe;
+  // L-Querschnitt in Seitenansicht (y=Tiefe zum Betrachter = -y, z=Hoehe).
+  // Fuss zeigt nach vorne (-y); Design gehoert auf die AUSSENseite der L
+  // (vom Fuss weg, +y), damit man es von vorne liest.
+  const A=[-Tf,0], B=[-Tf,dS];                       // Fussvorderkante unten/oben
+  const Fd=[dS*sb/cb, dS];                           // Innen (Fuss-Seite), Fusshoehe
+  const P1=[HS*sb + dS*sb/cb, HS*cb + dS];           // Innen-Kopf
+  const P2=[P1[0]+dS*cb, P1[1]-dS*sb];               // Aussen-Kopf
+  const G=[dS/cb, 0];                                // Aussen unten am Boden
+  const vr=[P2[0]-G[0], P2[1]-G[1]]; const vrl=Math.hypot(vr[0],vr[1]); vr[0]/=vrl; vr[1]/=vrl;
+  const Rt=P2, Rb=[P2[0]-HS*vr[0], P2[1]-HS*vr[1]];  // Designfeld (Hoehe HS) oben auf der Aussenseite
   const mapTop = aufsteller
-    ? (x,y)=>[x, dS*sb/cb + (y+HS/2)*sb, dS+(y+HS/2)*cb]
+    ? (x,y)=>{ const s=(y+HS/2)/HS; return [x, Rb[0]+s*(Rt[0]-Rb[0]), Rb[1]+s*(Rt[1]-Rb[1])]; }
     : (x,y)=>[x,y,z1];
   const { mat, n } = qrMat();
 
@@ -471,18 +481,12 @@ function schildGeometrie(){
     wall(outline, cBase);
     for(const lk of loecher) wall(lk, cBase);
   } else {
-    // Echte L-Form: Platte steht bis auf den Boden, Fuss NUR nach vorne
-    // (kein Material hinter der Platte). Querschnitt Seitenansicht
-    // (y=Tiefe, z=Hoehe): A Fussvorderkante, G Platten-Hinterkante am
-    // Boden, P2/P1 Plattenkopf, Fd Front-Platte auf Fusshoehe, B Fussoben.
-    const W=P.breite, Tf=P.tiefe;
-    const A=[-Tf,0], G=[dS/cb,0];
-    const P1=[HS*sb + dS*sb/cb, HS*cb + dS];   // Kopf der Designflaeche
-    const P2=[P1[0]+dS*cb, P1[1]-dS*sb];
-    const Fd=[dS*sb/cb, dS];
-    const loop=[A, G, P2, P1, Fd, [-Tf,dS]];
+    // Echte L-Form. Design liegt auf der AUSSENseite (Segment Rb->Rt),
+    // Fuss nach vorne. Querschnitt (Seitenansicht y=Tiefe, z=Hoehe):
+    const W=P.breite;
+    const loop=[A, G, Rb, Rt, P1, Fd, B];
     for(let i=0;i<loop.length;i++){
-      if(i===3) continue;                      // Kante P1->Fd = Designflaeche
+      if(i===2) continue;                      // Kante Rb->Rt = Designflaeche (aussen)
       const a=loop[i], b=loop[(i+1)%loop.length];
       push3([-W/2,a[0],a[1]],cBase); push3([W/2,a[0],a[1]],cBase); push3([W/2,b[0],b[1]],cBase);
       push3([-W/2,a[0],a[1]],cBase); push3([W/2,b[0],b[1]],cBase); push3([-W/2,b[0],b[1]],cBase);
@@ -607,9 +611,16 @@ function pickMm(ev){
   ray.setFromCamera(ptr, camera);
   const hit = mesh ? ray.intersectObject(mesh)[0] : null;
   if (!hit) return null;
-  if (P.aufbau==='aufsteller'){                // 3D-Punkt -> Koordinaten der Schraege
-    const beta=(P.winkel-90)*Math.PI/180, cb=Math.cos(beta);
-    return { x:hit.point.x, y:(hit.point.z-P.dicke)/Math.max(cb,0.05) - P.hoehe/2 };
+  if (P.aufbau==='aufsteller'){                // 3D-Punkt -> UV der Aussenflaeche
+    const beta=(P.winkel-90)*Math.PI/180, sb=Math.sin(beta), cb=Math.cos(beta);
+    const dS=P.dicke, HS=P.hoehe;
+    const P1z=HS*cb+dS, P2z=P1z-dS*sb;         // Rt=P2 (Hoehe)
+    const Gz=0, Gy=dS/cb;
+    const P2y=HS*sb+dS*sb/cb+dS*cb;
+    const vy=P2y-Gy, vz=P2z-Gz, vl=Math.hypot(vy,vz);
+    const Rbz=P2z-HS*(vz/vl);
+    const s=(hit.point.z-Rbz)/Math.max(HS*(vz/vl),0.05);
+    return { x:hit.point.x, y:s*HS - HS/2 };
   }
   return { x:hit.point.x, y:hit.point.y };
 }
@@ -770,6 +781,7 @@ $('ex3mf').addEventListener('click', ()=>busy($('ex3mf'), async ()=>{ download(a
 $('exstl').addEventListener('click', ()=>busy($('exstl'), async ()=>{ download(new Blob([stlString(currentGeo)],{type:'model/stl'}), 'kohlilab_qr_schild.stl'); }));
 
 window.__geoPos = () => geomPos(currentGeo);   // Debug-Haken für Manifold-Checks
+window.__geoCol = () => geomCol(currentGeo);
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 rebuild();
