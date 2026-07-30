@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KohliLab — QR-Schilder-Konfigurator</title>
+<style>
+  :root{ --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
+         --ink:#e8e6e1; --mut:#9a9a93; --acc:#ff6b1a; --acc2:#ffb347;
+         --mono:Consolas,"JetBrains Mono",monospace; }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+  #panel{width:340px;min-width:300px;overflow-y:auto;border-right:1px solid var(--line);padding:14px;background:var(--bg2)}
+  #view{flex:1;position:relative;min-width:0}
+  #view canvas{display:block}
+  h1{font-size:17px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:2px}
+  h1 b{color:var(--acc)}
+  .sub{color:var(--mut);font-size:11.5px;margin-bottom:12px}
+  .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
+  .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{font-size:12.5px;color:var(--mut);width:86px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--acc)}
+  .row .val{font-family:var(--mono);font-size:11px;width:52px;text-align:right;color:var(--ink)}
+  input[type=text],input[type=password],select,textarea{width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:12.5px;font-family:inherit}
+  textarea{resize:vertical;min-height:44px}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .btns button:disabled{opacity:.4;cursor:not-allowed}
+  .sw{display:flex;gap:7px;margin-top:4px}
+  .sw button{width:30px;height:30px;border-radius:6px;border:2px solid var(--line);cursor:pointer}
+  .sw button.active{border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,107,26,.35)}
+  .exp{display:flex;gap:8px;margin-top:4px}
+  .exp button{flex:1;background:var(--acc);border:none;color:#141517;font-weight:700;font-family:var(--mono);font-size:12px;letter-spacing:.5px;padding:11px;border-radius:6px;cursor:pointer;text-transform:uppercase}
+  .exp button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500}
+  #hud{position:absolute;left:12px;bottom:12px;right:12px;font-family:var(--mono);font-size:11px;color:var(--acc2);background:rgba(20,21,23,.85);border:1px solid var(--line);border-radius:6px;padding:8px 11px;pointer-events:none;line-height:1.5}
+  #hint{position:absolute;top:12px;left:12px;font-family:var(--mono);font-size:10.5px;color:var(--mut);background:rgba(20,21,23,.75);border:1px solid var(--line);border-radius:6px;padding:6px 10px;pointer-events:none}
+  .note{font-size:11px;color:var(--mut);margin-top:6px;line-height:1.45}
+  .warn{color:#f5c518}
+  .feld{margin:7px 0}
+  .feld label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:3px}
+  #logoInfo{font-family:var(--mono);font-size:10.5px}
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>QR-SCHILD <b>KONFIGURATOR</b></h1>
+  <div class="sub">KohliLab · 3D-gedruckt, Farben bündig (AMS)</div>
+
+  <div class="grp"><h2>Grundform</h2>
+    <div class="btns" id="formBtns"></div>
+    <div class="row"><label>Breite</label><input type="range" id="breite" min="40" max="140" step="1"><span class="val" id="breiteV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="hoehe" min="30" max="120" step="1"><span class="val" id="hoeheV"></span></div>
+    <div class="row"><label>Dicke</label><input type="range" id="dicke" min="2" max="4" step="0.5"><span class="val" id="dickeV"></span></div>
+  </div>
+
+  <div class="grp"><h2>Aufbau</h2>
+    <div class="btns">
+      <button class="active">Flache Platte</button>
+      <button disabled title="kommt in der nächsten Ausbaustufe">L-Aufsteller (bald)</button>
+    </div>
+  </div>
+
+  <div class="grp"><h2>Aufhängung</h2>
+    <div class="btns" id="lochBtns"></div>
+  </div>
+
+  <div class="grp"><h2>QR-Inhalt</h2>
+    <div class="btns" id="typBtns"></div>
+    <div id="typFelder"></div>
+    <div class="row" style="margin-top:9px"><label>QR-Grösse</label><input type="range" id="qrs" min="16" max="80" step="1"><span class="val" id="qrsV"></span></div>
+  </div>
+
+  <div class="grp"><h2>Text</h2>
+    <div class="feld"><label>Textbaustein</label><select id="baustein"></select></div>
+    <div class="feld" id="freitextWrap" style="display:none"><label>Eigener Text</label><input type="text" id="freitext" maxlength="26" placeholder="max. 26 Zeichen"></div>
+    <div class="row"><label>Texthöhe</label><input type="range" id="th" min="5" max="14" step="0.5"><span class="val" id="thV"></span></div>
+  </div>
+
+  <div class="grp"><h2>Logo (optional)</h2>
+    <input type="file" id="logoFile" accept="image/*" style="font-size:11.5px;color:var(--mut)">
+    <div class="row" id="logoRow" style="display:none"><label>Logo-Breite</label><input type="range" id="lw" min="8" max="50" step="1"><span class="val" id="lwV"></span></div>
+    <div class="btns" id="logoDel" style="display:none"><button>Logo entfernen</button></div>
+    <div class="note" id="logoInfo"></div>
+    <div class="note">Am besten ein flaches Logo mit wenigen Farben — es wird automatisch auf max. 4 Druckfarben reduziert.</div>
+  </div>
+
+  <div class="grp"><h2>Farben</h2>
+    <div class="feld"><label>Grundplatte (hell — für Scan-Kontrast)</label><div class="sw" id="swBase"></div></div>
+    <div class="feld"><label>QR &amp; Text (dunkel)</label><div class="sw" id="swDark"></div></div>
+  </div>
+
+  <div class="grp"><h2>Export</h2>
+    <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
+    <div class="note">Testphase: Datei herunterladen und selbst slicen. In Bambu Studio den Farben Filamente zuweisen.</div>
+  </div>
+</div>
+
+<div id="view"><div id="hint">Ziehen mit der Maus: QR, Text und Logo direkt auf der Platte verschieben</div><div id="hud"></div></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- Konfiguration ----------
+const BASE_COLORS = [['Weiss','#eceff0'],['Hellgrau','#c9cfd2'],['Sand','#e8dcc0']];
+const DARK_COLORS = [['Schwarz','#1c1c1c'],['Dunkelblau','#1d3557']];
+const LOGO_PALETTE = ['#1c1c1c','#eceff0','#d8332f','#ef7d1a','#f5c518','#37a24a','#2f6fd6','#e5459b'];
+const RAND = 3;            // Mindestrand aller Elemente zur Kante (mm)
+const QUIET = 2;           // Ruhezone um den QR in Modulen (je Seite)
+const MODUL_MIN = 0.8;     // bewährte Mindest-Modulgrösse (mm)
+const LOCH_D = 4;          // Aufhängeloch-Durchmesser (mm)
+
+const FORMEN = [['rechteck','Rechteck'],['rundrect','Abgerundet'],['kreis','Kreis'],['oval','Oval'],['herz','Herz']];
+const LOECHER = [['keine','Keine'],['1','1 oben'],['2','2 oben'],['4','4 Ecken']];
+const TYPEN = [['url','URL'],['wlan','WLAN'],['vcard','vCard'],['email','E-Mail'],['tel','Telefon'],['text','Freitext']];
+const BAUSTEINE = [
+  ['Scan für WLAN','Scan for WiFi'],
+  ['Zur Speisekarte','View our menu'],
+  ['Folge uns','Follow us'],
+  ['Bewerte uns','Rate us'],
+  ['Mehr erfahren','Learn more'],
+  ['Jetzt scannen','Scan me'],
+];
+
+const P = {
+  form:'rechteck', breite:90, hoehe:60, dicke:3, loecher:'keine',
+  typ:'url', url:'https://kohlilab.ch', ssid:'', pass:'', vname:'', vtel:'', vmail:'', vorg:'', email:'', tel:'', frei:'',
+  qrSize:30, qrX:-18, qrY:2,
+  bausteinIdx:0, sprache:0, freitext:'', textH:7, textX:22, textY:-20,
+  logo:null, logoW:22, logoX:22, logoY:12,
+  baseColor:'#eceff0', darkColor:'#1c1c1c',
+};
+
+// ---------- QR ----------
+function esc(s){ return String(s||'').replace(/([\\;,:"'])/g, '\\$1'); }
+function payload(){
+  switch(P.typ){
+    case 'url': return P.url.trim() || 'https://kohlilab.ch';
+    case 'wlan': return `WIFI:T:WPA;S:${esc(P.ssid)||'Netzwerk'};P:${esc(P.pass)};;`;
+    case 'vcard': return `BEGIN:VCARD\nVERSION:3.0\nFN:${P.vname||'Name'}\n`+(P.vtel?`TEL:${P.vtel}\n`:'')+(P.vmail?`EMAIL:${P.vmail}\n`:'')+(P.vorg?`ORG:${P.vorg}\n`:'')+`END:VCARD`;
+    case 'email': return `mailto:${(P.email||'').trim()}`;
+    case 'tel': return `tel:${(P.tel||'').trim().replace(/\s+/g,'')}`;
+    default: return P.frei.trim() || 'KohliLab';
+  }
+}
+let qrCache = { key:null, mat:null, n:0, fehler:false };
+function qrMat(){
+  const key = payload();
+  if (qrCache.key === key) return qrCache;
+  let mat=null, n=0, fehler=false;
+  try{
+    const qr = qrcode(0,'M'); qr.addData(key); qr.make();
+    n = qr.getModuleCount(); mat=[];
+    for(let y=0;y<n;y++){ const r=[]; for(let x=0;x<n;x++) r.push(qr.isDark(y,x)?1:0); mat.push(r); }
+  }catch(e){ fehler=true; const qr=qrcode(0,'M'); qr.addData('https://kohlilab.ch'); qr.make(); n=qr.getModuleCount(); mat=[]; for(let y=0;y<n;y++){const r=[];for(let x=0;x<n;x++)r.push(qr.isDark(y,x)?1:0);mat.push(r);} }
+  qrCache = { key, mat, n, fehler };
+  return qrCache;
+}
+
+// ---------- Text ----------
+function aktText(){
+  if (P.bausteinIdx === BAUSTEINE.length) return P.freitext.trim();
+  return BAUSTEINE[P.bausteinIdx][P.sprache];
+}
+
+// ---------- Logo: Upload + Reduktion auf max. 4 Farben ----------
+function hex2rgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+function ladeLogo(file){
+  const img = new Image();
+  img.onload = ()=>{
+    const S=64, c=document.createElement('canvas'); c.width=S; c.height=Math.max(8,Math.round(S*img.height/img.width));
+    const x=c.getContext('2d'); x.drawImage(img,0,0,c.width,c.height);
+    const d=x.getImageData(0,0,c.width,c.height).data;
+    const pal=LOGO_PALETTE.map(hex2rgb), cnt=new Map();
+    const idx=new Int16Array(c.width*c.height);
+    for(let i=0;i<idx.length;i++){
+      const a=d[i*4+3];
+      if(a<120){ idx[i]=-1; continue; }
+      let best=0,bd=1e9;
+      for(let p=0;p<pal.length;p++){ const dr=d[i*4]-pal[p][0],dg=d[i*4+1]-pal[p][1],db=d[i*4+2]-pal[p][2]; const dd=dr*dr+dg*dg+db*db; if(dd<bd){bd=dd;best=p;} }
+      idx[i]=best; cnt.set(best,(cnt.get(best)||0)+1);
+    }
+    const top=[...cnt.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(e=>e[0]);
+    for(let i=0;i<idx.length;i++){
+      if(idx[i]<0) continue;
+      if(!top.includes(idx[i])){
+        const rgb=pal[idx[i]]; let best=top[0],bd=1e9;
+        for(const t of top){ const q=pal[t]; const dd=(rgb[0]-q[0])**2+(rgb[1]-q[1])**2+(rgb[2]-q[2])**2; if(dd<bd){bd=dd;best=t;} }
+        idx[i]=best;
+      }
+    }
+    P.logo = { w:c.width, h:c.height, idx, farben: top.map(t=>LOGO_PALETTE[t]) };
+    document.getElementById('logoRow').style.display='flex';
+    document.getElementById('logoDel').style.display='flex';
+    document.getElementById('logoInfo').textContent = `Logo: ${top.length} Druckfarbe(n): ${P.logo.farben.join(' ')}`;
+    rebuild();
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+// ---------- Raster / Design-Canvas ----------
+// Alles (Form, Löcher, QR, Text, Logo) wird auf EIN Zellen-Canvas gezeichnet
+// (1 Pixel = 1 Zelle) und daraus die wasserdichte, bündig gefärbte Platte gebaut.
+function rasterInfo(){
+  const { n } = qrMat();
+  const modul = P.qrSize / n;
+  const k = Math.max(1, Math.round(modul/0.55));
+  const cell = modul / k;                       // Zellgrösse: QR-Modul = k Zellen -> QR immer gestochen scharf
+  const cols = Math.min(320, Math.round(P.breite/cell));
+  const rows = Math.min(320, Math.round(P.hoehe/cell));
+  return { cell, cols, rows, k, modul, n };
+}
+
+function formPath(ctx, w, h){
+  ctx.beginPath();
+  if (P.form==='rechteck'){ ctx.rect(0,0,w,h); }
+  else if (P.form==='rundrect'){ const r=Math.min(w,h)*0.12; ctx.roundRect(0,0,w,h,r); }
+  else if (P.form==='kreis'){ ctx.ellipse(w/2,h/2,Math.min(w,h)/2,Math.min(w,h)/2,0,0,7); }
+  else if (P.form==='oval'){ ctx.ellipse(w/2,h/2,w/2,h/2,0,0,7); }
+  else { // Herz
+    const cx=w/2, top=h*0.28;
+    ctx.moveTo(cx, h*0.98);
+    ctx.bezierCurveTo(-w*0.18, h*0.52, w*0.06, -h*0.14, cx, top);
+    ctx.bezierCurveTo(w*0.94, -h*0.14, w*1.18, h*0.52, cx, h*0.98);
+  }
+}
+
+function lochPositionen(){
+  const W=P.breite, H=P.hoehe, m=RAND+LOCH_D/2+1;
+  if (P.loecher==='1') return [[0, H/2-m]];
+  if (P.loecher==='2') return [[-W/2+m+6, H/2-m],[W/2-m-6, H/2-m]];
+  if (P.loecher==='4') return [[-W/2+m, H/2-m],[W/2-m, H/2-m],[-W/2+m, -H/2+m],[W/2-m, -H/2+m]];
+  return [];
+}
+
+// Liefert { mask, farbe } pro Zelle. Farb-Codes: 0=Basis, 1=Dunkel, 2..=Logo-Palette.
+function designRaster(){
+  const R = rasterInfo();
+  const { cols, rows, cell, k } = R;
+  const c = document.createElement('canvas'); c.width=cols; c.height=rows;
+  const x = c.getContext('2d', { willReadFrequently:true });
+  // Maske: Form weiss auf schwarz
+  x.fillStyle='#000'; x.fillRect(0,0,cols,rows);
+  x.fillStyle='#fff'; formPath(x, cols, rows); x.fill();
+  // Löcher ausstanzen
+  x.fillStyle='#000';
+  for (const [lx,ly] of lochPositionen()){
+    x.beginPath();
+    x.ellipse((lx+P.breite/2)/cell, (P.hoehe/2-ly)/cell, LOCH_D/2/cell, LOCH_D/2/cell, 0,0,7);
+    x.fill();
+  }
+  const maskD = x.getImageData(0,0,cols,rows).data;
+  const mask = new Uint8Array(cols*rows);
+  for(let i=0;i<mask.length;i++) mask[i] = maskD[i*4] > 127 ? 1 : 0;
+
+  // Design: Basis fuellen, dann QR (zellgenau), Text, Logo
+  x.fillStyle='#f0f'; x.fillRect(0,0,cols,rows);          // Magenta = Basis-Code
+  const mm2ix = mmx => (mmx + P.breite/2)/cell;
+  const mm2iy = mmy => (P.hoehe/2 - mmy)/cell;
+
+  // Logo (unter QR/Text gezeichnet, damit Scan-Elemente immer obenauf liegen)
+  if (P.logo){
+    const lw = P.logoW, lh = lw*P.logo.h/P.logo.w;
+    const ix0 = Math.round(mm2ix(P.logoX - lw/2)), iy0 = Math.round(mm2iy(P.logoY + lh/2));
+    const iw = Math.max(2, Math.round(lw/cell)), ih = Math.max(2, Math.round(lh/cell));
+    for(let j=0;j<ih;j++) for(let i=0;i<iw;i++){
+      const sx=Math.floor(i*P.logo.w/iw), sy=Math.floor(j*P.logo.h/ih);
+      const pi=P.logo.idx[sy*P.logo.w+sx];
+      if(pi<0) continue;
+      x.fillStyle = LOGO_PALETTE[pi];
+      x.fillRect(ix0+i, iy0+j, 1, 1);
+    }
+  }
+
+  // Text (dunkel) — Arial Black, in Zellen gerendert
+  const txt = aktText();
+  if (txt){
+    const hPx = P.textH/cell;
+    x.fillStyle='#00f';                                    // Blau = Dunkel-Code
+    x.textAlign='center'; x.textBaseline='middle';
+    x.font = `${Math.round(hPx)}px "Arial Black", Arial, sans-serif`;
+    x.imageSmoothingEnabled = false;
+    x.fillText(txt, mm2ix(P.textX), mm2iy(P.textY));
+  }
+
+  // QR zellgenau: Position auf Zellen gerastert, Ruhezone in Basisfarbe
+  const { mat, n } = qrMat();
+  const qrBox = (n + 2*QUIET) * k;                         // Zellen inkl. Ruhezone
+  let qi0 = Math.round(mm2ix(P.qrX) - qrBox/2), qj0 = Math.round(mm2iy(P.qrY) - qrBox/2);
+  x.fillStyle='#f0f'; x.fillRect(qi0, qj0, qrBox, qrBox);  // Ruhezone
+  x.fillStyle='#00f';
+  for(let my=0;my<n;my++) for(let mx=0;mx<n;mx++){
+    if(!mat[my][mx]) continue;
+    x.fillRect(qi0+(QUIET+mx)*k, qj0+(QUIET+my)*k, k, k);
+  }
+
+  const dd = x.getImageData(0,0,cols,rows).data;
+  const farbe = new Int16Array(cols*rows);
+  const logoLookup = new Map(LOGO_PALETTE.map((h,i)=>{ const [r,g,b]=hex2rgb(h); return [(r<<16)|(g<<8)|b, i+2]; }));
+  for(let i=0;i<farbe.length;i++){
+    const r=dd[i*4],g=dd[i*4+1],b=dd[i*4+2];
+    if(r>200&&b>200&&g<80) farbe[i]=0;                     // Magenta -> Basis
+    else if(b>200&&r<80&&g<80) farbe[i]=1;                  // Blau -> Dunkel
+    else {
+      const v=logoLookup.get((r<<16)|(g<<8)|b);
+      farbe[i] = v!==undefined ? v : (r+g+b < 380 ? 1 : 0); // Antialias-Reste: dunkel/hell
+    }
+  }
+  return { ...R, mask, farbe };
+}
+
+// ---------- Geometrie: EINE wasserdichte Platte, Farben bündig ----------
+function schildGeometrie(){
+  const D = designRaster();
+  const { cols, rows, cell, mask, farbe } = D;
+  const z1 = P.dicke, z0 = 0;
+  const cBase = new THREE.Color(P.baseColor), cDark = new THREE.Color(P.darkColor);
+  const logoCols = LOGO_PALETTE.map(h=>new THREE.Color(h));
+  const colOf = code => code===0 ? cBase : code===1 ? cDark : logoCols[code-2];
+  const pos=[], col=[];
+  const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
+  const quad=(a,b,c2,d,cc)=>{ push(...a,cc);push(...b,cc);push(...c2,cc); push(...a,cc);push(...c2,cc);push(...d,cc); };
+  const X = i => -P.breite/2 + i*cell*(P.breite/(cols*cell));
+  const Y = j => P.hoehe/2 - j*cell*(P.hoehe/(rows*cell));
+  const at = (i,j)=> (i<0||j<0||i>=cols||j>=rows) ? 0 : mask[j*cols+i];
+
+  for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
+    if(!at(i,j)) continue;
+    const x0=X(i), x1=X(i+1), y0=Y(j), y1=Y(j+1);   // y1 < y0
+    const cc = colOf(farbe[j*cols+i]);
+    quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1], cc);            // oben (Design)
+    quad([x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0], cBase);         // unten
+    if(!at(i,j-1)) quad([x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], cBase);   // Wand Nord
+    if(!at(i,j+1)) quad([x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0], cBase);   // Wand Süd
+    if(!at(i-1,j)) quad([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0], cBase);   // Wand West
+    if(!at(i+1,j)) quad([x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1], cBase);   // Wand Ost
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---------- Regeln: Platte folgt dem QR, Elemente bleiben drin ----------
+function regelCheck(){
+  const { n } = qrMat();
+  const minQr = Math.ceil(n*MODUL_MIN);
+  const qrs = document.getElementById('qrs');
+  qrs.min = minQr;
+  if (P.qrSize < minQr) P.qrSize = minQr;
+  const boxMm = P.qrSize * (1 + 2*QUIET/n);
+  const platzX = P.form==='kreis' || P.form==='oval' || P.form==='herz' ? 0.7 : 1;   // runde Formen: Elemente weiter innen
+  const needW = boxMm/platzX + 2*RAND, needH = boxMm/platzX + 2*RAND;
+  let gewachsen = false;
+  if (needW > P.breite){ P.breite = Math.min(140, Math.ceil(needW)); gewachsen=true; }
+  if (needH > P.hoehe){ P.hoehe = Math.min(120, Math.ceil(needH)); gewachsen=true; }
+  // Elemente einklemmen
+  const clampEl = (key, w, h)=>{
+    const mx = P.breite/2*platzX - w/2 - RAND + (platzX<1?RAND:0);
+    const my = P.hoehe/2*platzX - h/2 - RAND + (platzX<1?RAND:0);
+    P[key+'X'] = Math.max(-Math.max(mx,0), Math.min(Math.max(mx,0), P[key+'X']));
+    P[key+'Y'] = Math.max(-Math.max(my,0), Math.min(Math.max(my,0), P[key+'Y']));
+  };
+  clampEl('qr', boxMm, boxMm);
+  const txt = aktText();
+  if (txt) clampEl('text', txt.length*P.textH*0.72, P.textH);
+  if (P.logo) clampEl('logo', P.logoW, P.logoW*P.logo.h/P.logo.w);
+  return gewachsen;
+}
+
+// ---------- Szene ----------
+const view = document.getElementById('view');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x141517);
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 3000); camera.position.set(0, -70, 120);
+const renderer = new THREE.WebGLRenderer({ antialias:true }); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping=true; controls.minDistance=50; controls.maxDistance=500;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x333638, 1.1));
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(40,60,80); scene.add(key);
+let mesh=null, currentGeo=null;
+
+function rebuild(){
+  regelCheck();
+  syncUI();
+  if(mesh){ scene.remove(mesh); mesh.geometry.dispose(); }
+  currentGeo = schildGeometrie();
+  mesh = new THREE.Mesh(currentGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.8, metalness:0.03, side:THREE.DoubleSide }));
+  scene.add(mesh);
+  const { n, fehler } = qrMat();
+  const modul = P.qrSize/n;
+  const tris = currentGeo.attributes.position.count/3;
+  let warn = '';
+  if (fehler) warn += '  ⚠ Inhalt zu lang für QR — Fallback kohlilab.ch';
+  if (modul < MODUL_MIN-0.01) warn += `  ⚠ Modul ${modul.toFixed(2)} mm < ${MODUL_MIN}`;
+  if (P.textH < 6 && aktText()) warn += '  ⚠ Text unter 6 mm wird evtl. undeutlich';
+  document.getElementById('hud').innerHTML =
+    `${P.breite}×${P.hoehe}×${P.dicke} mm · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(0)}k Dreiecke` +
+    (warn ? `<br><span class="warn">${warn}</span>` : '');
+}
+
+// ---------- Drag & Drop auf der Platte ----------
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let drag = null;
+function elementAt(mmx, mmy){
+  const { n } = qrMat();
+  const boxQr = P.qrSize*(1+2*QUIET/n)/2;
+  const txt = aktText();
+  const kand = [];
+  if (Math.abs(mmx-P.qrX)<boxQr && Math.abs(mmy-P.qrY)<boxQr) kand.push('qr');
+  if (txt && Math.abs(mmx-P.textX)<txt.length*P.textH*0.36 && Math.abs(mmy-P.textY)<P.textH*0.9) kand.push('text');
+  if (P.logo && Math.abs(mmx-P.logoX)<P.logoW/2 && Math.abs(mmy-P.logoY)<P.logoW*P.logo.h/P.logo.w/2) kand.push('logo');
+  return kand.pop() || null;    // oberstes zuletzt gezeichnetes zuerst
+}
+function pickMm(ev){
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.x = ((ev.clientX-r.left)/r.width)*2-1; ptr.y = -((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ptr, camera);
+  const hit = mesh ? ray.intersectObject(mesh)[0] : null;
+  return hit ? { x:hit.point.x, y:hit.point.y } : null;
+}
+renderer.domElement.addEventListener('pointerdown', ev=>{
+  const p = pickMm(ev); if(!p) return;
+  const el = elementAt(p.x, p.y);
+  if(el){ drag = { el, dx:P[el+'X']-p.x, dy:P[el+'Y']-p.y }; controls.enabled=false; }
+});
+renderer.domElement.addEventListener('pointermove', ev=>{
+  if(!drag) return;
+  const p = pickMm(ev); if(!p) return;
+  P[drag.el+'X'] = p.x + drag.dx; P[drag.el+'Y'] = p.y + drag.dy;
+  rebuild();
+});
+addEventListener('pointerup', ()=>{ drag=null; controls.enabled=true; });
+
+// ---------- Export (Muster aus dem Marker-Konfigurator, Bambu-erprobt) ----------
+function geomPos(g){ return (g.index? g.toNonIndexed():g).attributes.position.array; }
+function geomCol(g){ const gg=g.index? g.toNonIndexed():g; return gg.attributes.color? gg.attributes.color.array:null; }
+function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+function orientConsistent(Parr){
+  const nt=Parr.length/9;
+  const kf=i=>Math.round(Parr[i]*1e4)+'_'+Math.round(Parr[i+1]*1e4)+'_'+Math.round(Parr[i+2]*1e4);
+  const vid=new Map(), T=[];
+  for(let t=0;t<nt;t++){ const a=[]; for(let k2=0;k2<3;k2++){ const kk=kf(t*9+k2*3); let id=vid.get(kk); if(id===undefined){id=vid.size;vid.set(kk,id);} a.push(id);} T.push(a); }
+  const em=new Map(), ek=(a,b)=>a<b?a+'_'+b:b+'_'+a;
+  for(let t=0;t<nt;t++){ const [a,b,c]=T[t]; for(const [x,y] of [[a,b],[b,c],[c,a]]){ const k2=ek(x,y); let arr=em.get(k2); if(!arr){arr=[];em.set(k2,arr);} arr.push(t);} }
+  const flip=new Uint8Array(nt), seen=new Uint8Array(nt);
+  const dirs=t=>{ const [a,b,c]=T[t]; return flip[t]?[[a,c],[c,b],[b,a]]:[[a,b],[b,c],[c,a]]; };
+  for(let s=0;s<nt;s++){ if(seen[s])continue; seen[s]=1; const st=[s];
+    while(st.length){ const t=st.pop(); for(const [x,y] of dirs(t)){ const k2=ek(x,y); for(const nb of em.get(k2)){ if(nb===t||seen[nb])continue;
+      let same=false; for(const [nx,ny] of dirs(nb)) if(nx===x&&ny===y) same=true; if(same) flip[nb]^=1; seen[nb]=1; st.push(nb); } } } }
+  const out=new Float32Array(Parr.length);
+  for(let t=0;t<nt;t++){ const o=t*9; if(flip[t]){ out[o]=Parr[o];out[o+1]=Parr[o+1];out[o+2]=Parr[o+2]; out[o+3]=Parr[o+6];out[o+4]=Parr[o+7];out[o+5]=Parr[o+8]; out[o+6]=Parr[o+3];out[o+7]=Parr[o+4];out[o+8]=Parr[o+5]; } else out.set(Parr.subarray(o,o+9),o); }
+  let vol=0; for(let i=0;i<out.length;i+=9){ vol += (out[i]*(out[i+4]*out[i+8]-out[i+5]*out[i+7]) + out[i+1]*(out[i+5]*out[i+6]-out[i+3]*out[i+8]) + out[i+2]*(out[i+3]*out[i+7]-out[i+4]*out[i+6]))/6; }
+  if(vol<0) for(let i=0;i<out.length;i+=9){ const a=out[i+3],b=out[i+4],c=out[i+5]; out[i+3]=out[i+6];out[i+4]=out[i+7];out[i+5]=out[i+8]; out[i+6]=a;out[i+7]=b;out[i+8]=c; }
+  return out;
+}
+const CT=`<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>`;
+const RELS=`<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
+async function make3mf(geo){
+  const p=orientConsistent(geomPos(geo)); const c=geomCol(geo);
+  const palette=[], palIdx=new Map(); const idxOf=hex=>{ const k2=hex.toUpperCase(); if(!palIdx.has(k2)){palIdx.set(k2,palette.length);palette.push(k2);} return palIdx.get(k2); };
+  const map=new Map(), verts=[], tris=[];
+  for(let i=0;i<p.length;i+=9){ const ids=[];
+    for(let k2=0;k2<9;k2+=3){ const x=p[i+k2].toFixed(3),y=p[i+k2+1].toFixed(3),z=p[i+k2+2].toFixed(3); const key2=x+','+y+','+z; let id=map.get(key2); if(id===undefined){id=verts.length;verts.push(`<vertex x="${x}" y="${y}" z="${z}"/>`);map.set(key2,id);} ids.push(id); }
+    if(ids[0]===ids[1]||ids[1]===ids[2]||ids[0]===ids[2]) continue;
+    const hex = c ? '#'+[0,1,2].map(o=>Math.round(c[i+o]*255).toString(16).padStart(2,'0')).join('') : '#cccccc';
+    tris.push(`<triangle v1="${ids[0]}" v2="${ids[1]}" v3="${ids[2]}" p1="${idxOf(hex)}"/>`);
+  }
+  const colorGroup=`<m:colorgroup id="2">${palette.map(h=>`<m:color color="${h.toUpperCase()}FF"/>`).join('')}</m:colorgroup>`;
+  const model=`<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02"><metadata name="Application">KohliLab QR-Schild</metadata><resources>${colorGroup}<object id="1" type="model" pid="2" pindex="0"><mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object></resources><build><item objectid="1"/></build></model>`;
+  const zip=new JSZip(); zip.file('[Content_Types].xml',CT); zip.folder('_rels').file('.rels',RELS); zip.folder('3D').file('3dmodel.model',model);
+  return zip.generateAsync({type:'blob',mimeType:'model/3mf',compression:'DEFLATE'});
+}
+function stlString(geo){ const p=orientConsistent(geomPos(geo)); let s='solid schild\n'; for(let i=0;i<p.length;i+=9){ s+='facet normal 0 0 0\n outer loop\n'; for(let j=0;j<9;j+=3) s+=`  vertex ${p[i+j].toFixed(3)} ${p[i+j+1].toFixed(3)} ${p[i+j+2].toFixed(3)}\n`; s+=' endloop\nendfacet\n'; } return s+'endsolid schild\n'; }
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+function mkBtns(hostId, liste, key){
+  const host=$(hostId);
+  liste.forEach(([val,lab])=>{
+    const b=document.createElement('button'); b.textContent=lab;
+    if(P[key]===val) b.classList.add('active');
+    b.addEventListener('click',()=>{ P[key]=val; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); if(key==='typ') typFelder(); rebuild(); });
+    host.appendChild(b);
+  });
+}
+function slider(id, key, fmt){
+  $(id).value=P[key];
+  $(id).addEventListener('input',()=>{ P[key]=parseFloat($(id).value); rebuild(); });
+  P['_fmt_'+id]=fmt;
+}
+function syncUI(){
+  for (const [id,key,einh] of [['breite','breite',' mm'],['hoehe','hoehe',' mm'],['dicke','dicke',' mm'],['qrs','qrSize',' mm'],['th','textH',' mm'],['lw','logoW',' mm']]){
+    const el=$(id); if(!el) continue;
+    if(parseFloat(el.value)!==P[key]) el.value=P[key];
+    $(id+'V').textContent=P[key]+einh;
+  }
+}
+function typFelder(){
+  const host=$('typFelder'); host.innerHTML='';
+  const feld=(lab,key,typ='text',ph='')=>{
+    const d=document.createElement('div'); d.className='feld';
+    d.innerHTML=`<label>${lab}</label>`;
+    const inp=document.createElement('input'); inp.type=typ; inp.value=P[key]; inp.placeholder=ph;
+    inp.addEventListener('input',()=>{ P[key]=inp.value; rebuild(); });
+    d.appendChild(inp); host.appendChild(d);
+  };
+  if(P.typ==='url') feld('URL','url','text','https://…');
+  else if(P.typ==='wlan'){ feld('Netzwerkname (SSID)','ssid'); feld('Passwort','pass'); }
+  else if(P.typ==='vcard'){ feld('Name','vname'); feld('Telefon','vtel'); feld('E-Mail','vmail'); feld('Firma','vorg'); }
+  else if(P.typ==='email') feld('E-Mail-Adresse','email','text','name@firma.ch');
+  else if(P.typ==='tel') feld('Telefonnummer','tel','text','+41 …');
+  else { const d=document.createElement('div'); d.className='feld'; d.innerHTML='<label>Freier Inhalt</label>';
+    const t=document.createElement('textarea'); t.value=P.frei; t.addEventListener('input',()=>{ P.frei=t.value; rebuild(); }); d.appendChild(t); host.appendChild(d); }
+}
+function bausteinUI(){
+  const sel=$('baustein');
+  BAUSTEINE.forEach((b,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=`${b[0]} / ${b[1]}`; sel.appendChild(o); });
+  const oF=document.createElement('option'); oF.value=BAUSTEINE.length; oF.textContent='Eigener Text …'; sel.appendChild(oF);
+  const oK=document.createElement('option'); oK.value=-1; oK.textContent='Kein Text'; sel.appendChild(oK);
+  sel.addEventListener('change',()=>{
+    const v=parseInt(sel.value);
+    if(v===-1){ P.bausteinIdx=BAUSTEINE.length; P.freitext=''; $('freitextWrap').style.display='none'; }
+    else { P.bausteinIdx=v; $('freitextWrap').style.display = v===BAUSTEINE.length?'block':'none'; }
+    rebuild();
+  });
+  // Sprache DE/EN
+  const d=document.createElement('div'); d.className='btns'; d.style.marginTop='6px';
+  [['Deutsch',0],['English',1]].forEach(([lab,i])=>{
+    const b=document.createElement('button'); b.textContent=lab; if(P.sprache===i) b.classList.add('active');
+    b.addEventListener('click',()=>{ P.sprache=i; d.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); rebuild(); });
+    d.appendChild(b);
+  });
+  sel.parentElement.appendChild(d);
+  $('freitext').addEventListener('input',()=>{ P.freitext=$('freitext').value; rebuild(); });
+}
+function farbUI(hostId, liste, key){
+  const host=$(hostId);
+  liste.forEach(([name,hex])=>{
+    const b=document.createElement('button'); b.style.background=hex; b.title=name;
+    if(P[key]===hex) b.classList.add('active');
+    b.addEventListener('click',()=>{ P[key]=hex; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); rebuild(); });
+    host.appendChild(b);
+  });
+}
+
+mkBtns('formBtns', FORMEN, 'form');
+mkBtns('lochBtns', LOECHER, 'loecher');
+mkBtns('typBtns', TYPEN, 'typ');
+typFelder(); bausteinUI();
+farbUI('swBase', BASE_COLORS, 'baseColor');
+farbUI('swDark', DARK_COLORS, 'darkColor');
+slider('breite','breite'); slider('hoehe','hoehe'); slider('dicke','dicke');
+slider('qrs','qrSize'); slider('th','textH'); slider('lw','logoW');
+$('logoFile').addEventListener('change', e=>{ if(e.target.files[0]) ladeLogo(e.target.files[0]); });
+$('logoDel').querySelector('button').addEventListener('click',()=>{ P.logo=null; $('logoRow').style.display='none'; $('logoDel').style.display='none'; $('logoInfo').textContent=''; $('logoFile').value=''; rebuild(); });
+$('ex3mf').addEventListener('click', async ()=>{ download(await make3mf(currentGeo), 'kohlilab_qr_schild.3mf'); });
+$('exstl').addEventListener('click', ()=>{ download(new Blob([stlString(currentGeo)],{type:'model/stl'}), 'kohlilab_qr_schild.stl'); });
+
+function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+rebuild();
+(function loop(){ requestAnimationFrame(loop); controls.update(); key.position.copy(camera.position); renderer.render(scene,camera); })();
+</script>
+</body>
+</html>
