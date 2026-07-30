@@ -56,13 +56,15 @@
   </div>
 
   <div class="grp"><h2>Aufbau</h2>
-    <div class="btns">
-      <button class="active">Flache Platte</button>
-      <button disabled title="kommt in der nächsten Ausbaustufe">L-Aufsteller (bald)</button>
+    <div class="btns" id="aufbauBtns"></div>
+    <div id="aufstellerOpts" style="display:none">
+      <div class="row"><label>Winkel</label><input type="range" id="winkel" min="78" max="110" step="1"><span class="val" id="winkelV"></span></div>
+      <div class="row"><label>Fuss vorne</label><input type="range" id="tiefe" min="15" max="60" step="1"><span class="val" id="tiefeV"></span></div>
+      <div class="note">90° = senkrecht, mehr = nach hinten geneigt. Der Fuss hinten wächst automatisch mit, damit nichts kippt. Aufsteller ist immer rechteckig.</div>
     </div>
   </div>
 
-  <div class="grp"><h2>Aufhängung</h2>
+  <div class="grp" id="lochGrp"><h2>Aufhängung</h2>
     <div class="btns" id="lochBtns"></div>
     <div class="note">Bei Kreis, Oval und Herz werden die Löcher automatisch passend zur Form gesetzt.</div>
   </div>
@@ -130,8 +132,10 @@ const BAUSTEINE = [
   ['Jetzt scannen','Scan me'],
 ];
 
+const AUFBAUTEN = [['flach','Flache Platte'],['aufsteller','L-Aufsteller']];
 const P = {
   form:'rechteck', breite:90, hoehe:60, dicke:3, loecher:'keine',
+  aufbau:'flach', winkel:100, tiefe:30,
   typ:'url', url:'https://kohlilab.ch', ssid:'', pass:'', vname:'', vtel:'', vmail:'', vorg:'', email:'', tel:'', frei:'',
   qrSize:30, qrX:-20, qrY:8,
   bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:6, textY:-22,
@@ -250,6 +254,7 @@ function outlinePoints(){
   return clean(jit);
 }
 function lochKreise(){
+  if (P.aufbau==='aufsteller') return [];
   const W=P.breite, H=P.hoehe, r=LOCH_D/2, m=RAND+r+1;
   const rund = P.form==='kreis'||P.form==='oval'||P.form==='herz';
   const list=[];
@@ -331,17 +336,19 @@ function schildGeometrie(){
   const z1=P.dicke, z0=0;
   const cBase=new THREE.Color(P.baseColor), cDark=new THREE.Color(P.darkColor);
   const pos=[], col=[];
-  const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
-  const face=(outer,holes,z,c,flip)=>{
+  const push3=(pt,c)=>{ pos.push(pt[0],pt[1],pt[2]); col.push(c.r,c.g,c.b); };
+  // map(x,y) bildet 2D-Designkoordinaten auf die Zielebene ab (flache
+  // Deckflaeche ODER geneigte Aufsteller-Front) — die ganze Element-
+  // Maschinerie bleibt dadurch fuer beide Aufbauten identisch.
+  const face=(outer,holes,c,flip,map)=>{
     const { tris, all } = triangulate(outer,holes);
     for(const t of tris){ const [a,b,cc]= flip? [t[0],t[2],t[1]] : t;
-      push(all[a][0],all[a][1],z,c); push(all[b][0],all[b][1],z,c); push(all[cc][0],all[cc][1],z,c); }
+      push3(map(all[a][0],all[a][1]),c); push3(map(all[b][0],all[b][1]),c); push3(map(all[cc][0],all[cc][1]),c); }
   };
-  const wall=(pts,c,invert)=>{
+  const wall=(pts,c)=>{
     for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length];
-      const p1=invert?b:a, p2=invert?a:b;
-      push(p1[0],p1[1],z0,c); push(p2[0],p2[1],z0,c); push(p2[0],p2[1],z1,c);
-      push(p1[0],p1[1],z0,c); push(p2[0],p2[1],z1,c); push(p1[0],p1[1],z1,c); }
+      push3([a[0],a[1],z0],c); push3([b[0],b[1],z0],c); push3([b[0],b[1],z1],c);
+      push3([a[0],a[1],z0],c); push3([b[0],b[1],z1],c); push3([a[0],a[1],z1],c); }
   };
 
   // Box-Ecken (Aussenrand von Gitter + Ring) — Loch in der Deckflaeche
@@ -351,13 +358,13 @@ function schildGeometrie(){
   };
   // Zellgitter + Ring, der das Gitter an das 4-Punkte-Loch anschliesst.
   // Bewaehrtes Muster (QR-Ruhezone): keine T-Junctions, wasserdicht.
-  const boxRingGrid = (B, pad, farbFn)=>{
+  const boxRingGrid = (B, pad, farbFn, map)=>{
     const { x0:bx0, y0:by0, cols, rows, res } = B;
     for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
       const c = farbFn(i,j);
       const x=bx0+i*res, y=by0+j*res;
-      push(x,y,z1,c); push(x+res,y,z1,c); push(x+res,y+res,z1,c);
-      push(x,y,z1,c); push(x+res,y+res,z1,c); push(x,y+res,z1,c);
+      push3(map(x,y),c); push3(map(x+res,y),c); push3(map(x+res,y+res),c);
+      push3(map(x,y),c); push3(map(x+res,y+res),c); push3(map(x,y+res),c);
     }
     const ecken = boxEcken(B, pad);
     const x1=bx0+cols*res, y1=by0+rows*res;
@@ -369,13 +376,22 @@ function schildGeometrie(){
     ];
     for(let s=0;s<4;s++){
       const A=ecken[s], B2=ecken[(s+1)%4], I=inner[s];
-      for(let k=0;k<I.length-1;k++){ push(A[0],A[1],z1,cBase); push(I[k][0],I[k][1],z1,cBase); push(I[k+1][0],I[k+1][1],z1,cBase); }
-      push(A[0],A[1],z1,cBase); push(I[I.length-1][0],I[I.length-1][1],z1,cBase); push(B2[0],B2[1],z1,cBase);
+      for(let k=0;k<I.length-1;k++){ push3(map(A[0],A[1]),cBase); push3(map(I[k][0],I[k][1]),cBase); push3(map(I[k+1][0],I[k+1][1]),cBase); }
+      push3(map(A[0],A[1]),cBase); push3(map(I[I.length-1][0],I[I.length-1][1]),cBase); push3(map(B2[0],B2[1]),cBase);
     }
     return ecken;
   };
 
-  const outline = outlinePoints();
+  const aufsteller = P.aufbau==='aufsteller';
+  const outline = aufsteller
+    ? [[-P.breite/2,-P.hoehe/2],[P.breite/2,-P.hoehe/2],[P.breite/2,P.hoehe/2],[-P.breite/2,P.hoehe/2]]
+    : outlinePoints();
+  // Abbildung der Designflaeche
+  const beta = (P.winkel-90)*Math.PI/180, sb=Math.sin(beta), cb=Math.cos(beta);
+  const dS = P.dicke, HS = P.hoehe;
+  const mapTop = aufsteller
+    ? (x,y)=>[x, (y+HS/2)*sb, dS+(y+HS/2)*cb]
+    : (x,y)=>[x,y,z1];
   const { mat, n } = qrMat();
 
   // Passt ein Element (inkl. Ring) ganz auf die Platte? Erst sanft Richtung
@@ -437,22 +453,48 @@ function schildGeometrie(){
   if (qrOk) holes.push(qrEck);
   if (tOk) holes.push(tEck);
   if (lOk) holes.push(lEck);
-  face(outline, holes, z1, cBase, false);
+  face(outline, holes, cBase, false, mapTop);
 
   // QR (Module scharf, Ruhezone = Ring)
-  if (qrOk) boxRingGrid(qrB, Q.q, (i,j)=> mat[n-1-j][i] ? cDark : cBase);
+  if (qrOk) boxRingGrid(qrB, Q.q, (i,j)=> mat[n-1-j][i] ? cDark : cBase, mapTop);
   // Text (feine Zellen)
-  if (tOk) boxRingGrid(T, 0.4, (i,j)=> T.istDunkel(i,j) ? cDark : cBase);
+  if (tOk) boxRingGrid(T, 0.4, (i,j)=> T.istDunkel(i,j) ? cDark : cBase, mapTop);
   // Logo (Zellen = Quellpixel, quantisierte Farben)
   if (lOk){
     const lc = LOGO_PALETTE.map(h=>new THREE.Color(h));
-    boxRingGrid(L, 0.4, (i,j)=>{ const v=L.farbIdx(i,j); return v<0 ? cBase : lc[v]; });
+    boxRingGrid(L, 0.4, (i,j)=>{ const v=L.farbIdx(i,j); return v<0 ? cBase : lc[v]; }, mapTop);
   }
 
-  // Unterseite + Waende
-  face(outline, loecher, z0, cBase, true);
-  wall(outline, cBase, false);
-  for(const lk of loecher) wall(lk, cBase, false);
+  if (!aufsteller){
+    // Flache Platte: Unterseite + Waende
+    face(outline, loecher, cBase, true, (x,y)=>[x,y,z0]);
+    wall(outline, cBase);
+    for(const lk of loecher) wall(lk, cBase);
+  } else {
+    // L-Aufsteller: Prisma um die geneigte Designflaeche herum.
+    // Querschnitt in der Seitenansicht (y=Tiefe, z=Hoehe), Fuss vorne per
+    // Regler, Fuss hinten waechst mit der Neigung (Standfestigkeit).
+    const W=P.breite;
+    const p0=[0,dS], p1=[HS*sb, dS+HS*cb], p2=[p1[0]+dS*cb, p1[1]-dS*sb];
+    const t3=(p2[1]-dS)/Math.max(cb,0.05);
+    const p3=[p2[0]-t3*sb, dS];
+    const Tb=Math.max(p3[0]+8, HS*sb*0.6+10, 12), Tf=P.tiefe;
+    const loop=[[-Tf,0],[Tb,0],[Tb,dS],p3,p2,p1,p0,[-Tf,dS]];
+    for(let i=0;i<loop.length;i++){
+      if(i===5) continue;                      // Kante p1->p0 = Designflaeche
+      const a=loop[i], b=loop[(i+1)%loop.length];
+      push3([-W/2,a[0],a[1]],cBase); push3([W/2,a[0],a[1]],cBase); push3([W/2,b[0],b[1]],cBase);
+      push3([-W/2,a[0],a[1]],cBase); push3([W/2,b[0],b[1]],cBase); push3([-W/2,b[0],b[1]],cBase);
+    }
+    for(const seite of [-1,1]){                // Endkappen x = ±W/2
+      const { tris, all } = triangulate(loop, []);
+      for(const t of tris){
+        push3([seite*W/2, all[t[0]][0], all[t[0]][1]],cBase);
+        push3([seite*W/2, all[t[1]][0], all[t[1]][1]],cBase);
+        push3([seite*W/2, all[t[2]][0], all[t[2]][1]],cBase);
+      }
+    }
+  }
 
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
@@ -535,8 +577,9 @@ function rebuild(){
   if (P.textH < 6 && aktText()) warn += '  ⚠ Text unter 6 mm wird evtl. undeutlich';
   if (anyOverlap()) warn += '  ⚠ Elemente überlappen — bitte auseinanderziehen';
   if (unfit.length) warn += `  ⚠ ${unfit.join(' + ')} passt nicht auf diese Form — verkleinern oder verschieben`;
+  const aufInfo = P.aufbau==='aufsteller' ? ` · Aufsteller ${P.winkel}°` : '';
   document.getElementById('hud').innerHTML =
-    `${P.breite}×${P.hoehe}×${P.dicke} mm · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(1)}k Dreiecke` +
+    `${P.breite}×${P.hoehe}×${P.dicke} mm${aufInfo} · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(1)}k Dreiecke` +
     (warn ? `<br><span class="warn">${warn}</span>` : '');
 }
 
@@ -555,7 +598,12 @@ function pickMm(ev){
   ptr.x = ((ev.clientX-r.left)/r.width)*2-1; ptr.y = -((ev.clientY-r.top)/r.height)*2+1;
   ray.setFromCamera(ptr, camera);
   const hit = mesh ? ray.intersectObject(mesh)[0] : null;
-  return hit ? { x:hit.point.x, y:hit.point.y } : null;
+  if (!hit) return null;
+  if (P.aufbau==='aufsteller'){                // 3D-Punkt -> Koordinaten der Schraege
+    const beta=(P.winkel-90)*Math.PI/180, cb=Math.cos(beta);
+    return { x:hit.point.x, y:(hit.point.z-P.dicke)/Math.max(cb,0.05) - P.hoehe/2 };
+  }
+  return { x:hit.point.x, y:hit.point.y };
 }
 renderer.domElement.addEventListener('pointerdown', ev=>{
   const p = pickMm(ev); if(!p) return;
@@ -620,7 +668,7 @@ function mkBtns(hostId, liste, key){
   liste.forEach(([val,lab])=>{
     const b=document.createElement('button'); b.textContent=lab;
     if(P[key]===val) b.classList.add('active');
-    b.addEventListener('click',()=>{ P[key]=val; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); if(key==='typ') typFelder(); rebuild(); });
+    b.addEventListener('click',()=>{ if(b.disabled) return; P[key]=val; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); if(key==='typ') typFelder(); if(key==='aufbau') modusUI(); rebuild(); });
     host.appendChild(b);
   });
 }
@@ -629,7 +677,7 @@ function slider(id, key){
   $(id).addEventListener('input',()=>{ P[key]=parseFloat($(id).value); rebuild(); });
 }
 function syncUI(){
-  for (const [id,key,einh] of [['breite','breite',' mm'],['hoehe','hoehe',' mm'],['dicke','dicke',' mm'],['qrs','qrSize',' mm'],['th','textH',' mm'],['lw','logoW',' mm']]){
+  for (const [id,key,einh] of [['breite','breite',' mm'],['hoehe','hoehe',' mm'],['dicke','dicke',' mm'],['qrs','qrSize',' mm'],['th','textH',' mm'],['lw','logoW',' mm'],['winkel','winkel','°'],['tiefe','tiefe',' mm']]){
     const el=$(id); if(!el) continue;
     if(parseFloat(el.value)!==P[key]) el.value=P[key];
     $(id+'V').textContent=P[key]+einh;
@@ -682,7 +730,19 @@ function farbUI(hostId, liste, key){
   });
 }
 
+function modusUI(){
+  const auf = P.aufbau==='aufsteller';
+  $('aufstellerOpts').style.display = auf ? 'block' : 'none';
+  $('lochGrp').style.display = auf ? 'none' : 'block';
+  $('formBtns').querySelectorAll('button').forEach((b,i)=>{
+    b.disabled = auf && i>0;                    // Aufsteller: nur Rechteck
+    if (auf && i===0){ P.form='rechteck';
+      $('formBtns').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); }
+  });
+}
 mkBtns('formBtns', FORMEN, 'form');
+mkBtns('aufbauBtns', AUFBAUTEN, 'aufbau');
 mkBtns('lochBtns', LOECHER, 'loecher');
 mkBtns('typBtns', TYPEN, 'typ');
 typFelder(); bausteinUI();
@@ -690,6 +750,8 @@ farbUI('swBase', BASE_COLORS, 'baseColor');
 farbUI('swDark', DARK_COLORS, 'darkColor');
 slider('breite','breite'); slider('hoehe','hoehe'); slider('dicke','dicke');
 slider('qrs','qrSize'); slider('th','textH'); slider('lw','logoW');
+slider('winkel','winkel'); slider('tiefe','tiefe');
+modusUI();
 $('logoFile').addEventListener('change', e=>{ if(e.target.files[0]) ladeLogo(e.target.files[0]); });
 $('logoDel').querySelector('button').addEventListener('click',()=>{ P.logo=null; $('logoRow').style.display='none'; $('logoDel').style.display='none'; $('logoInfo').textContent=''; $('logoFile').value=''; rebuild(); });
 async function busy(btn, fn){
