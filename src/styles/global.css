@@ -76,6 +76,10 @@ section.block { padding:56px 26px; }
 .card .thumb { position:relative; aspect-ratio:16/10; display:flex; align-items:center; justify-content:center;
   background:radial-gradient(circle at 50% 40%, #2a2d31, #1d1f22); }
 .card .thumb img { width:100%; height:100%; object-fit:cover; }
+.card.linie { display:block; }
+.card.linie .ds { min-height:58px; }
+.card.stumm { pointer-events:none; opacity:.75; }
+.tag-dim { background:var(--line2); color:var(--ink); }
 .card .tag { position:absolute; top:10px; left:10px; font-family:var(--mono); font-size:10px; letter-spacing:1.8px;
   background:var(--acc); color:#141517; font-weight:700; padding:3px 8px; border-radius:2px; }
 .card .meta { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }

@@ -1,0 +1,57 @@
+---
+// Zentrale Produktlinien-Übersicht. Neue Konfiguratoren/Linien hier
+// ergänzen — jede Linie bekommt eine eigene Unterseite.
+const linien = [
+  {
+    slug: 'ventilkappen',
+    name: 'Ventilkappen',
+    status: 'live',
+    beschreibung:
+      'Kleine Skulpturen mit Schrader-Gewinde — die KI-Mikrofabrik bringt laufend neue Sujets, ein Mensch gibt frei.',
+    href: '/ventilkappen',
+  },
+  {
+    slug: 'linie-2',
+    name: 'Nächste Produktlinie',
+    status: 'bald',
+    beschreibung:
+      'Der nächste Konfigurator ist in der Werkstatt. Was es wird, verraten wir, sobald die ersten Testdrucke sitzen.',
+    href: null,
+  },
+  {
+    slug: 'linie-3',
+    name: 'Deine Idee?',
+    status: 'idee',
+    beschreibung:
+      'Du hast ein Kleinteil, das es so nicht zu kaufen gibt? Schreib uns — vielleicht wird ein Konfigurator daraus.',
+    href: '/kontakt',
+  },
+];
+---
+<section class="block" id="produkte">
+  <h2>Produktlinien</h2>
+  <p class="lead">Alles aus einer Werkstatt — jede Linie mit eigenem Konfigurator oder eigener Fabrik dahinter.</p>
+  <div class="cards">
+    {linien.map((l) => (
+      <a class={`card linie ${l.href ? '' : 'stumm'}`} href={l.href ?? undefined}>
+        <div class="thumb linie-thumb">
+          {l.status === 'live' && <span class="tag">LIVE</span>}
+          {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
+          {l.slug === 'ventilkappen' ? (
+            <svg width="84" height="100" viewBox="0 0 90 110"><path d="M25 15 h40 v14 a20 20 0 0 1 -40 0 z" fill="none" stroke="#e8e6e1" stroke-width="4"/><path d="M45 52 v10 M32 62 h26" stroke="#e8e6e1" stroke-width="4" fill="none"/><rect x="30" y="66" width="30" height="26" rx="3" fill="none" stroke="#ff6b1a" stroke-width="3"/></svg>
+          ) : l.status === 'bald' ? (
+            <svg width="84" height="100" viewBox="0 0 90 110"><rect x="20" y="30" width="50" height="50" rx="6" fill="none" stroke="#9a9a93" stroke-width="4" stroke-dasharray="8 6"/><text x="45" y="63" text-anchor="middle" fill="#9a9a93" font-size="26" font-family="monospace">?</text></svg>
+          ) : (
+            <svg width="84" height="100" viewBox="0 0 90 110"><path d="M45 25 v40 M25 45 h40" stroke="#ff6b1a" stroke-width="5" stroke-linecap="round"/><circle cx="45" cy="45" r="34" fill="none" stroke="#e8e6e1" stroke-width="4"/></svg>
+          )}
+        </div>
+        <div class="meta">
+          <div>
+            <div class="nm">{l.name}</div>
+            <div class="ds">{l.beschreibung}</div>
+          </div>
+        </div>
+      </a>
+    ))}
+  </div>
+</section>
