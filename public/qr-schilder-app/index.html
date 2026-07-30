@@ -64,6 +64,7 @@
 
   <div class="grp"><h2>Aufhängung</h2>
     <div class="btns" id="lochBtns"></div>
+    <div class="note">Bei Kreis, Oval und Herz werden die Löcher automatisch passend zur Form gesetzt.</div>
   </div>
 
   <div class="grp"><h2>QR-Inhalt</h2>
@@ -132,9 +133,9 @@ const BAUSTEINE = [
 const P = {
   form:'rechteck', breite:90, hoehe:60, dicke:3, loecher:'keine',
   typ:'url', url:'https://kohlilab.ch', ssid:'', pass:'', vname:'', vtel:'', vmail:'', vorg:'', email:'', tel:'', frei:'',
-  qrSize:30, qrX:-18, qrY:2,
-  bausteinIdx:0, sprache:0, freitext:'', textH:7, textX:22, textY:-20,
-  logo:null, logoW:22, logoX:22, logoY:12,
+  qrSize:30, qrX:-20, qrY:8,
+  bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:6, textY:-22,
+  logo:null, logoW:22, logoX:26, logoY:16,
   baseColor:'#eceff0', darkColor:'#1c1c1c',
 };
 
@@ -163,8 +164,6 @@ function qrMat(){
   qrCache = { key, mat, n, fehler };
   return qrCache;
 }
-
-// ---------- Text ----------
 function aktText(){
   if (P.bausteinIdx === BAUSTEINE.length) return P.freitext.trim();
   return BAUSTEINE[P.bausteinIdx][P.sprache];
@@ -175,7 +174,7 @@ function hex2rgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16)
 function ladeLogo(file){
   const img = new Image();
   img.onload = ()=>{
-    const S=128, c=document.createElement('canvas'); c.width=S; c.height=Math.max(12,Math.round(S*img.height/img.width));
+    const S=160, c=document.createElement('canvas'); c.width=S; c.height=Math.max(16,Math.round(S*img.height/img.width));
     const x=c.getContext('2d'); x.drawImage(img,0,0,c.width,c.height);
     const d=x.getImageData(0,0,c.width,c.height).data;
     const pal=LOGO_PALETTE.map(hex2rgb), cnt=new Map();
@@ -205,147 +204,256 @@ function ladeLogo(file){
   img.src = URL.createObjectURL(file);
 }
 
-// ---------- Raster / Design-Canvas ----------
-// Alles (Form, Löcher, QR, Text, Logo) wird auf EIN Zellen-Canvas gezeichnet
-// (1 Pixel = 1 Zelle) und daraus die wasserdichte, bündig gefärbte Platte gebaut.
-function rasterInfo(){
+// ---------- Geometrie-Helfer ----------
+// Konturen bereinigen: doppelte + kollineare Punkte raus. WICHTIG für
+// Wasserdichtheit: earcut entfernt kollineare Punkte intern — wenn wir sie
+// vorher selbst entfernen, nutzen Deckflächen-Loch und Farbfläche exakt
+// dieselben Kanten (keine T-Junctions).
+function clean(pts){
+  const d=[];
+  for(const p of pts){ const l=d[d.length-1]; if(!l || Math.abs(l[0]-p[0])>1e-6 || Math.abs(l[1]-p[1])>1e-6) d.push(p); }
+  while(d.length>1){ const a=d[0], b=d[d.length-1]; if(Math.abs(a[0]-b[0])<1e-6 && Math.abs(a[1]-b[1])<1e-6) d.pop(); else break; }
+  const m=[];
+  for(let i=0;i<d.length;i++){
+    const p0=d[(i+d.length-1)%d.length], p1=d[i], p2=d[(i+1)%d.length];
+    const cr=(p1[0]-p0[0])*(p2[1]-p1[1]) - (p1[1]-p0[1])*(p2[0]-p1[0]);
+    if(Math.abs(cr) > 1e-7) m.push(p1);
+  }
+  return m.length>=3 ? m : d;
+}
+function inPoly(pt, poly){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i],b=poly[j];
+  if(((a[1]>pt[1])!==(b[1]>pt[1])) && (pt[0] < (b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])) c=!c; } return c; }
+
+// ---------- Element-Geometrien (in mm, Position eingerechnet) ----------
+function outlinePoints(){
+  const W=P.breite, H=P.hoehe, pts=[];
+  if (P.form==='rechteck'){ pts.push([-W/2,-H/2],[W/2,-H/2],[W/2,H/2],[-W/2,H/2]); }
+  else if (P.form==='rundrect'){
+    const r=Math.min(W,H)*0.12, seg=10;
+    const arc=(cx,cy,a0)=>{ for(let i=0;i<=seg;i++){ const a=a0+i/seg*Math.PI/2; pts.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); } };
+    arc(W/2-r,-H/2+r,-Math.PI/2); arc(W/2-r,H/2-r,0); arc(-W/2+r,H/2-r,Math.PI/2); arc(-W/2+r,-H/2+r,Math.PI);
+  }
+  else if (P.form==='kreis'){ const r=Math.min(W,H)/2; for(let i=0;i<96;i++){ const a=i/96*2*Math.PI; pts.push([r*Math.cos(a), r*Math.sin(a)]); } }
+  else if (P.form==='oval'){ for(let i=0;i<96;i++){ const a=i/96*2*Math.PI; pts.push([W/2*Math.cos(a), H/2*Math.sin(a)]); } }
+  else { // Herz (kubische Bezier, oben zwei Bögen, unten Spitze)
+    const bez=(p0,p1,p2,p3,n)=>{ for(let i=0;i<n;i++){ const t=i/n, u=1-t;
+      pts.push([ u*u*u*p0[0]+3*u*u*t*p1[0]+3*u*t*t*p2[0]+t*t*t*p3[0],
+                 u*u*u*p0[1]+3*u*u*t*p1[1]+3*u*t*t*p2[1]+t*t*t*p3[1] ]); } };
+    const w=W, h=H;
+    bez([0,-h*0.48],[ -w*0.68,-h*0.02],[ -w*0.56, h*0.62],[0, h*0.22], 48);
+    bez([0, h*0.22],[  w*0.56, h*0.62],[  w*0.68,-h*0.02],[0,-h*0.48], 48);
+  }
+  // Mikro-Jitter (~2 µm): verhindert exakt kollineare Punktlagen zwischen
+  // Konturen — earcut brückt Löcher horizontal und stolpert sonst darüber.
+  const jit = pts.map((p,i)=>[ p[0]+(((i*7919)%97)/97-0.5)*0.004,
+                               p[1]+(((i*104729)%89)/89-0.5)*0.004 ]);
+  return clean(jit);
+}
+function lochKreise(){
+  const W=P.breite, H=P.hoehe, r=LOCH_D/2, m=RAND+r+1;
+  const rund = P.form==='kreis'||P.form==='oval'||P.form==='herz';
+  const list=[];
+  if (P.loecher==='1') list.push([0, (rund? H*0.5*0.72 : H/2-m)]);
+  else if (P.loecher==='2'){
+    if (P.form==='herz'){ list.push([-W*0.30,H*0.30],[W*0.30,H*0.30]); }
+    else if (rund){ const a=Math.PI/3.1; const rx=(P.form==='kreis'?Math.min(W,H)/2:W/2)-m+1, ry=(P.form==='kreis'?Math.min(W,H)/2:H/2)-m+1; list.push([-rx*Math.cos(a)*0.9, ry*Math.sin(a)],[rx*Math.cos(a)*0.9, ry*Math.sin(a)]); }
+    else list.push([-W/2+m+5, H/2-m],[W/2-m-5, H/2-m]);
+  }
+  else if (P.loecher==='4'){
+    if (rund) { list.push([-W*0.26,H*0.26],[W*0.26,H*0.26]); }   // runde Formen: 2 statt 4
+    else list.push([-W/2+m, H/2-m],[W/2-m, H/2-m],[-W/2+m, -H/2+m],[W/2-m, -H/2+m]);
+  }
+  return list.map(([cx,cy],idx)=>{ const p=[]; const ph=idx*0.73, jx=idx*0.0011, jy=idx*0.0017;
+    for(let i=0;i<40;i++){ const a=-i/40*2*Math.PI+ph; p.push([cx+jx+r*Math.cos(a), cy+jy+r*Math.sin(a)]); } return p; });
+}
+function qrInfo(){
   const { n } = qrMat();
-  const modul = P.qrSize / n;
-  // Feines Raster (~0.35 mm) für runde Text-/Logo-Kanten; Zellgrösse bleibt
-  // exakt Modul/k, damit der QR zellscharf ist. Deckel: max ~340 Zellen je
-  // Achse, sonst wird Vorschau/Export zu schwer -> k automatisch reduzieren.
-  let k = Math.max(1, Math.ceil(modul/0.35));
-  while (k > 1 && (P.breite/(modul/k) > 340 || P.hoehe/(modul/k) > 340)) k--;
-  const cell = modul / k;
-  const cols = Math.min(360, Math.round(P.breite/cell));
-  const rows = Math.min(360, Math.round(P.hoehe/cell));
-  return { cell, cols, rows, k, modul, n };
+  const modul = P.qrSize/n, boxN = n+2*QUIET, box = boxN*modul;
+  const x0 = P.qrX-box/2+0.0021, y0 = P.qrY-box/2+0.0023;
+  const q = QUIET*modul;
+  const rand = [[x0,y0],[x0+box,y0],[x0+box,y0+box],[x0,y0+box]];   // 4 Ecken = Loch in der Deckfläche
+  return { modul, boxN, box, x0, y0, rand, q,
+           ix0: x0+q, iy0: y0+q };                                   // Ursprung des Modulgitters
 }
-
-function formPath(ctx, w, h){
-  ctx.beginPath();
-  if (P.form==='rechteck'){ ctx.rect(0,0,w,h); }
-  else if (P.form==='rundrect'){ const r=Math.min(w,h)*0.12; ctx.roundRect(0,0,w,h,r); }
-  else if (P.form==='kreis'){ ctx.ellipse(w/2,h/2,Math.min(w,h)/2,Math.min(w,h)/2,0,0,7); }
-  else if (P.form==='oval'){ ctx.ellipse(w/2,h/2,w/2,h/2,0,0,7); }
-  else { // Herz
-    const cx=w/2, top=h*0.28;
-    ctx.moveTo(cx, h*0.98);
-    ctx.bezierCurveTo(-w*0.18, h*0.52, w*0.06, -h*0.14, cx, top);
-    ctx.bezierCurveTo(w*0.94, -h*0.14, w*1.18, h*0.52, cx, h*0.98);
-  }
-}
-
-function lochPositionen(){
-  const W=P.breite, H=P.hoehe, m=RAND+LOCH_D/2+1;
-  if (P.loecher==='1') return [[0, H/2-m]];
-  if (P.loecher==='2') return [[-W/2+m+6, H/2-m],[W/2-m-6, H/2-m]];
-  if (P.loecher==='4') return [[-W/2+m, H/2-m],[W/2-m, H/2-m],[-W/2+m, -H/2+m],[W/2-m, -H/2+m]];
-  return [];
-}
-
-// Liefert { mask, farbe } pro Zelle. Farb-Codes: 0=Basis, 1=Dunkel, 2..=Logo-Palette.
-function designRaster(){
-  const R = rasterInfo();
-  const { cols, rows, cell, k } = R;
-  const c = document.createElement('canvas'); c.width=cols; c.height=rows;
-  const x = c.getContext('2d', { willReadFrequently:true });
-  // Maske: Form weiss auf schwarz
-  x.fillStyle='#000'; x.fillRect(0,0,cols,rows);
-  x.fillStyle='#fff'; formPath(x, cols, rows); x.fill();
-  // Löcher ausstanzen
-  x.fillStyle='#000';
-  for (const [lx,ly] of lochPositionen()){
-    x.beginPath();
-    x.ellipse((lx+P.breite/2)/cell, (P.hoehe/2-ly)/cell, LOCH_D/2/cell, LOCH_D/2/cell, 0,0,7);
-    x.fill();
-  }
-  const maskD = x.getImageData(0,0,cols,rows).data;
-  const mask = new Uint8Array(cols*rows);
-  for(let i=0;i<mask.length;i++) mask[i] = maskD[i*4] > 127 ? 1 : 0;
-
-  // Design: Basis fuellen, dann QR (zellgenau), Text, Logo
-  x.fillStyle='#f0f'; x.fillRect(0,0,cols,rows);          // Magenta = Basis-Code
-  const mm2ix = mmx => (mmx + P.breite/2)/cell;
-  const mm2iy = mmy => (P.hoehe/2 - mmy)/cell;
-
-  // Logo (unter QR/Text gezeichnet, damit Scan-Elemente immer obenauf liegen)
-  if (P.logo){
-    const lw = P.logoW, lh = lw*P.logo.h/P.logo.w;
-    const ix0 = Math.round(mm2ix(P.logoX - lw/2)), iy0 = Math.round(mm2iy(P.logoY + lh/2));
-    const iw = Math.max(2, Math.round(lw/cell)), ih = Math.max(2, Math.round(lh/cell));
-    for(let j=0;j<ih;j++) for(let i=0;i<iw;i++){
-      const sx=Math.floor(i*P.logo.w/iw), sy=Math.floor(j*P.logo.h/ih);
-      const pi=P.logo.idx[sy*P.logo.w+sx];
-      if(pi<0) continue;
-      x.fillStyle = LOGO_PALETTE[pi];
-      x.fillRect(ix0+i, iy0+j, 1, 1);
-    }
-  }
-
-  // Text (dunkel) — Arial Black, in Zellen gerendert
+let textCache = { key:null };
+function textDaten(){
+  // Text als feine Zellmaske (0.14 mm) — wird als Box mit Ring + Gitter in
+  // die Platte eingebaut (dasselbe wasserdicht-erprobte Muster wie der QR).
   const txt = aktText();
-  if (txt){
-    const hPx = P.textH/cell;
-    x.fillStyle='#00f';                                    // Blau = Dunkel-Code
-    x.textAlign='center'; x.textBaseline='middle';
-    x.font = `${Math.round(hPx)}px "Arial Black", Arial, sans-serif`;
-    x.imageSmoothingEnabled = false;
-    x.fillText(txt, mm2ix(P.textX), mm2iy(P.textY));
+  if (!txt) return null;
+  const cacheKey = txt+'|'+P.textH;
+  if (textCache.key === cacheKey){
+    if (textCache.leer) return null;
+    const t = textCache;
+    return { x0:P.textX-t.w/2+0.0007, y0:P.textY-t.h/2+0.0013,
+             cols:t.cols, rows:t.rows, res:t.res, w:t.w, h:t.h, istDunkel:t.istDunkel };
   }
-
-  // QR zellgenau: Position auf Zellen gerastert, Ruhezone in Basisfarbe
-  const { mat, n } = qrMat();
-  const qrBox = (n + 2*QUIET) * k;                         // Zellen inkl. Ruhezone
-  let qi0 = Math.round(mm2ix(P.qrX) - qrBox/2), qj0 = Math.round(mm2iy(P.qrY) - qrBox/2);
-  x.fillStyle='#f0f'; x.fillRect(qi0, qj0, qrBox, qrBox);  // Ruhezone
-  x.fillStyle='#00f';
-  for(let my=0;my<n;my++) for(let mx=0;mx<n;mx++){
-    if(!mat[my][mx]) continue;
-    x.fillRect(qi0+(QUIET+mx)*k, qj0+(QUIET+my)*k, k, k);
-  }
-
-  const dd = x.getImageData(0,0,cols,rows).data;
-  const farbe = new Int16Array(cols*rows);
-  const logoLookup = new Map(LOGO_PALETTE.map((h,i)=>{ const [r,g,b]=hex2rgb(h); return [(r<<16)|(g<<8)|b, i+2]; }));
-  for(let i=0;i<farbe.length;i++){
-    const r=dd[i*4],g=dd[i*4+1],b=dd[i*4+2];
-    if(r>200&&b>200&&g<80) farbe[i]=0;                     // Magenta -> Basis
-    else if(b>200&&r<80&&g<80) farbe[i]=1;                  // Blau -> Dunkel
-    else {
-      const v=logoLookup.get((r<<16)|(g<<8)|b);
-      farbe[i] = v!==undefined ? v : (r+g+b < 380 ? 1 : 0); // Antialias-Reste: dunkel/hell
-    }
-  }
-  return { ...R, mask, farbe };
+  const res = 0.14;
+  const hPx = P.textH/res/0.72;                    // Slider = Versalhöhe
+  const mess = document.createElement('canvas').getContext('2d');
+  mess.font = `${hPx}px "Arial Black", Arial, sans-serif`;
+  const wPx = Math.min(1700, Math.ceil(mess.measureText(txt).width)+8);
+  const c = document.createElement('canvas'); c.width=wPx; c.height=Math.ceil(hPx*1.6);
+  const x = c.getContext('2d');
+  x.font = `${hPx}px "Arial Black", Arial, sans-serif`;
+  x.textAlign='center'; x.textBaseline='middle'; x.fillStyle='#fff';
+  x.fillText(txt, c.width/2, c.height/2);
+  const d = x.getImageData(0,0,c.width,c.height).data;
+  const pix = (px,py)=> px>=0&&py>=0&&px<c.width&&py<c.height && d[(py*c.width+px)*4+3] > 127;
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9, leer=true;
+  for(let py=0;py<c.height;py++) for(let px=0;px<c.width;px++) if(pix(px,py)){ leer=false;
+    if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py; }
+  if (leer){ textCache = { key:cacheKey, leer:true }; return null; }
+  const cols=maxX-minX+1, rows=maxY-minY+1, w=cols*res, h=rows*res;
+  textCache = { key:cacheKey, cols, rows, res, w, h,
+                istDunkel:(i,j)=>pix(minX+i, maxY-j) };
+  return textDaten();
+}
+function logoDaten(){
+  if (!P.logo) return null;
+  const { w:sw, h:sh, idx } = P.logo;
+  const res = P.logoW/sw, lh = sh*res;
+  return { x0:P.logoX-P.logoW/2+0.0017, y0:P.logoY-lh/2+0.0009,
+           cols:sw, rows:sh, res, w:P.logoW, h:lh,
+           farbIdx:(i,j)=>idx[(sh-1-j)*sw+i] };
 }
 
-// ---------- Geometrie: EINE wasserdichte Platte, Farben bündig ----------
+// ---------- Plattengeometrie (eine wasserdichte Platte, Farben bündig) ----------
+const unfit = [];      // Elemente, die nicht auf die Form passen (HUD-Warnung)
+function triangulate(outer, holes){
+  const c = outer.map(p=>new THREE.Vector2(p[0],p[1]));
+  const hs = holes.map(hl=>hl.map(p=>new THREE.Vector2(p[0],p[1])));
+  const tris = THREE.ShapeUtils.triangulateShape(c, hs);
+  const all = outer.concat(...holes);
+  return { tris, all };
+}
 function schildGeometrie(){
-  const D = designRaster();
-  const { cols, rows, cell, mask, farbe } = D;
-  const z1 = P.dicke, z0 = 0;
-  const cBase = new THREE.Color(P.baseColor), cDark = new THREE.Color(P.darkColor);
-  const logoCols = LOGO_PALETTE.map(h=>new THREE.Color(h));
-  const colOf = code => code===0 ? cBase : code===1 ? cDark : logoCols[code-2];
+  const z1=P.dicke, z0=0;
+  const cBase=new THREE.Color(P.baseColor), cDark=new THREE.Color(P.darkColor);
   const pos=[], col=[];
   const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
-  const quad=(a,b,c2,d,cc)=>{ push(...a,cc);push(...b,cc);push(...c2,cc); push(...a,cc);push(...c2,cc);push(...d,cc); };
-  const X = i => -P.breite/2 + i*cell*(P.breite/(cols*cell));
-  const Y = j => P.hoehe/2 - j*cell*(P.hoehe/(rows*cell));
-  const at = (i,j)=> (i<0||j<0||i>=cols||j>=rows) ? 0 : mask[j*cols+i];
+  const face=(outer,holes,z,c,flip)=>{
+    const { tris, all } = triangulate(outer,holes);
+    for(const t of tris){ const [a,b,cc]= flip? [t[0],t[2],t[1]] : t;
+      push(all[a][0],all[a][1],z,c); push(all[b][0],all[b][1],z,c); push(all[cc][0],all[cc][1],z,c); }
+  };
+  const wall=(pts,c,invert)=>{
+    for(let i=0;i<pts.length;i++){ const a=pts[i], b=pts[(i+1)%pts.length];
+      const p1=invert?b:a, p2=invert?a:b;
+      push(p1[0],p1[1],z0,c); push(p2[0],p2[1],z0,c); push(p2[0],p2[1],z1,c);
+      push(p1[0],p1[1],z0,c); push(p2[0],p2[1],z1,c); push(p1[0],p1[1],z1,c); }
+  };
 
-  for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
-    if(!at(i,j)) continue;
-    const x0=X(i), x1=X(i+1), y0=Y(j), y1=Y(j+1);   // y1 < y0
-    const cc = colOf(farbe[j*cols+i]);
-    quad([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1], cc);            // oben (Design)
-    quad([x0,y0,z0],[x0,y1,z0],[x1,y1,z0],[x1,y0,z0], cBase);         // unten
-    if(!at(i,j-1)) quad([x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], cBase);   // Wand Nord
-    if(!at(i,j+1)) quad([x0,y1,z0],[x0,y1,z1],[x1,y1,z1],[x1,y1,z0], cBase);   // Wand Süd
-    if(!at(i-1,j)) quad([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0], cBase);   // Wand West
-    if(!at(i+1,j)) quad([x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1], cBase);   // Wand Ost
+  // Box-Ecken (Aussenrand von Gitter + Ring) — Loch in der Deckflaeche
+  const boxEcken = (B, pad)=>{
+    const x1=B.x0+B.cols*B.res, y1=B.y0+B.rows*B.res;
+    return [[B.x0-pad,B.y0-pad],[x1+pad,B.y0-pad],[x1+pad,y1+pad],[B.x0-pad,y1+pad]];
+  };
+  // Zellgitter + Ring, der das Gitter an das 4-Punkte-Loch anschliesst.
+  // Bewaehrtes Muster (QR-Ruhezone): keine T-Junctions, wasserdicht.
+  const boxRingGrid = (B, pad, farbFn)=>{
+    const { x0:bx0, y0:by0, cols, rows, res } = B;
+    for(let j=0;j<rows;j++) for(let i=0;i<cols;i++){
+      const c = farbFn(i,j);
+      const x=bx0+i*res, y=by0+j*res;
+      push(x,y,z1,c); push(x+res,y,z1,c); push(x+res,y+res,z1,c);
+      push(x,y,z1,c); push(x+res,y+res,z1,c); push(x,y+res,z1,c);
+    }
+    const ecken = boxEcken(B, pad);
+    const x1=bx0+cols*res, y1=by0+rows*res;
+    const inner = [
+      Array.from({length:cols+1},(_,i)=>[bx0+i*res, by0]),
+      Array.from({length:rows+1},(_,j)=>[x1, by0+j*res]),
+      Array.from({length:cols+1},(_,i)=>[x1-i*res, y1]),
+      Array.from({length:rows+1},(_,j)=>[bx0, y1-j*res]),
+    ];
+    for(let s=0;s<4;s++){
+      const A=ecken[s], B2=ecken[(s+1)%4], I=inner[s];
+      for(let k=0;k<I.length-1;k++){ push(A[0],A[1],z1,cBase); push(I[k][0],I[k][1],z1,cBase); push(I[k+1][0],I[k+1][1],z1,cBase); }
+      push(A[0],A[1],z1,cBase); push(I[I.length-1][0],I[I.length-1][1],z1,cBase); push(B2[0],B2[1],z1,cBase);
+    }
+    return ecken;
+  };
+
+  const outline = outlinePoints();
+  const { mat, n } = qrMat();
+
+  // Passt ein Element (inkl. Ring) ganz auf die Platte? Erst sanft Richtung
+  // Formzentrum ziehen; wenn es dann immer noch nicht passt: weglassen
+  // (kaputtes Mesh waere schlimmer) und im HUD warnen.
+  // Rand-Sampling statt nur Ecken: bei konkaven Formen (Herz) kann die
+  // Kerbe eine Boxkante schneiden, obwohl alle Ecken drin liegen.
+  const passt = ecken => {
+    for(let s=0;s<4;s++){
+      const a=ecken[s], b=ecken[(s+1)%4];
+      const len=Math.hypot(b[0]-a[0],b[1]-a[1]), steps=Math.max(2, Math.ceil(len/2));
+      for(let k=0;k<=steps;k++){
+        const pt=[a[0]+(b[0]-a[0])*k/steps, a[1]+(b[1]-a[1])*k/steps];
+        if(!inPoly(pt, outline)) return false;
+      }
+    }
+    return true;
+  };
+  const rectHit = (e1,e2)=> e1 && e2 &&
+    e1[0][0] < e2[1][0]+1 && e2[0][0] < e1[1][0]+1 &&
+    e1[0][1] < e2[2][1]+1 && e2[0][1] < e1[2][1]+1;
+  const zielY = P.form==='herz' ? -P.hoehe*0.10 : 0;
+  const pull = (key, mk)=>{
+    for(let it=0; it<90; it++){
+      if (passt(mk())) return true;
+      P[key+'X'] *= 0.93;
+      P[key+'Y'] = P[key+'Y']*0.93 + zielY*0.07;
+    }
+    return passt(mk());
+  };
+  unfit.length = 0;
+  let Q, qrB;
+  const qrMk = ()=>{ Q=qrInfo(); qrB={ x0:Q.ix0, y0:Q.iy0, cols:n, rows:n, res:Q.modul }; return boxEcken(qrB, Q.q); };
+  const qrOk = pull('qr', qrMk);
+  const qrEck = boxEcken(qrB, Q.q);
+  if (!qrOk) unfit.push('QR (Platte zu klein!)');
+  let tOk = textDaten() ? pull('text', ()=>boxEcken(textDaten(), 0.4)) : false;
+  let T = tOk ? textDaten() : null;
+  let tEck = T ? boxEcken(T, 0.4) : null;
+  if (tOk && rectHit(tEck, qrOk?qrEck:null)){ tOk=false; T=null; unfit.push('Text (überlappt QR)'); }
+  else if (textDaten() && !tOk) unfit.push('Text');
+  let lOk = logoDaten() ? pull('logo', ()=>boxEcken(logoDaten(), 0.4)) : false;
+  let L = lOk ? logoDaten() : null;
+  let lEck = L ? boxEcken(L, 0.4) : null;
+  if (lOk && (rectHit(lEck, qrOk?qrEck:null) || rectHit(lEck, tOk?tEck:null))){ lOk=false; L=null; unfit.push('Logo (überlappt)'); }
+  else if (logoDaten() && !lOk) unfit.push('Logo');
+
+  // Aufhaengeloecher, die mit einer Element-Box kollidieren oder ueber die
+  // Form ragen, weglassen
+  const alleEcken = [qrOk?qrEck:null, tOk?tEck:null, lOk?lEck:null].filter(Boolean);
+  const loecher = lochKreise().filter(lk=>{
+    const c=lk[0], r=LOCH_D/2+0.6;
+    if (!lk.every(pt=>inPoly(pt, outline))) return false;
+    return !alleEcken.some(e=> c[0]>e[0][0]-r && c[0]<e[1][0]+r && c[1]>e[0][1]-r && c[1]<e[2][1]+r );
+  });
+
+  // Deckflaeche: Grundfarbe mit Loechern fuer Boxen + Aufhaengung
+  const holes = [...loecher];
+  if (qrOk) holes.push(qrEck);
+  if (tOk) holes.push(tEck);
+  if (lOk) holes.push(lEck);
+  face(outline, holes, z1, cBase, false);
+
+  // QR (Module scharf, Ruhezone = Ring)
+  if (qrOk) boxRingGrid(qrB, Q.q, (i,j)=> mat[n-1-j][i] ? cDark : cBase);
+  // Text (feine Zellen)
+  if (tOk) boxRingGrid(T, 0.4, (i,j)=> T.istDunkel(i,j) ? cDark : cBase);
+  // Logo (Zellen = Quellpixel, quantisierte Farben)
+  if (lOk){
+    const lc = LOGO_PALETTE.map(h=>new THREE.Color(h));
+    boxRingGrid(L, 0.4, (i,j)=>{ const v=L.farbIdx(i,j); return v<0 ? cBase : lc[v]; });
   }
+
+  // Unterseite + Waende
+  face(outline, loecher, z0, cBase, true);
+  wall(outline, cBase, false);
+  for(const lk of loecher) wall(lk, cBase, false);
+
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
@@ -353,31 +461,50 @@ function schildGeometrie(){
   return g;
 }
 
-// ---------- Regeln: Platte folgt dem QR, Elemente bleiben drin ----------
+// ---------- Regeln: Platte folgt dem QR, Elemente bleiben drin, kein Ueberlappen ----------
+function bbox(el){
+  if (el==='qr'){ const b=qrInfo().box; return { x:P.qrX, y:P.qrY, w:b, h:b }; }
+  if (el==='text'){ const t=textDaten(); return t? { x:P.textX, y:P.textY, w:t.w, h:t.h } : null; }
+  if (el==='logo'){ const l=P.logo? { w:P.logoW, h:P.logoW*P.logo.h/P.logo.w } : null; return l? { x:P.logoX, y:P.logoY, w:l.w, h:l.h } : null; }
+  return null;
+}
+function overlap(a,b){ return a&&b && Math.abs(a.x-b.x) < (a.w+b.w)/2+1.5 && Math.abs(a.y-b.y) < (a.h+b.h)/2+1.5; }
+function anyOverlap(){
+  const q=bbox('qr'), t=bbox('text'), l=bbox('logo');
+  const els=[[q,t],[q,l],[t,l]];
+  for(const lk of lochKreise()){
+    const c=lk.reduce((s,p)=>[s[0]+p[0]/lk.length, s[1]+p[1]/lk.length],[0,0]);
+    const lb={x:c[0],y:c[1],w:LOCH_D+2,h:LOCH_D+2};
+    els.push([q,lb],[t,lb],[l,lb]);
+  }
+  return els.some(([a,b])=>overlap(a,b));
+}
 function regelCheck(){
   const { n } = qrMat();
   const minQr = Math.ceil(n*MODUL_MIN);
   const qrs = document.getElementById('qrs');
   qrs.min = minQr;
   if (P.qrSize < minQr) P.qrSize = minQr;
-  const boxMm = P.qrSize * (1 + 2*QUIET/n);
-  const platzX = P.form==='kreis' || P.form==='oval' || P.form==='herz' ? 0.7 : 1;   // runde Formen: Elemente weiter innen
+  const boxMm = P.qrSize*(1+2*QUIET/n);
+  const platzX = P.form==='kreis'||P.form==='oval'||P.form==='herz' ? 0.66 : 1;
   const needW = boxMm/platzX + 2*RAND, needH = boxMm/platzX + 2*RAND;
-  let gewachsen = false;
-  if (needW > P.breite){ P.breite = Math.min(140, Math.ceil(needW)); gewachsen=true; }
-  if (needH > P.hoehe){ P.hoehe = Math.min(120, Math.ceil(needH)); gewachsen=true; }
-  // Elemente einklemmen
+  if (needW > P.breite) P.breite = Math.min(140, Math.ceil(needW));
+  if (needH > P.hoehe)  P.hoehe  = Math.min(120, Math.ceil(needH));
+  if (P.form==='kreis'){                       // Kreis nutzt nur min(B,H)
+    const d = Math.max(needW, needH);
+    if (Math.min(P.breite,P.hoehe) < d){ P.breite=Math.max(P.breite,Math.ceil(d)); P.hoehe=Math.max(P.hoehe,Math.ceil(d)); }
+  }
+  const effW = P.form==='kreis' ? Math.min(P.breite,P.hoehe) : P.breite;
+  const effH = P.form==='kreis' ? Math.min(P.breite,P.hoehe) : P.hoehe;
   const clampEl = (key, w, h)=>{
-    const mx = P.breite/2*platzX - w/2 - RAND + (platzX<1?RAND:0);
-    const my = P.hoehe/2*platzX - h/2 - RAND + (platzX<1?RAND:0);
+    const mx = effW/2*platzX - w/2 - RAND*(platzX===1?1:0);
+    const my = effH/2*platzX - h/2 - RAND*(platzX===1?1:0);
     P[key+'X'] = Math.max(-Math.max(mx,0), Math.min(Math.max(mx,0), P[key+'X']));
     P[key+'Y'] = Math.max(-Math.max(my,0), Math.min(Math.max(my,0), P[key+'Y']));
   };
   clampEl('qr', boxMm, boxMm);
-  const txt = aktText();
-  if (txt) clampEl('text', txt.length*P.textH*0.72, P.textH);
+  const t = textDaten(); if (t) clampEl('text', t.w, t.h);
   if (P.logo) clampEl('logo', P.logoW, P.logoW*P.logo.h/P.logo.w);
-  return gewachsen;
 }
 
 // ---------- Szene ----------
@@ -406,8 +533,10 @@ function rebuild(){
   if (fehler) warn += '  ⚠ Inhalt zu lang für QR — Fallback kohlilab.ch';
   if (modul < MODUL_MIN-0.01) warn += `  ⚠ Modul ${modul.toFixed(2)} mm < ${MODUL_MIN}`;
   if (P.textH < 6 && aktText()) warn += '  ⚠ Text unter 6 mm wird evtl. undeutlich';
+  if (anyOverlap()) warn += '  ⚠ Elemente überlappen — bitte auseinanderziehen';
+  if (unfit.length) warn += `  ⚠ ${unfit.join(' + ')} passt nicht auf diese Form — verkleinern oder verschieben`;
   document.getElementById('hud').innerHTML =
-    `${P.breite}×${P.hoehe}×${P.dicke} mm · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(0)}k Dreiecke` +
+    `${P.breite}×${P.hoehe}×${P.dicke} mm · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(1)}k Dreiecke` +
     (warn ? `<br><span class="warn">${warn}</span>` : '');
 }
 
@@ -415,14 +544,11 @@ function rebuild(){
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let drag = null;
 function elementAt(mmx, mmy){
-  const { n } = qrMat();
-  const boxQr = P.qrSize*(1+2*QUIET/n)/2;
-  const txt = aktText();
-  const kand = [];
-  if (Math.abs(mmx-P.qrX)<boxQr && Math.abs(mmy-P.qrY)<boxQr) kand.push('qr');
-  if (txt && Math.abs(mmx-P.textX)<txt.length*P.textH*0.36 && Math.abs(mmy-P.textY)<P.textH*0.9) kand.push('text');
-  if (P.logo && Math.abs(mmx-P.logoX)<P.logoW/2 && Math.abs(mmy-P.logoY)<P.logoW*P.logo.h/P.logo.w/2) kand.push('logo');
-  return kand.pop() || null;    // oberstes zuletzt gezeichnetes zuerst
+  for (const el of ['logo','text','qr']){
+    const b = bbox(el);
+    if (b && Math.abs(mmx-b.x)<b.w/2 && Math.abs(mmy-b.y)<b.h/2) return el;
+  }
+  return null;
 }
 function pickMm(ev){
   const r = renderer.domElement.getBoundingClientRect();
@@ -441,12 +567,12 @@ renderer.domElement.addEventListener('pointermove', ev=>{
   if(!drag) return;
   const p = pickMm(ev); if(!p) return;
   P[drag.el+'X'] = p.x + drag.dx; P[drag.el+'Y'] = p.y + drag.dy;
-  const now = performance.now();                 // feines Raster: beim Ziehen drosseln
-  if (now - lastDragBuild > 140){ lastDragBuild = now; rebuild(); }
+  const now = performance.now();
+  if (now - lastDragBuild > 60){ lastDragBuild = now; rebuild(); }
 });
 addEventListener('pointerup', ()=>{ if(drag){ drag=null; controls.enabled=true; rebuild(); } });
 
-// ---------- Export (Muster aus dem Marker-Konfigurator, Bambu-erprobt) ----------
+// ---------- Export (Bambu-erprobtes Muster aus dem Marker-Konfigurator) ----------
 function geomPos(g){ return (g.index? g.toNonIndexed():g).attributes.position.array; }
 function geomCol(g){ const gg=g.index? g.toNonIndexed():g; return gg.attributes.color? gg.attributes.color.array:null; }
 function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
@@ -498,10 +624,9 @@ function mkBtns(hostId, liste, key){
     host.appendChild(b);
   });
 }
-function slider(id, key, fmt){
+function slider(id, key){
   $(id).value=P[key];
   $(id).addEventListener('input',()=>{ P[key]=parseFloat($(id).value); rebuild(); });
-  P['_fmt_'+id]=fmt;
 }
 function syncUI(){
   for (const [id,key,einh] of [['breite','breite',' mm'],['hoehe','hoehe',' mm'],['dicke','dicke',' mm'],['qrs','qrSize',' mm'],['th','textH',' mm'],['lw','logoW',' mm']]){
@@ -538,7 +663,6 @@ function bausteinUI(){
     else { P.bausteinIdx=v; $('freitextWrap').style.display = v===BAUSTEINE.length?'block':'none'; }
     rebuild();
   });
-  // Sprache DE/EN
   const d=document.createElement('div'); d.className='btns'; d.style.marginTop='6px';
   [['Deutsch',0],['English',1]].forEach(([lab,i])=>{
     const b=document.createElement('button'); b.textContent=lab; if(P.sprache===i) b.classList.add('active');
@@ -575,6 +699,7 @@ async function busy(btn, fn){
 $('ex3mf').addEventListener('click', ()=>busy($('ex3mf'), async ()=>{ download(await make3mf(currentGeo), 'kohlilab_qr_schild.3mf'); }));
 $('exstl').addEventListener('click', ()=>busy($('exstl'), async ()=>{ download(new Blob([stlString(currentGeo)],{type:'model/stl'}), 'kohlilab_qr_schild.stl'); }));
 
+window.__geoPos = () => geomPos(currentGeo);   // Debug-Haken für Manifold-Checks
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 rebuild();
