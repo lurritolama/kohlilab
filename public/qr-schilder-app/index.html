@@ -400,7 +400,9 @@ function schildGeometrie(){
   const vr=[P2[0]-G[0], P2[1]-G[1]]; const vrl=Math.hypot(vr[0],vr[1]); vr[0]/=vrl; vr[1]/=vrl;
   const Rt=P2, Rb=[P2[0]-HS*vr[0], P2[1]-HS*vr[1]];  // Designfeld (Hoehe HS) oben auf der Aussenseite
   const mapTop = aufsteller
-    ? (x,y)=>{ const s=(y+HS/2)/HS; return [x, Rb[0]+s*(Rt[0]-Rb[0]), Rb[1]+s*(Rt[1]-Rb[1])]; }
+    // -x: Aussenflaeche wird von der anderen Seite betrachtet -> spiegeln,
+    // sonst laeuft Text rueckwaerts und der QR ist nicht scanbar.
+    ? (x,y)=>{ const s=(y+HS/2)/HS; return [-x, Rb[0]+s*(Rt[0]-Rb[0]), Rb[1]+s*(Rt[1]-Rb[1])]; }
     : (x,y)=>[x,y,z1];
   const { mat, n } = qrMat();
 
@@ -620,7 +622,7 @@ function pickMm(ev){
     const vy=P2y-Gy, vz=P2z-Gz, vl=Math.hypot(vy,vz);
     const Rbz=P2z-HS*(vz/vl);
     const s=(hit.point.z-Rbz)/Math.max(HS*(vz/vl),0.05);
-    return { x:hit.point.x, y:s*HS - HS/2 };
+    return { x:-hit.point.x, y:s*HS - HS/2 };   // gespiegelte Aussenflaeche
   }
   return { x:hit.point.x, y:hit.point.y };
 }
