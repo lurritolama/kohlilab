@@ -124,7 +124,7 @@ const BETT = { x:290, y:310 };
 // an der Modul-Fuge — von oben einschieben, keine losen Teile.
 // kd = Tiefe der Leiste, wn = Halsbreite, wt = Endbreite (Hinterschnitt),
 // fit = Spiel je Seite. Über die volle Bauteilhöhe extrudiert.
-const DOVE = { kd:6, wn:5, wt:11, stufen:4, fit:0.20, bw:8, bh:15 };
+const DOVE = { kd:5, wn:4.5, wt:10, stufen:4, fit:0.20, bw:7, bh:13, hLow:16 };
 // Preisrechnung (individuell, live): Manolos Sätze
 const PREIS = {
   grund: 9,            // CHF je Auftrag (Handling, Kontrolle, Verpackung)
@@ -345,16 +345,24 @@ function schnittPlan(L){
   // Läuft die Fuge durch eine Wand -> unsichtbar; im offenen Fach -> schmale
   // Rippe. Gleichmässig verteilt, mit Abstand zu Quer-Schnitten (keine
   // Pfosten-Überlappung).
+  // Wand an (x,y)? (Aussenwand, Trennwand) — dann verschwindet der Pfosten
+  // unsichtbar in der Wand; sonst niedrige Rippe im offenen Fach.
+  const istWand=(x,y)=>{
+    if(x<L.x0+P.wand-0.01||x>L.x0+L.W-P.wand+0.01||y<L.y0+P.wand-0.01||y>L.y0+L.D-P.wand+0.01) return true;
+    for(const lf of L.leaves) if(x>lf.r.x0+0.01&&x<lf.r.x1-0.01&&y>lf.r.y0+0.01&&y<lf.r.y1-0.01) return false;
+    return true;
+  };
   const tenons=[];
   const lege=(cuts, axis, ce0, ce1, quer)=>{
     for(const c of cuts){
       const a=ce0+DOVE.bh/2+2, b=ce1-DOVE.bh/2-2;
       if(b<a) continue;
-      const n=Math.max(2, Math.round((b-a)/70)+1);
+      const n=Math.max(2, Math.round((b-a)/95)+1);
       for(let k=0;k<n;k++){
         const m = a+(b-a)*k/(n-1);
-        if(quer.some(qc=>Math.abs(qc-m)<DOVE.bh/2+DOVE.bw+2)) continue;   // nicht auf Quer-Fuge
-        tenons.push({ axis, c, m });
+        if(quer.some(qc=>Math.abs(qc-m)<DOVE.bh/2+DOVE.bw+2)) continue;
+        const wall = axis==='x' ? istWand(c,m) : istWand(m,c);
+        tenons.push({ axis, c, m, wall });
       }
     }
   };
@@ -452,17 +460,19 @@ function organizerGeometrien(){
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
     else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
     const mod=modIdx(cx,cy);
-    // Verbindungspfosten: im Boss-Rechteck volle Höhe erzwingen (auch im Fach)
-    let imBoss=false;
+    // Verbindungspfosten: im Boss volle Höhe nur in echten Wänden,
+    // sonst niedrige Rippe (hLow) — keine Säulen im offenen Fach.
+    let bossH=0;
     for(const t of plan.tenons){
       const dn=Math.abs(t.axis==='x'?cx-t.c:cy-t.c), dl=Math.abs(t.axis==='x'?cy-t.m:cx-t.m);
-      if(dn<DOVE.bw && dl<DOVE.bh/2){ imBoss=true; break; }
+      if(dn<DOVE.bw && dl<DOVE.bh/2){ bossH = t.wall ? P.eh : Math.min(P.eh, DOVE.hLow); break; }
     }
-    let zlo=0, zhi= (typ==='k'&&!imBoss) ? P.boden : P.eh;
-    if(typ==='k' && fach && !imBoss){
+    let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
+    if(typ==='k' && fach && !bossH){
       const ee=einsaetze.find(x=>x.lf===fach);
       if(ee){ const h=ee.e.zhi(cx,cy); if(h!==null) zhi=h; }
     }
+    if(bossH) zhi=Math.max(zhi, bossH);
     let lbl=-1;
     if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
       if(cx>b.x0&&cx<b.x1&&cy>b.y0&&cy<b.y1){ lbl=li; break; } }
