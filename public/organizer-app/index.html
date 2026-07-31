@@ -86,7 +86,7 @@
 
   <div class="grp"><h2>Export</h2>
     <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
-    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit Schwalbenschwanz-Schlüsseln — alle Teile stecken im 3MF.</div>
+    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit Schwalbenschwanz-Schlüsseln — der Export ist dann ein <b>ZIP mit einer Datei pro Teil</b>, jedes einzeln druckbar.</div>
   </div>
 </div>
 
@@ -160,6 +160,92 @@ function layout(){
   return { leaves, walls, W, D, x0, y0 };
 }
 
+// ---------- Spezial-Einsätze (parametrisch, passen sich dem Fach an) ----------
+// Alles achsparallel bzw. in Stufen -> bleibt in der Zellen-Engine wasserdicht.
+const EINSAETZE = {
+  usb:    { name:'USB-Sticks',        minW:22, minD:14 },
+  sd:     { name:'SD-Karten',         minW:33, minD:12 },
+  stift:  { name:'Stift-Rinnen',      minW:60, minD:22 },
+  aa:     { name:'Batterien AA',      minW:56, minD:23 },
+  aaa:    { name:'Batterien AAA',     minW:50, minD:19 },
+  cr2032: { name:'Knopfzellen CR2032',minW:29, minD:14 },
+  neunv:  { name:'9V-Block',          minW:34, minD:26 },
+  bits:   { name:'Bit-Raster ¼"',     minW:19, minD:19 },
+  scoop:  { name:'Scoop-Mulde',       minW:30, minD:34 },
+};
+// Liefert pro Fach: zusätzliche Rasterkoordinaten + Höhenfunktion zhi(cx,cy)
+function einsatzDaten(lf){
+  const typ=lf.n.einsatz, r=lf.r;
+  if(!typ || !EINSAETZE[typ]) return null;
+  const W=r.x1-r.x0, D=r.y1-r.y0, m=2;
+  const xs=[], ys=[], b=P.boden;
+  const cap=h=>Math.min(h, P.eh-2);
+  const slotGrid=(sw,sd,wall,blockH,slotBodenPlus)=>{
+    const nx=Math.floor((W-2*m+wall)/(sw+wall)), ny=Math.floor((D-2*m+wall)/(sd+wall));
+    if(nx<1||ny<1) return null;
+    const bw=nx*(sw+wall)+wall, bh=ny*(sd+wall)+wall;
+    const bx0=r.x0+(W-bw)/2, by0=r.y0+(D-bh)/2;
+    xs.push(bx0, bx0+bw); ys.push(by0, by0+bh);
+    const slots=[];
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
+      const sx0=bx0+wall+i*(sw+wall), sy0=by0+wall+j*(sd+wall);
+      xs.push(sx0, sx0+sw); ys.push(sy0, sy0+sd);
+      slots.push([sx0,sy0,sx0+sw,sy0+sd]);
+    }
+    const H=cap(b+blockH);
+    return (cx,cy)=>{
+      if(cx<bx0||cx>bx0+bw||cy<by0||cy>by0+bh) return null;
+      for(const s of slots) if(cx>s[0]&&cx<s[2]&&cy>s[1]&&cy<s[3]) return b+slotBodenPlus;
+      return H;
+    };
+  };
+  const rinnen=(rw, bh)=>{
+    const wall=3;
+    const ny=Math.floor((D-2*m+wall)/(rw+wall));
+    if(ny<1) return null;
+    const bhh=ny*(rw+wall)+wall;
+    const by0=r.y0+(D-bhh)/2, bx0=r.x0+m, bx1=r.x1-m;
+    xs.push(bx0,bx1); ys.push(by0, by0+bhh);
+    const stufen=[[0.16,1],[0.30,0.82],[0.42,0.55],[0.50,0.22]];
+    const zentren=[];
+    for(let j=0;j<ny;j++){
+      const c=by0+wall+j*(rw+wall)+rw/2;
+      zentren.push(c);
+      for(const [f] of stufen){ ys.push(c-f*rw, c+f*rw); }
+    }
+    const H=cap(b+bh);
+    return (cx,cy)=>{
+      if(cx<bx0||cx>bx1||cy<by0||cy>by0+bhh) return null;
+      for(const c of zentren){
+        const d=Math.abs(cy-c);
+        for(const [f,tf] of stufen) if(d<f*rw) return Math.max(b, H - tf*bh);
+      }
+      return H;
+    };
+  };
+  let fn=null;
+  if(typ==='usb') fn=slotGrid(13.4, 5.4, 3, 12, 0);
+  else if(typ==='sd') fn=slotGrid(25, 3.0, 3, 12, 0);
+  else if(typ==='cr2032') fn=slotGrid(21, 3.6, 3.2, 15, 1);
+  else if(typ==='neunv') fn=slotGrid(27.6, 18.6, 3, 18, 1);
+  else if(typ==='bits') fn=slotGrid(6.9, 6.9, 3.5, 13, 1);
+  else if(typ==='stift') fn=rinnen(15, 10);
+  else if(typ==='aa') fn=rinnen(15.5, 9);
+  else if(typ==='aaa') fn=rinnen(12, 7.5);
+  else if(typ==='scoop'){
+    const stufen=[[2,10],[4,8],[6,6],[8,4],[10,2.4],[13,1]];
+    for(const [d] of stufen) ys.push(r.y0+d);
+    const H=cap(b+10);
+    fn=(cx,cy)=>{
+      const d=cy-r.y0;
+      for(const [dd,hh] of stufen) if(d<dd) return Math.min(H, b+hh);
+      return null;                                   // Rest normaler Boden
+    };
+  }
+  if(!fn) return null;
+  return { xs, ys, zhi:fn };
+}
+
 // ---------- Modul-Schnitte + Schwalbenschwanz-Taschen ----------
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
@@ -224,7 +310,12 @@ function organizerGeometrien(){
   const plan=schnittPlan(L);
   const cB=new THREE.Color(P.fBoden), cA=new THREE.Color(P.fAussen), cT=new THREE.Color(P.fTrenn);
   const xs=new Set([L.x0, L.x0+L.W]), ys=new Set([L.y0, L.y0+L.D]);
-  for(const lf of L.leaves){ xs.add(lf.r.x0); xs.add(lf.r.x1); ys.add(lf.r.y0); ys.add(lf.r.y1); }
+  const einsaetze=[];
+  for(const lf of L.leaves){
+    xs.add(lf.r.x0); xs.add(lf.r.x1); ys.add(lf.r.y0); ys.add(lf.r.y1);
+    const e=einsatzDaten(lf);
+    if(e){ einsaetze.push({ lf, e }); for(const v of e.xs) xs.add(v); for(const v of e.ys) ys.add(v); }
+  }
   for(const c of plan.xs) xs.add(c);
   for(const c of plan.ys) ys.add(c);
   const stufen=doveStufen();
@@ -234,7 +325,11 @@ function organizerGeometrien(){
       else { ys.add(t.c-s.d1); ys.add(t.c+s.d1); xs.add(t.m-s.hw); xs.add(t.m+s.hw); }
     }
   }
-  const X=[...xs].sort((a,b)=>a-b), Y=[...ys].sort((a,b)=>a-b);
+  // Beinahe-Duplikate mergen (Float-Arithmetik): sonst entstehen Null-
+  // Breite-Zellen -> deckungsgleiche Faces -> Mehrfach-Kanten im Mesh.
+  const merge=arr=>{ const s=[...arr].sort((a,b)=>a-b), out=[];
+    for(const v of s){ if(!out.length || v-out[out.length-1]>0.004) out.push(v); } return out; };
+  const X=merge(xs), Y=merge(ys);
   const nx=X.length-1, ny=Y.length-1;
   const pd=Math.max(0.6, P.boden-DOVE.decke);          // Taschen-Tiefe von unten
 
@@ -249,10 +344,14 @@ function organizerGeometrien(){
   const info=new Array(nx*ny);
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
     const cx=(X[i]+X[i+1])/2, cy=(Y[j]+Y[j+1])/2;
-    let typ='t';
+    let typ='t', fach=null;
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
-    else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; break; } } }
+    else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
     let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
+    if(typ==='k' && fach){
+      const ee=einsaetze.find(x=>x.lf===fach);
+      if(ee){ const h=ee.e.zhi(cx,cy); if(h!==null) zhi=h; }
+    }
     if(typ==='k'){
       for(const t of plan.taschen){
         const langC = t.axis==='x' ? cx : cy, querC = t.axis==='x' ? cy : cx;
@@ -265,6 +364,11 @@ function organizerGeometrien(){
     info[j*nx+i]={ typ, zlo, zhi, mod:modIdx(cx,cy) };
   }
   const farbe=t=> t==='k'?cB : (t==='a'?cA:cT);
+  // globale Höhenstufen (inkl. Einsatz-Höhen) für den Lagen-Schnitt
+  const zSet=new Set();
+  for(const z of info){ zSet.add(z.zlo); zSet.add(z.zhi); }
+  const zB=(()=>{ const s=[...zSet].sort((a,b)=>a-b), out=[];
+    for(const v of s){ if(!out.length || v-out[out.length-1]>0.004) out.push(v); } return out; })();
 
   // Emission pro Modul
   const module=[];
@@ -282,7 +386,6 @@ function organizerGeometrien(){
       // Seiten: freiliegende Intervall-Teile (Ich minus Nachbar), in Lagen
       // an den globalen Höhenstufen geschnitten -> alle Kanten fluchten
       // (sonst T-Junctions, z.B. Taschendecke vs. voller Boden am Schnitt).
-      const zB=[0, pd, P.boden, P.eh].filter((v,i,arr)=>arr.indexOf(v)===i).sort((a,b)=>a-b);
       const lagen=(l,h)=>{ const out=[]; for(let k=0;k<zB.length-1;k++){ const s=Math.max(l,zB[k]), e=Math.min(h,zB[k+1]); if(e-s>1e-6) out.push([s,e]); } return out; };
       const seite=(nz, a, b)=>{
         const teile = !nz ? [[z.zlo,z.zhi]] : (()=>{
@@ -413,9 +516,11 @@ function baueLabels(){
   const haupt=mk('haupt');
   haupt.textContent=`${L.W.toFixed(0)} × ${L.D.toFixed(0)} × ${P.eh} mm`;
   labelDaten.push({ el:haupt, p:new THREE.Vector3(0, L.y0-16, 0) });
+  const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop'};
   for(const lf of L.leaves){
     const el=mk();
-    el.textContent=`${(lf.r.x1-lf.r.x0).toFixed(0)}×${(lf.r.y1-lf.r.y0).toFixed(0)}`;
+    const zusatz = lf.n.einsatz ? ` · ${KURZ[lf.n.einsatz]||''}` : '';
+    el.textContent=`${(lf.r.x1-lf.r.x0).toFixed(0)}×${(lf.r.y1-lf.r.y0).toFixed(0)}${zusatz}`;
     labelDaten.push({ el, p:new THREE.Vector3((lf.r.x0+lf.r.x1)/2, (lf.r.y0+lf.r.y1)/2, P.eh+1) });
   }
 }
@@ -506,12 +611,28 @@ function zeigeMenu(lf, cx, cy){
   b('◫  Senkrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannV);
   b('⊟  Waagrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannH);
   if(lf.pfad!=='r') b('✕  Fach entfernen (Wand löschen)', ()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); });
-  b('Spezial-Einsatz (USB, SD …) — folgt bald', null, true);
+  b('▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
   b('Beschriften — folgt bald', null, true);
   const vr=view.getBoundingClientRect();
   menu.style.display='block';
   menu.style.left=Math.min(cx-vr.left, vr.width-230)+'px';
   menu.style.top=Math.min(cy-vr.top, vr.height-190)+'px';
+}
+function zeigeEinsatzMenu(lf, cx, cy){
+  const W=lf.r.x1-lf.r.x0, D=lf.r.y1-lf.r.y0;
+  menu.innerHTML=`<div class="mtitle">SPEZIAL-EINSATZ (FACH ${W.toFixed(0)} × ${D.toFixed(0)} MM)</div>`;
+  const b=(txt,fn,dis,title)=>{ const el=document.createElement('button'); el.textContent=txt; el.disabled=!!dis; if(title) el.title=title;
+    el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
+  for(const [typ,def] of Object.entries(EINSAETZE)){
+    const passt=W>=def.minW && D>=def.minD;
+    b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; rebuild(); }, !passt,
+      passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
+  }
+  if(lf.n.einsatz) b('✕  Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; rebuild(); });
+  const vr=view.getBoundingClientRect();
+  menu.style.display='block';
+  menu.style.left=Math.min(cx-vr.left, vr.width-240)+'px';
+  menu.style.top=Math.min(cy-vr.top, vr.height-320)+'px';
 }
 function entferneLeaf(pfad){
   const steps=pfad.slice(1).split('');
@@ -649,8 +770,39 @@ slider('eh','eh'); slider('wand','wand'); slider('boden','boden');
 farbUI('swBoden','fBoden'); farbUI('swAussen','fAussen'); farbUI('swTrenn','fTrenn');
 async function busy(btn,fn){ const alt=btn.textContent; btn.textContent='erzeugt …'; btn.disabled=true;
   try{ await new Promise(r=>setTimeout(r,30)); await fn(); } finally { btn.textContent=alt; btn.disabled=false; } }
-$('ex3mf').addEventListener('click',()=>busy($('ex3mf'),async()=>{ download(await make3mfMulti(exportListe()),'kohlilab_organizer.3mf'); }));
-$('exstl').addEventListener('click',()=>busy($('exstl'),async()=>{ download(new Blob([stlString(exportListe())],{type:'model/stl'}),'kohlilab_organizer.stl'); }));
+// Export: EIN Teil -> eine Datei; mehrere Module -> ZIP mit einer Datei je
+// Teil (jedes Modul einzeln zentriert, druckfertig einzeln platzierbar).
+function bboxOffset(g){
+  const p=g.attributes.position.array;
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  for(let i=0;i<p.length;i+=3){ if(p[i]<mnx)mnx=p[i]; if(p[i]>mxx)mxx=p[i]; if(p[i+1]<mny)mny=p[i+1]; if(p[i+1]>mxy)mxy=p[i+1]; }
+  return { tx:-(mnx+mxx)/2, ty:-(mny+mxy)/2 };
+}
+async function exportTeile(art){
+  const a=aktuelle;
+  if(a.module.length===1 && !a.schluessel){
+    const e=[{geo:a.module[0], name:'Organizer', tx:0, ty:0}];
+    if(art==='3mf') download(await make3mfMulti(e),'kohlilab_organizer.3mf');
+    else download(new Blob([stlString(e)],{type:'model/stl'}),'kohlilab_organizer.stl');
+    return;
+  }
+  const zip=new JSZip();
+  for(let k=0;k<a.module.length;k++){
+    const off=bboxOffset(a.module[k]);
+    const e=[{geo:a.module[k], name:`Modul ${k+1}`, ...off}];
+    if(art==='3mf') zip.file(`modul_${k+1}.3mf`, await make3mfMulti(e));
+    else zip.file(`modul_${k+1}.stl`, stlString(e));
+  }
+  if(a.schluessel){
+    const anz=a.plan.taschen.length, e=[];
+    for(let k=0;k<anz;k++) e.push({geo:a.schluessel, name:`Schlüssel ${k+1}`, tx:(k%5)*(2*DOVE.kd+9), ty:Math.floor(k/5)*(DOVE.wt+9)});
+    if(art==='3mf') zip.file(`schluessel_${anz}_stueck.3mf`, await make3mfMulti(e));
+    else zip.file(`schluessel_${anz}_stueck.stl`, stlString(e));
+  }
+  download(await zip.generateAsync({type:'blob'}), `kohlilab_organizer_teile_${art}.zip`);
+}
+$('ex3mf').addEventListener('click',()=>busy($('ex3mf'),()=>exportTeile('3mf')));
+$('exstl').addEventListener('click',()=>busy($('exstl'),()=>exportTeile('stl')));
 
 window.__geos=()=>aktuelle.module.map(g=>geomPos(g)).concat(aktuelle.schluessel?[geomPos(aktuelle.schluessel)]:[]);
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
