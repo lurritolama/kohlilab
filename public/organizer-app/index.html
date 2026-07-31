@@ -90,7 +90,7 @@
 
   <div class="grp"><h2>Export</h2>
     <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
-    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit Schwalbenschwanz-Schlüsseln — der Export ist dann ein <b>ZIP mit einer Datei pro Teil</b>, jedes einzeln druckbar.</div>
+    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit angeformten <b>Schwalbenschwanz-Leisten</b> (von oben zusammenschieben, keine losen Teile) — der Export ist ein <b>ZIP mit einer Datei pro Modul</b>, jedes einzeln druckbar.</div>
   </div>
 </div>
 
@@ -120,9 +120,11 @@ const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];  
 const FACH_MIN = 25;
 // H2D: im 2-Düsen-Betrieb sind nur 300×320 mm nutzbar -> mit Sicherheitsmarge:
 const BETT = { x:290, y:310 };
-// Schwalbenschwanz-Schlüssel (Taschen in der Boden-Unterseite, gestufte
-// Trapeze -> rein achsparallele Geometrie = wasserdicht per Konstruktion)
-const DOVE = { kd:7, wn:8, wt:14, stufen:5, fit:0.22, decke:0.8 };
+// Schwalbenschwanz-Verbindung: vertikale, angeformte Leisten IN den Wänden
+// an der Modul-Fuge — von oben einschieben, keine losen Teile.
+// kd = Tiefe der Leiste, wn = Halsbreite, wt = Endbreite (Hinterschnitt),
+// fit = Spiel je Seite. Über die volle Bauteilhöhe extrudiert.
+const DOVE = { kd:6, wn:5, wt:11, stufen:4, fit:0.20, bw:8, bh:15 };
 // Preisrechnung (individuell, live): Manolos Sätze
 const PREIS = {
   grund: 9,            // CHF je Auftrag (Handling, Kontrolle, Verpackung)
@@ -339,33 +341,28 @@ function schnittPlan(L){
   };
   const xs=roh(nx,L.x0,L.W).map(c=>snap(c,'v'));
   const ys=roh(ny,L.y0,L.D).map(c=>snap(c,'h'));
-  // Taschen-Positionen: entlang jedes Schnitts in den durchquerten Fachböden
-  const taschen=[];
-  const lege=(cuts, axis, andere)=>{
+  // Verbindungspfosten entlang jeder Fuge: vollhohe Schwalbenschwanz-Paare.
+  // Läuft die Fuge durch eine Wand -> unsichtbar; im offenen Fach -> schmale
+  // Rippe. Gleichmässig verteilt, mit Abstand zu Quer-Schnitten (keine
+  // Pfosten-Überlappung).
+  const tenons=[];
+  const lege=(cuts, axis, ce0, ce1, quer)=>{
     for(const c of cuts){
-      for(const lf of L.leaves){
-        const lang = axis==='x' ? [lf.r.x0, lf.r.x1] : [lf.r.y0, lf.r.y1];
-        const quer = axis==='x' ? [lf.r.y0, lf.r.y1] : [lf.r.x0, lf.r.x1];
-        if(c < lang[0]+DOVE.kd+2 || c > lang[1]-DOVE.kd-2) continue;
-        let bereiche=[[quer[0]+DOVE.wt/2+3, quer[1]-DOVE.wt/2-3]];
-        for(const oc of andere){
-          bereiche = bereiche.flatMap(([a,b])=>{
-            if(oc<a-12||oc>b+12) return [[a,b]];
-            return [[a, oc-DOVE.kd-6],[oc+DOVE.kd+6, b]].filter(([p,q])=>q-p>4);
-          });
-        }
-        for(const [a,b] of bereiche){
-          if(b-a<4) continue;
-          const n=Math.max(1, Math.floor((b-a)/70)+1);
-          for(let k=0;k<n;k++) taschen.push({ axis, c, m:a+(b-a)*(k+0.5)/n });
-        }
+      const a=ce0+DOVE.bh/2+2, b=ce1-DOVE.bh/2-2;
+      if(b<a) continue;
+      const n=Math.max(2, Math.round((b-a)/70)+1);
+      for(let k=0;k<n;k++){
+        const m = a+(b-a)*k/(n-1);
+        if(quer.some(qc=>Math.abs(qc-m)<DOVE.bh/2+DOVE.bw+2)) continue;   // nicht auf Quer-Fuge
+        tenons.push({ axis, c, m });
       }
     }
   };
-  lege(xs,'x',ys); lege(ys,'y',xs);
-  return { xs, ys, taschen };
+  lege(xs,'x', L.y0+P.wand, L.y0+L.D-P.wand, ys);
+  lege(ys,'y', L.x0+P.wand, L.x0+L.W-P.wand, xs);
+  return { xs, ys, tenons };
 }
-// gestufte Halbbreiten der Schwalbenschwanz-Tasche (aussen am breitesten)
+// gestufte Halbbreiten der Schwalbenschwanz-Leiste (am Ende am breitesten)
 function doveStufen(){
   const s=[];
   for(let i=0;i<DOVE.stufen;i++){
@@ -374,6 +371,7 @@ function doveStufen(){
   }
   return s;
 }
+function doveHwInner(d){ const st=doveStufen().find(s=>d>=s.d0&&d<s.d1); return st?st.hw:DOVE.wt/2; }
 
 // ---------- Geometrie: Zellen-Engine mit Höhen-Intervallen ----------
 // Jede Zelle ist solid von zlo..zhi. Nachbar-Differenzen ergeben die
@@ -394,11 +392,24 @@ function organizerGeometrien(){
   for(const c of plan.xs) xs.add(c);
   for(const c of plan.ys) ys.add(c);
   const stufen=doveStufen();
-  for(const t of plan.taschen){
+  const F=DOVE.fit;
+  for(const t of plan.tenons){
+    // Leiste ragt vom linken/unteren Modul (bei c) um kd ins rechte/obere.
+    const tief=[0]; for(const s of stufen) tief.push(s.d1); tief.push(DOVE.kd+F);
     for(const s of stufen){
-      if(t.axis==='x'){ xs.add(t.c-s.d1); xs.add(t.c+s.d1); ys.add(t.m-s.hw); ys.add(t.m+s.hw); }
-      else { ys.add(t.c-s.d1); ys.add(t.c+s.d1); xs.add(t.m-s.hw); xs.add(t.m+s.hw); }
+      const hwG=s.hw+F;                                   // Nut = Zapfen + Spiel
+      if(t.axis==='x'){
+        ys.add(t.m-s.hw); ys.add(t.m+s.hw); ys.add(t.m-hwG); ys.add(t.m+hwG);
+      } else {
+        xs.add(t.m-s.hw); xs.add(t.m+s.hw); xs.add(t.m-hwG); xs.add(t.m+hwG);
+      }
     }
+    const tipHwG=DOVE.wt/2+F;
+    if(t.axis==='x'){ for(const d of tief) xs.add(t.c+d); ys.add(t.m-tipHwG); ys.add(t.m+tipHwG); }
+    else { for(const d of tief) ys.add(t.c+d); xs.add(t.m-tipHwG); xs.add(t.m+tipHwG); }
+    // Boss-Rechteck (vollhoher Pfosten um die Leiste)
+    if(t.axis==='x'){ xs.add(t.c-DOVE.bw); xs.add(t.c+DOVE.bw); ys.add(t.m-DOVE.bh/2); ys.add(t.m+DOVE.bh/2); }
+    else { ys.add(t.c-DOVE.bw); ys.add(t.c+DOVE.bw); xs.add(t.m-DOVE.bh/2); xs.add(t.m+DOVE.bh/2); }
   }
   // Beinahe-Duplikate mergen (Float-Arithmetik): sonst entstehen Null-
   // Breite-Zellen -> deckungsgleiche Faces -> Mehrfach-Kanten im Mesh.
@@ -406,15 +417,33 @@ function organizerGeometrien(){
     for(const v of s){ if(!out.length || v-out[out.length-1]>0.004) out.push(v); } return out; };
   const X=merge(xs), Y=merge(ys);
   const nx=X.length-1, ny=Y.length-1;
-  const pd=Math.max(0.6, P.boden-DOVE.decke);          // Taschen-Tiefe von unten
 
   const innen={ x0:L.x0+P.wand, x1:L.x0+L.W-P.wand, y0:L.y0+P.wand, y1:L.y0+L.D-P.wand };
+  const nXc=plan.xs.length;
+  // Schwalbenschwanz-Zugehörigkeit: 'zapfen' -> gehört Nachbar links/unten,
+  // 'nut' (Spielspalt) -> leer (Clearance). Sonst null (normal).
+  const tenonHit=(cx,cy)=>{
+    for(const t of plan.tenons){
+      const dep = t.axis==='x' ? cx-t.c : cy-t.c;
+      if(dep<=0.001 || dep>DOVE.kd+F+0.001) continue;
+      const off = Math.abs(t.axis==='x' ? cy-t.m : cx-t.m);
+      const hwI = doveHwInner(Math.min(dep,DOVE.kd-1e-4));
+      if(dep<=DOVE.kd && off<hwI) return { t, art:'zapfen' };
+      if(off < hwI+F) return { t, art:'nut' };
+    }
+    return null;
+  };
   const modIdx=(cx,cy)=>{
     let mx=0; for(const c of plan.xs) if(cx>c) mx++;
     let my=0; for(const c of plan.ys) if(cy>c) my++;
-    return mx + my*(plan.xs.length+1);
+    const h=tenonHit(cx,cy);
+    if(h){
+      if(h.art==='nut') return -1;                        // Spielspalt = leer
+      if(h.t.axis==='x') mx=Math.max(0,mx-1); else my=Math.max(0,my-1);   // Zapfen -> Nachbar
+    }
+    return mx + my*(nXc+1);
   };
-  const nMod=(plan.xs.length+1)*(plan.ys.length+1);
+  const nMod=(nXc+1)*(plan.ys.length+1);
   // Zellen: typ, Intervall, Modul
   const info=new Array(nx*ny);
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
@@ -422,24 +451,22 @@ function organizerGeometrien(){
     let typ='t', fach=null;
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
     else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
-    let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
-    if(typ==='k' && fach){
+    const mod=modIdx(cx,cy);
+    // Verbindungspfosten: im Boss-Rechteck volle Höhe erzwingen (auch im Fach)
+    let imBoss=false;
+    for(const t of plan.tenons){
+      const dn=Math.abs(t.axis==='x'?cx-t.c:cy-t.c), dl=Math.abs(t.axis==='x'?cy-t.m:cx-t.m);
+      if(dn<DOVE.bw && dl<DOVE.bh/2){ imBoss=true; break; }
+    }
+    let zlo=0, zhi= (typ==='k'&&!imBoss) ? P.boden : P.eh;
+    if(typ==='k' && fach && !imBoss){
       const ee=einsaetze.find(x=>x.lf===fach);
       if(ee){ const h=ee.e.zhi(cx,cy); if(h!==null) zhi=h; }
-    }
-    if(typ==='k'){
-      for(const t of plan.taschen){
-        const langC = t.axis==='x' ? cx : cy, querC = t.axis==='x' ? cy : cx;
-        const d=Math.abs(langC-t.c);
-        if(d>DOVE.kd) continue;
-        const st=stufen.find(s=>d>=s.d0&&d<s.d1);
-        if(st && Math.abs(querC-t.m)<st.hw){ zlo=pd; break; }
-      }
     }
     let lbl=-1;
     if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
       if(cx>b.x0&&cx<b.x1&&cy>b.y0&&cy<b.y1){ lbl=li; break; } }
-    info[j*nx+i]={ typ, zlo, zhi, lbl, mod:modIdx(cx,cy) };
+    info[j*nx+i]={ typ, zlo, zhi, lbl, mod };
   }
   const farbe=()=>cK;
   // globale Höhenstufen (inkl. Einsatz-Höhen) für den Lagen-Schnitt
@@ -447,6 +474,7 @@ function organizerGeometrien(){
   let volMm3=0;
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
     const z=info[j*nx+i];
+    if(z.mod<0) continue;
     volMm3 += (X[i+1]-X[i])*(Y[j+1]-Y[j])*(z.zhi-z.zlo);
   }
   const zSet=new Set();
@@ -531,44 +559,13 @@ function organizerGeometrien(){
     module.push(g);
   }
 
-  // Schwalbenschwanz-Schlüssel (ein Mesh, wird je Fuge einmal gedruckt)
-  let schluessel=null, keyVolMm3=0;
-  if(plan.taschen.length){
-    const pos=[], col=[];
-    const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
-    const quad=(a,b,c2,d,cc)=>{ push(...a,cc);push(...b,cc);push(...c2,cc); push(...a,cc);push(...c2,cc);push(...d,cc); };
-    const kx=new Set([0]), kySet=new Set();
-    for(const s of stufen){ kx.add(s.d1); kx.add(-s.d1); kySet.add(s.hw-DOVE.fit); kySet.add(-(s.hw-DOVE.fit)); }
-    const KX=[...kx].sort((a,b)=>a-b), hws=stufen.map(s=>s.hw-DOVE.fit);
-    const KY=[...kySet].sort((a,b)=>a-b);
-    const hK=pd-0.15;
-    const drin=(cx,cy)=>{ const d=Math.abs(cx); const st=stufen.find(s=>d>=s.d0&&d<s.d1); return st? Math.abs(cy)<st.hw-DOVE.fit : false; };
-    const nkx=KX.length-1, nky=KY.length-1;
-    const at=(j,i)=> (i<0||j<0||i>=nkx||j>=nky) ? false : drin((KX[i]+KX[i+1])/2,(KY[j]+KY[j+1])/2);
-    const cK=new THREE.Color(P.farbe);
-    for(let j=0;j<nky;j++) for(let i=0;i<nkx;i++){
-      if(!at(j,i)) continue;
-      const xa=KX[i],xb=KX[i+1],ya=KY[j],yb=KY[j+1];
-      keyVolMm3 += (xb-xa)*(yb-ya)*hK;
-      quad([xa,ya,0],[xa,yb,0],[xb,yb,0],[xb,ya,0], cK);
-      quad([xa,ya,hK],[xb,ya,hK],[xb,yb,hK],[xa,yb,hK], cK);
-      if(!at(j-1,i)) quad([xa,ya,0],[xb,ya,0],[xb,ya,hK],[xa,ya,hK], cK);
-      if(!at(j+1,i)) quad([xb,yb,0],[xa,yb,0],[xa,yb,hK],[xb,yb,hK], cK);
-      if(!at(j,i-1)) quad([xa,yb,0],[xa,ya,0],[xa,ya,hK],[xa,yb,hK], cK);
-      if(!at(j,i+1)) quad([xb,ya,0],[xb,yb,0],[xb,yb,hK],[xb,ya,hK], cK);
-    }
-    schluessel=new THREE.BufferGeometry();
-    schluessel.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
-    schluessel.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
-    schluessel.computeVertexNormals();
-  }
-  return { module, schluessel, plan, L, volMm3, keyVolMm3 };
+  return { module, plan, L, volMm3 };
 }
 
 // ---------- Live-Preis ----------
 function preisInfo(){
   const a=aktuelle;
-  const g=(a.volMm3 + a.keyVolMm3*(a.plan.taschen.length||0))/1000*PREIS.dichte;
+  const g=a.volMm3/1000*PREIS.dichte;
   const stunden=g/PREIS.durchsatz;
   const material=g*PREIS.filamentKg/1000;
   const maschine=stunden*PREIS.stundensatz;
@@ -631,14 +628,6 @@ function rebuild(){
     }
     grp.add(mm);
   });
-  if(aktuelle.schluessel && explode){
-    const anz=aktuelle.plan.taschen.length;
-    for(let k=0;k<anz;k++){
-      const mm=new THREE.Mesh(aktuelle.schluessel, mat);
-      mm.position.set(aktuelle.L.x0+20+k*30, aktuelle.L.y0-34, 0);
-      grp.add(mm);
-    }
-  }
   scene.add(grp);
   baueLade();
   baueLabels();
@@ -646,10 +635,10 @@ function rebuild(){
   const tris=aktuelle.module.reduce((s,g)=>s+g.attributes.position.count/3,0);
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
-  let modTxt = nMod>1 ? ` · ${nMod} Module + ${aktuelle.plan.taschen.length} Schlüssel (Schwalbenschwanz)` : '';
+  let modTxt = nMod>1 ? ` · ${nMod} Module (Schwalbenschwanz)` : '';
   document.getElementById('hud').innerHTML =
     `Einsatz ${aktuelle.L.W.toFixed(0)}×${aktuelle.L.D.toFixed(0)}×${P.eh} mm · ${layout().leaves.length} Fächer${modTxt} · ${(tris/1000).toFixed(1)}k Dreiecke`+
-    (nMod>1?`<br><span class="warn">Grösser als H2D-Druckraum (2 Düsen: ~${BETT.x}×${BETT.y} nutzbar) — automatisch geteilt, Schnitt bevorzugt in Wandmitte. Schlüssel von unten einschieben.</span>`:'');
+    (nMod>1?`<br><span class="warn">Grösser als H2D-Druckraum (2 Düsen: ~${BETT.x}×${BETT.y} nutzbar) — automatisch geteilt. Module von oben mit den Schwalbenschwanz-Leisten zusammenschieben.</span>`:'');
 }
 
 // ---------- Live-Bemassung ----------
@@ -921,10 +910,6 @@ function exportListe(){
     const mx=k%nMx, my=Math.floor(k/nMx);
     liste.push({ geo:g, name:a.module.length>1?`Modul ${k+1}`:'Organizer', tx:mx*18, ty:my*18 });
   });
-  if(a.schluessel){
-    for(let k=0;k<a.plan.taschen.length;k++)
-      liste.push({ geo:a.schluessel, name:`Schlüssel ${k+1}`, tx:a.L.x0+20+k*(2*DOVE.kd+8), ty:a.L.y0-40 });
-  }
   return liste;
 }
 function stlString(geos){ let s='solid organizer\n';
@@ -966,7 +951,7 @@ function bboxOffset(g){
 }
 async function exportTeile(art){
   const a=aktuelle;
-  if(a.module.length===1 && !a.schluessel){
+  if(a.module.length===1){
     const e=[{geo:a.module[0], name:'Organizer', tx:0, ty:0}];
     if(art==='3mf') download(await make3mfMulti(e),'kohlilab_organizer.3mf');
     else download(new Blob([stlString(e)],{type:'model/stl'}),'kohlilab_organizer.stl');
@@ -979,18 +964,13 @@ async function exportTeile(art){
     if(art==='3mf') zip.file(`modul_${k+1}.3mf`, await make3mfMulti(e));
     else zip.file(`modul_${k+1}.stl`, stlString(e));
   }
-  if(a.schluessel){
-    const anz=a.plan.taschen.length, e=[];
-    for(let k=0;k<anz;k++) e.push({geo:a.schluessel, name:`Schlüssel ${k+1}`, tx:(k%5)*(2*DOVE.kd+9), ty:Math.floor(k/5)*(DOVE.wt+9)});
-    if(art==='3mf') zip.file(`schluessel_${anz}_stueck.3mf`, await make3mfMulti(e));
-    else zip.file(`schluessel_${anz}_stueck.stl`, stlString(e));
-  }
   download(await zip.generateAsync({type:'blob'}), `kohlilab_organizer_teile_${art}.zip`);
 }
 $('ex3mf').addEventListener('click',()=>busy($('ex3mf'),()=>exportTeile('3mf')));
 $('exstl').addEventListener('click',()=>busy($('exstl'),()=>exportTeile('stl')));
 
-window.__geos=()=>aktuelle.module.map(g=>geomPos(g)).concat(aktuelle.schluessel?[geomPos(aktuelle.schluessel)]:[]);
+window.__geos=()=>aktuelle.module.map(g=>geomPos(g));
+window.__plan=()=>({ xs:aktuelle.plan.xs, ys:aktuelle.plan.ys, tenons:aktuelle.plan.tenons.length, tenonDetail:aktuelle.plan.tenons.slice(0,3) });
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 addEventListener('resize',resize); resize();
 tree=VORLAGEN['Bürotisch']();
