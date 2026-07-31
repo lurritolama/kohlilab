@@ -78,10 +78,9 @@
     <div class="note" style="margin-top:0">In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Löschen, <b>Wand ziehen</b> zum Verschieben. Oben links: Draufsicht, Masse, Rückgängig.</div>
   </div>
 
-  <div class="grp"><h2>5 · Farben (AMS)</h2>
-    <div class="feld"><label>Boden</label><div class="sw" id="swBoden"></div></div>
-    <div class="feld"><label>Aussenwände</label><div class="sw" id="swAussen"></div></div>
-    <div class="feld"><label>Trennwände</label><div class="sw" id="swTrenn"></div></div>
+  <div class="grp"><h2>5 · Farbe</h2>
+    <div class="feld"><label>Organizer (eine Druckfarbe)</label><div class="sw" id="swFarbe"></div></div>
+    <div class="note">Der Organizer wird einfarbig gedruckt. Optional: Fächer über das Fach-Menü <b>beschriften</b> — die Schrift liegt bündig und farbig auf der Grundplatte.</div>
   </div>
 
   <div class="grp"><h2>Export</h2>
@@ -112,7 +111,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------- Konstanten ----------
-const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#ef7d1a','#f5c518','#37a24a','#2f6fd6'];
+const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];   // 6 Farben
 const FACH_MIN = 25;
 // H2D: im 2-Düsen-Betrieb sind nur 300×320 mm nutzbar -> mit Sicherheitsmarge:
 const BETT = { x:290, y:310 };
@@ -123,7 +122,7 @@ const DOVE = { kd:7, wn:8, wt:14, stufen:5, fit:0.22, decke:0.8 };
 const P = {
   sb:400, st:300, sh:60, tol:1.5,
   eh:40, wand:1.6, boden:1.8,
-  fBoden:'#c9cfd2', fAussen:'#2f6fd6', fTrenn:'#eceff0',
+  farbe:'#c9cfd2',
 };
 
 // ---------- Fächer-Baum ----------
@@ -246,6 +245,64 @@ function einsatzDaten(lf){
   return { xs, ys, zhi:fn };
 }
 
+// ---------- Fach-Beschriftung (bündig, farbig, auf der Grundplatte) ----------
+let maskCache={ key:null };
+function textMask(txt, hMm, res){
+  const key=txt+'|'+hMm+'|'+res;
+  if(maskCache.key===key) return maskCache.leer?null:maskCache;
+  const hPx=hMm/res/0.72;
+  const mess=document.createElement('canvas').getContext('2d');
+  mess.font=`${hPx}px "Arial Black", Arial, sans-serif`;
+  const wPx=Math.min(1400, Math.ceil(mess.measureText(txt).width)+6);
+  const c=document.createElement('canvas'); c.width=wPx; c.height=Math.ceil(hPx*1.5);
+  const x=c.getContext('2d');
+  x.font=`${hPx}px "Arial Black", Arial, sans-serif`;
+  x.textAlign='center'; x.textBaseline='middle'; x.fillStyle='#fff';
+  x.fillText(txt, c.width/2, c.height/2);
+  const d=x.getImageData(0,0,c.width,c.height).data;
+  const pix=(px,py)=> px>=0&&py>=0&&px<c.width&&py<c.height && d[(py*c.width+px)*4+3]>127;
+  let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9, leer=true;
+  for(let py=0;py<c.height;py++) for(let px=0;px<c.width;px++) if(pix(px,py)){ leer=false;
+    if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py; }
+  if(leer){ maskCache={key,leer:true}; return null; }
+  const cols=maxX-minX+1, rows=maxY-minY+1;
+  maskCache={ key, cols, rows, res, w:cols*res, h:rows*res,
+              drin:(i,j)=>pix(minX+i, maxY-j) };
+  return maskCache;
+}
+function labelPlan(L, plan){
+  // Beschriftungen sammeln, Boxen zentriert im Fach, nicht über Schnitte
+  const out=[];
+  for(const lf of L.leaves){
+    if(!lf.n.label || lf.n.einsatz) continue;
+    const txt=(lf.n.label.txt||'').trim(); if(!txt) continue;
+    const W=lf.r.x1-lf.r.x0, D=lf.r.y1-lf.r.y0;
+    const hMm=Math.min(8, Math.max(5, D*0.28));
+    const mk=textMask(txt, hMm, 0.35); if(!mk) continue;
+    if(mk.w>W-8 || mk.h>D-8) continue;                 // passt nicht -> auslassen
+    let cx=(lf.r.x0+lf.r.x1)/2, cy=(lf.r.y0+lf.r.y1)/2;
+    const pad=0.6, bw=mk.w+2*pad+1, bh=mk.h+2*pad+1;
+    for(const c of plan.xs){                            // nicht über x-Schnitt
+      if(cx-bw/2<c+1 && cx+bw/2>c-1){
+        const links=c-lf.r.x0, rechts=lf.r.x1-c;
+        cx = rechts>links ? Math.min(lf.r.x1-4-bw/2, c+2+bw/2) : Math.max(lf.r.x0+4+bw/2, c-2-bw/2);
+      }
+    }
+    for(const c of plan.ys){
+      if(cy-bh/2<c+1 && cy+bh/2>c-1){
+        const vorn=c-lf.r.y0, hinten=lf.r.y1-c;
+        cy = hinten>vorn ? Math.min(lf.r.y1-4-bh/2, c+2+bh/2) : Math.max(lf.r.y0+4+bh/2, c-2-bh/2);
+      }
+    }
+    const box={ x0:cx-bw/2, x1:cx+bw/2, y0:cy-bh/2, y1:cy+bh/2 };
+    let ok = box.x0>lf.r.x0+2 && box.x1<lf.r.x1-2 && box.y0>lf.r.y0+2 && box.y1<lf.r.y1-2;
+    for(const c of plan.xs) if(box.x0<c&&box.x1>c) ok=false;
+    for(const c of plan.ys) if(box.y0<c&&box.y1>c) ok=false;
+    if(ok) out.push({ box, mk, pad, farbe:lf.n.label.farbe||'#1c1c1c' });
+  }
+  return out;
+}
+
 // ---------- Modul-Schnitte + Schwalbenschwanz-Taschen ----------
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
@@ -308,8 +365,10 @@ function doveStufen(){
 function organizerGeometrien(){
   const L=layout();
   const plan=schnittPlan(L);
-  const cB=new THREE.Color(P.fBoden), cA=new THREE.Color(P.fAussen), cT=new THREE.Color(P.fTrenn);
+  const cK=new THREE.Color(P.farbe);
+  const labels=labelPlan(L, plan);
   const xs=new Set([L.x0, L.x0+L.W]), ys=new Set([L.y0, L.y0+L.D]);
+  for(const lb of labels){ xs.add(lb.box.x0); xs.add(lb.box.x1); ys.add(lb.box.y0); ys.add(lb.box.y1); }
   const einsaetze=[];
   for(const lf of L.leaves){
     xs.add(lf.r.x0); xs.add(lf.r.x1); ys.add(lf.r.y0); ys.add(lf.r.y1);
@@ -361,9 +420,12 @@ function organizerGeometrien(){
         if(st && Math.abs(querC-t.m)<st.hw){ zlo=pd; break; }
       }
     }
-    info[j*nx+i]={ typ, zlo, zhi, mod:modIdx(cx,cy) };
+    let lbl=-1;
+    if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
+      if(cx>b.x0&&cx<b.x1&&cy>b.y0&&cy<b.y1){ lbl=li; break; } }
+    info[j*nx+i]={ typ, zlo, zhi, lbl, mod:modIdx(cx,cy) };
   }
-  const farbe=t=> t==='k'?cB : (t==='a'?cA:cT);
+  const farbe=()=>cK;
   // globale Höhenstufen (inkl. Einsatz-Höhen) für den Lagen-Schnitt
   const zSet=new Set();
   for(const z of info){ zSet.add(z.zlo); zSet.add(z.zhi); }
@@ -381,8 +443,9 @@ function organizerGeometrien(){
       const z=zelle(j,i); if(!z) continue;
       const c=farbe(z.typ);
       const xa=X[i],xb=X[i+1],ya=Y[j],yb=Y[j+1];
-      quad([xa,ya,z.zlo],[xa,yb,z.zlo],[xb,yb,z.zlo],[xb,ya,z.zlo], cB);   // Unterseite (evtl. Taschendecke)
-      quad([xa,ya,z.zhi],[xb,ya,z.zhi],[xb,yb,z.zhi],[xa,yb,z.zhi], c);    // Oberseite
+      quad([xa,ya,z.zlo],[xa,yb,z.zlo],[xb,yb,z.zlo],[xb,ya,z.zlo], cK);   // Unterseite (evtl. Taschendecke)
+      if(z.lbl<0)                                                          // Beschriftungs-Boxen: Deckel separat
+        quad([xa,ya,z.zhi],[xb,ya,z.zhi],[xb,yb,z.zhi],[xa,yb,z.zhi], c);  // Oberseite
       // Seiten: freiliegende Intervall-Teile (Ich minus Nachbar), in Lagen
       // an den globalen Höhenstufen geschnitten -> alle Kanten fluchten
       // (sonst T-Junctions, z.B. Taschendecke vs. voller Boden am Schnitt).
@@ -401,6 +464,43 @@ function organizerGeometrien(){
       seite(zelle(j+1,i), [xb,yb],[xa,yb]);
       seite(zelle(j,i-1), [xa,yb],[xa,ya]);
       seite(zelle(j,i+1), [xb,ya],[xb,yb]);
+    }
+    // Beschriftungs-Deckel: feines Textgitter + Zip-Streifen zum globalen
+    // Raster (beide Punktlisten geteilt -> keine T-Junctions; Ecken über
+    // gemeinsame Diagonalen paarweise geschlossen)
+    for(const lb of labels){
+      const b=lb.box;
+      if(modIdx((b.x0+b.x1)/2,(b.y0+b.y1)/2)!==m) continue;
+      const cL=new THREE.Color(lb.farbe);
+      const res=lb.mk.res, zT=P.boden;
+      const ix0=b.x0+lb.pad, ix1=b.x1-lb.pad, iy0=b.y0+lb.pad, iy1=b.y1-lb.pad;
+      const tx0=(ix0+ix1)/2-lb.mk.w/2, ty0=(iy0+iy1)/2-lb.mk.h/2;
+      const fxs=new Set([ix0,ix1]), fys=new Set([iy0,iy1]);
+      for(let k=0;k<=lb.mk.cols;k++) fxs.add(tx0+k*res);
+      for(let k=0;k<=lb.mk.rows;k++) fys.add(ty0+k*res);
+      const FX=merge(fxs), FY=merge(fys);
+      const istT=(cx,cy)=>{ const i2=Math.floor((cx-tx0)/res), j2=Math.floor((cy-ty0)/res);
+        return i2>=0&&j2>=0&&i2<lb.mk.cols&&j2<lb.mk.rows&&lb.mk.drin(i2,j2); };
+      for(let j2=0;j2<FY.length-1;j2++) for(let i2=0;i2<FX.length-1;i2++){
+        const cx=(FX[i2]+FX[i2+1])/2, cy=(FY[j2]+FY[j2+1])/2;
+        quad([FX[i2],FY[j2],zT],[FX[i2+1],FY[j2],zT],[FX[i2+1],FY[j2+1],zT],[FX[i2],FY[j2+1],zT], istT(cx,cy)?cL:cK);
+      }
+      const gX=X.filter(v=>v>=b.x0-1e-6&&v<=b.x1+1e-6);
+      const gY=Y.filter(v=>v>=b.y0-1e-6&&v<=b.y1+1e-6);
+      const zip=(A,B,key)=>{
+        let i3=0,j3=0;
+        while(i3<A.length-1 || j3<B.length-1){
+          if(j3>=B.length-1 || (i3<A.length-1 && A[i3+1][key]<=B[j3+1][key]+1e-9)){
+            push(A[i3][0],A[i3][1],zT,cK); push(A[i3+1][0],A[i3+1][1],zT,cK); push(B[j3][0],B[j3][1],zT,cK); i3++;
+          } else {
+            push(A[i3][0],A[i3][1],zT,cK); push(B[j3+1][0],B[j3+1][1],zT,cK); push(B[j3][0],B[j3][1],zT,cK); j3++;
+          }
+        }
+      };
+      zip(gX.map(v=>[v,b.y0]), FX.map(v=>[v,iy0]), 0);
+      zip(gX.map(v=>[v,b.y1]), FX.map(v=>[v,iy1]), 0);
+      zip(gY.map(v=>[b.x0,v]), FY.map(v=>[ix0,v]), 1);
+      zip(gY.map(v=>[b.x1,v]), FY.map(v=>[ix1,v]), 1);
     }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
@@ -423,7 +523,7 @@ function organizerGeometrien(){
     const drin=(cx,cy)=>{ const d=Math.abs(cx); const st=stufen.find(s=>d>=s.d0&&d<s.d1); return st? Math.abs(cy)<st.hw-DOVE.fit : false; };
     const nkx=KX.length-1, nky=KY.length-1;
     const at=(j,i)=> (i<0||j<0||i>=nkx||j>=nky) ? false : drin((KX[i]+KX[i+1])/2,(KY[j]+KY[j+1])/2);
-    const cK=new THREE.Color(P.fBoden);
+    const cK=new THREE.Color(P.farbe);
     for(let j=0;j<nky;j++) for(let i=0;i<nkx;i++){
       if(!at(j,i)) continue;
       const xa=KX[i],xb=KX[i+1],ya=KY[j],yb=KY[j+1];
@@ -606,13 +706,14 @@ function zeigeMenu(lf, cx, cy){
   const kannV=(lf.r.x1-lf.r.x0)>=2*FACH_MIN+P.wand;
   const kannH=(lf.r.y1-lf.r.y0)>=2*FACH_MIN+P.wand;
   menu.innerHTML=`<div class="mtitle">FACH ${bw} × ${bt} MM</div>`;
-  const b=(txt,fn,dis)=>{ const el=document.createElement('button'); el.textContent=txt; el.disabled=!!dis;
+  const b=(txt,fn,dis,title)=>{ const el=document.createElement('button'); el.textContent=txt; el.disabled=!!dis; if(title) el.title=title;
     el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
   b('◫  Senkrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannV);
   b('⊟  Waagrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannH);
   if(lf.pfad!=='r') b('✕  Fach entfernen (Wand löschen)', ()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); });
   b('▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
-  b('Beschriften — folgt bald', null, true);
+  b((lf.n.label?'● ':'')+'✎  Beschriften …', ()=>zeigeLabelMenu(lf, cx, cy), !!lf.n.einsatz,
+    lf.n.einsatz?'Fach hat einen Spezial-Einsatz — erst entfernen':'');
   const vr=view.getBoundingClientRect();
   menu.style.display='block';
   menu.style.left=Math.min(cx-vr.left, vr.width-230)+'px';
@@ -625,7 +726,7 @@ function zeigeEinsatzMenu(lf, cx, cy){
     el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
   for(const [typ,def] of Object.entries(EINSAETZE)){
     const passt=W>=def.minW && D>=def.minD;
-    b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; rebuild(); }, !passt,
+    b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; delete lf.n.label; rebuild(); }, !passt,
       passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
   }
   if(lf.n.einsatz) b('✕  Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; rebuild(); });
@@ -633,6 +734,34 @@ function zeigeEinsatzMenu(lf, cx, cy){
   menu.style.display='block';
   menu.style.left=Math.min(cx-vr.left, vr.width-240)+'px';
   menu.style.top=Math.min(cy-vr.top, vr.height-320)+'px';
+}
+function zeigeLabelMenu(lf, cx, cy){
+  menu.innerHTML=`<div class="mtitle">FACH BESCHRIFTEN (bündig auf der Grundplatte)</div>`;
+  const inp=document.createElement('input');
+  inp.type='text'; inp.maxLength=16; inp.placeholder='z. B. M4 · Gabeln · USB';
+  inp.value=lf.n.label?.txt||'';
+  inp.style.cssText='width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:12.5px;margin:4px 0 8px';
+  menu.appendChild(inp);
+  let farbe=lf.n.label?.farbe||'#1c1c1c';
+  const sw=document.createElement('div'); sw.className='sw'; sw.style.padding='0 4px 8px';
+  PALETTE.forEach(hex=>{ const bt=document.createElement('button'); bt.style.background=hex;
+    if(farbe===hex) bt.classList.add('active');
+    bt.addEventListener('click',()=>{ farbe=hex; sw.querySelectorAll('button').forEach(x=>x.classList.remove('active')); bt.classList.add('active'); });
+    sw.appendChild(bt); });
+  menu.appendChild(sw);
+  const ok=document.createElement('button'); ok.textContent='✓  Übernehmen';
+  ok.addEventListener('click',()=>{ menu.style.display='none'; snapshot();
+    if(inp.value.trim()) lf.n.label={ txt:inp.value.trim(), farbe }; else delete lf.n.label;
+    rebuild(); });
+  menu.appendChild(ok);
+  if(lf.n.label){ const del=document.createElement('button'); del.textContent='✕  Beschriftung entfernen';
+    del.addEventListener('click',()=>{ menu.style.display='none'; snapshot(); delete lf.n.label; rebuild(); });
+    menu.appendChild(del); }
+  const vr=view.getBoundingClientRect();
+  menu.style.display='block';
+  menu.style.left=Math.min(cx-vr.left, vr.width-250)+'px';
+  menu.style.top=Math.min(cy-vr.top, vr.height-220)+'px';
+  inp.focus();
 }
 function entferneLeaf(pfad){
   const steps=pfad.slice(1).split('');
@@ -767,7 +896,7 @@ function farbUI(hostId,key){
 }
 slider('sb','sb'); slider('st','st'); slider('sh','sh'); slider('tol','tol');
 slider('eh','eh'); slider('wand','wand'); slider('boden','boden');
-farbUI('swBoden','fBoden'); farbUI('swAussen','fAussen'); farbUI('swTrenn','fTrenn');
+farbUI('swFarbe','farbe');
 async function busy(btn,fn){ const alt=btn.textContent; btn.textContent='erzeugt …'; btn.disabled=true;
   try{ await new Promise(r=>setTimeout(r,30)); await fn(); } finally { btn.textContent=alt; btn.disabled=false; } }
 // Export: EIN Teil -> eine Datei; mehrere Module -> ZIP mit einer Datei je
