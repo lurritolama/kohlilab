@@ -1,16 +1,17 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
-import PipelineBand from '../components/PipelineBand.astro';
+import FabrikBand from '../components/FabrikBand.astro';
 import SujetGrid from '../components/SujetGrid.astro';
 import Entstehung from '../components/Entstehung.astro';
 ---
 <BaseLayout
-  title="Ventilkappen — KohliLab"
-  description="3D-gedruckte Ventilkappen mit Schrader-Gewinde: kleine Skulpturen aus der KI-Mikrofabrik, geprüft und gedruckt im Appenzellerland."
+  title="Ventilkappen (Experiment) — KohliLab"
+  description="Experimentelle 3D-gedruckte Ventilkappen mit Schrader-Gewinde: kleine Skulpturen aus der KI-Mikrofabrik, geprüft und gedruckt im Appenzellerland."
 >
+  <div class="exp-banner">EXPERIMENT — Diese Produktlinie entsteht in unserer KI-Mikrofabrik. Sujets wechseln, Ausgang offen.</div>
   <Hero />
-  <PipelineBand />
+  <FabrikBand />
   <SujetGrid />
   <Entstehung />
 </BaseLayout>

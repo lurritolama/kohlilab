@@ -3,14 +3,6 @@
 // ergänzen — jede Linie bekommt eine eigene Unterseite.
 const linien = [
   {
-    slug: 'ventilkappen',
-    name: 'Ventilkappen',
-    status: 'live',
-    beschreibung:
-      'Kleine Skulpturen mit Schrader-Gewinde — die KI-Mikrofabrik bringt laufend neue Sujets, ein Mensch gibt frei.',
-    href: '/ventilkappen',
-  },
-  {
     slug: 'qr-schilder',
     name: 'QR-Schilder',
     status: 'test',
@@ -25,6 +17,14 @@ const linien = [
     beschreibung:
       'Dein Schubladeneinsatz nach Mass: Innenmass eingeben, Fächer frei einteilen — für Besteck, Büro, Werkzeug und mehr.',
     href: '/organizer',
+  },
+  {
+    slug: 'ventilkappen',
+    name: 'Ventilkappen',
+    status: 'exp',
+    beschreibung:
+      'Unser Experiment: Die KI-Mikrofabrik entwirft kleine Skulpturen mit Schrader-Gewinde — Sujets wechseln, ein Mensch gibt frei.',
+    href: '/ventilkappen',
   },
   {
     slug: 'linie-3',
@@ -45,6 +45,7 @@ const linien = [
         <div class="thumb linie-thumb">
           {l.status === 'live' && <span class="tag">LIVE</span>}
           {l.status === 'test' && <span class="tag tag-test">TEST</span>}
+          {l.status === 'exp' && <span class="tag tag-exp">EXPERIMENTELL</span>}
           {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
           {l.slug === 'ventilkappen' ? (
             <svg width="84" height="100" viewBox="0 0 90 110"><path d="M25 15 h40 v14 a20 20 0 0 1 -40 0 z" fill="none" stroke="#e8e6e1" stroke-width="4"/><path d="M45 52 v10 M32 62 h26" stroke="#e8e6e1" stroke-width="4" fill="none"/><rect x="30" y="66" width="30" height="26" rx="3" fill="none" stroke="#ff6b1a" stroke-width="3"/></svg>

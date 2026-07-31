@@ -3,40 +3,46 @@
 <section class="hero">
   <div>
     <span class="kicker">3D-Druck-Manufaktur · Appenzellerland</span>
-    <h1>Kleine Dinge.<br /><span class="g">Sauber gedruckt.</span></h1>
+    <h1>Du konfigurierst.<br /><span class="g">Wir drucken.</span></h1>
     <p class="sub">
-      KohliLab ist die Werkstatt für 3D-gedruckte Produkte mit Charakter —
-      entworfen von einer KI-Mikrofabrik oder von dir im Konfigurator,
-      geprüft und gedruckt in Bühler AR. Den Anfang machen Ventilkappen;
-      weitere Produktlinien sind in Arbeit.
+      KohliLab baut Konfiguratoren für Dinge nach deinen Massen: QR-Schilder
+      fürs Lokal, Schubladen-Organizer auf den Millimeter, und laufend mehr.
+      Du gestaltest im Browser — gedruckt und geprüft wird in Bühler AR.
+      Nebenan experimentiert die KI-Mikrofabrik mit Ventilkappen.
     </p>
     <div class="cta">
-      <a class="btn primary" href="/ventilkappen">Zu den Ventilkappen</a>
-      <a class="btn ghost" href="/#produkte">Alle Produktlinien</a>
+      <a class="btn primary" href="/#produkte">Zu den Konfiguratoren</a>
+      <a class="btn ghost" href="/ventilkappen">Zum KI-Experiment</a>
     </div>
     <div class="specs">
-      <div><div class="n">KI + Mensch</div><div class="l">Entwurf &amp; Freigabe</div></div>
-      <div><div class="n">100%</div><div class="l">wasserdicht validiert</div></div>
+      <div><div class="n">Nach Mass</div><div class="l">jedes Stück einzeln</div></div>
+      <div><div class="n">Bis 4 Farben</div><div class="l">AMS-Mehrfarbdruck</div></div>
       <div><div class="n">Bühler AR</div><div class="l">gedruckt &amp; verschickt</div></div>
     </div>
   </div>
   <div class="stage">
     <div class="plate">
-      <svg class="cap" width="200" height="240" viewBox="0 0 200 240" aria-label="Pokal-Ventilkappe">
-        <g stroke="#e8e6e1" stroke-width="5" fill="none" stroke-linecap="round">
-          <path d="M60 40 h80 v30 a40 40 0 0 1 -80 0 z" fill="#26282c"/>
-          <path d="M60 52 c-25 0 -25 34 2 36" />
-          <path d="M140 52 c25 0 25 34 -2 36" />
-          <path d="M100 112 v18" />
-          <path d="M78 132 h44" fill="#26282c"/>
+      <svg class="cap" width="230" height="230" viewBox="0 0 230 230" aria-label="KohliLab Konfiguratoren">
+        <!-- QR-Schild -->
+        <g transform="translate(18,26)">
+          <rect x="0" y="0" width="92" height="64" rx="7" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
+          <g fill="#ff6b1a"><rect x="10" y="10" width="16" height="16"/><rect x="36" y="10" width="16" height="16"/><rect x="10" y="36" width="16" height="16"/><rect x="40" y="40" width="7" height="7"/><rect x="52" y="32" width="7" height="7"/></g>
+          <path d="M64 16 h30 M64 26 h30 M64 40 h22" stroke="#9a9a93" stroke-width="4" stroke-linecap="round"/>
         </g>
-        <g>
-          <rect x="72" y="136" width="56" height="46" rx="4" fill="#2f3237" stroke="#ff6b1a" stroke-width="3"/>
-          <path d="M76 148 h48 M76 158 h48 M76 168 h48" stroke="#ff6b1a" stroke-width="2.5" opacity=".8"/>
+        <!-- Organizer -->
+        <g transform="translate(118,112)">
+          <rect x="0" y="0" width="94" height="70" rx="6" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
+          <path d="M34 0 v70 M34 34 h60 M64 34 v36 M0 22 h34" stroke="#ff6b1a" stroke-width="3.5"/>
         </g>
-        <text x="100" y="215" text-anchor="middle" fill="#9a9a93" font-size="11" letter-spacing="3">PRODUKTLINIE 001</text>
+        <!-- Ventilkappe (Experiment) -->
+        <g transform="translate(30,124)">
+          <path d="M18 0 h34 v12 a17 17 0 0 1 -34 0 z" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
+          <path d="M35 32 v8 M24 40 h22" stroke="#e8e6e1" stroke-width="3.5" fill="none"/>
+          <rect x="22" y="44" width="26" height="22" rx="3" fill="#26282c" stroke="#ff6b1a" stroke-width="3"/>
+          <text x="35" y="86" text-anchor="middle" fill="#9a9a93" font-size="9.5" letter-spacing="2">EXPERIMENT</text>
+        </g>
       </svg>
-      <span class="plabel">KOHLILAB · WERKSTATT</span>
+      <span class="plabel">KOHLILAB · KONFIGURATOREN</span>
     </div>
   </div>
 </section>

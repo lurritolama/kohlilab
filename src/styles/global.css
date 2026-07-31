@@ -81,6 +81,9 @@ section.block { padding:56px 26px; }
 .card.stumm { pointer-events:none; opacity:.75; }
 .tag-dim { background:var(--line2); color:var(--ink); }
 .tag-test { background:#8b3fd6; color:#f4e9ff; }
+.tag-exp { background:#f5c518; color:#141517; }
+.exp-banner { background:#3d3208; color:#f5c518; font-family:var(--mono); font-size:12px;
+  letter-spacing:1px; text-align:center; padding:9px 14px; border-bottom:1px solid #6b5a10; }
 .card .tag { position:absolute; top:10px; left:10px; font-family:var(--mono); font-size:10px; letter-spacing:1.8px;
   background:var(--acc); color:#141517; font-weight:700; padding:3px 8px; border-radius:2px; }
 .card .meta { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
