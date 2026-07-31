@@ -94,6 +94,12 @@
     <div class="feld"><label>QR &amp; Text (dunkel)</label><div class="sw" id="swDark"></div></div>
   </div>
 
+  <div class="grp"><h2>Menge &amp; Preis</h2>
+    <div class="row"><label>Menge</label><input type="range" id="menge" min="1" max="50" step="1"><span class="val" id="mengeV"></span></div>
+    <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
+    <div class="note">Rechnet live: Material + Druckzeit + Farbwechsel. Set-Rabatt: ab 5 Stück −15 %, ab 10 −25 %. Versand separat.</div>
+  </div>
+
   <div class="grp"><h2>Export</h2>
     <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
     <div class="note">Testphase: Datei herunterladen und selbst slicen. In Bambu Studio den Farben Filamente zuweisen.</div>
@@ -120,6 +126,17 @@ const QUIET = 2;           // Ruhezone um den QR in Modulen (je Seite)
 const MODUL_MIN = 0.8;     // bewährte Mindest-Modulgrösse (mm)
 const LOCH_D = 4;          // Aufhängeloch-Durchmesser (mm)
 
+// Preisrechnung (individuell, live): Manolos Sätze
+const PREIS = {
+  grund: 9,            // CHF je Auftrag
+  filamentKg: 30,      // CHF je kg
+  stundensatz: 0.5,    // CHF je Druckstunde
+  durchsatz: 15,       // g/h (Mehrfarbdruck: Farbwechsel bremsen)
+  dichte: 1.24,
+  farbe: 2,            // CHF je Zusatzfarbe über die 2 Basisfarben
+  min: 12,             // Mindestpreis je Auftrag
+  staffel: n => n>=10 ? 0.75 : n>=5 ? 0.85 : 1,
+};
 const FORMEN = [['rechteck','Rechteck'],['rundrect','Abgerundet'],['kreis','Kreis'],['oval','Oval'],['herz','Herz']];
 const LOECHER = [['keine','Keine'],['1','1 oben'],['2','2 oben'],['4','4 Ecken']];
 const TYPEN = [['url','URL'],['wlan','WLAN'],['vcard','vCard'],['email','E-Mail'],['tel','Telefon'],['text','Freitext']];
@@ -141,7 +158,10 @@ const P = {
   bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:6, textY:-22,
   logo:null, logoW:22, logoX:26, logoY:16,
   baseColor:'#eceff0', darkColor:'#1c1c1c',
+  menge:1,
 };
+let letzteVolCm3 = 0;   // wird beim Geometrie-Aufbau gesetzt (für den Preis)
+function shoelace(pts){ let a=0; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length]; a+=p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
 
 // ---------- QR ----------
 function esc(s){ return String(s||'').replace(/([\\;,:"'])/g, '\\$1'); }
@@ -482,11 +502,13 @@ function schildGeometrie(){
     face(outline, loecher, cBase, true, (x,y)=>[x,y,z0]);
     wall(outline, cBase);
     for(const lk of loecher) wall(lk, cBase);
+    letzteVolCm3 = (shoelace(outline) - loecher.reduce((s,lk)=>s+shoelace(lk),0)) * P.dicke / 1000;
   } else {
     // Echte L-Form. Design liegt auf der AUSSENseite (Segment Rb->Rt),
     // Fuss nach vorne. Querschnitt (Seitenansicht y=Tiefe, z=Hoehe):
     const W=P.breite;
     const loop=[A, G, Rb, Rt, P1, Fd, B];
+    letzteVolCm3 = shoelace(loop) * W / 1000;
     for(let i=0;i<loop.length;i++){
       if(i===2) continue;                      // Kante Rb->Rt = Designflaeche (aussen)
       const a=loop[i], b=loop[(i+1)%loop.length];
@@ -591,10 +613,34 @@ function rebuild(){
   if (P.textH < 6 && aktText()) warn += '  ⚠ Text unter 6 mm wird evtl. undeutlich';
   if (anyOverlap()) warn += '  ⚠ Elemente überlappen — bitte auseinanderziehen';
   if (unfit.length) warn += `  ⚠ ${unfit.join(' + ')} passt nicht auf diese Form — verkleinern oder verschieben`;
+  preisAnzeigen();
   const aufInfo = P.aufbau==='aufsteller' ? ` · Aufsteller ${P.winkel}°` : '';
   document.getElementById('hud').innerHTML =
     `${P.breite}×${P.hoehe}×${P.dicke} mm${aufInfo} · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(1)}k Dreiecke` +
     (warn ? `<br><span class="warn">${warn}</span>` : '');
+}
+
+// ---------- Live-Preis ----------
+function zusatzFarben(){
+  if(!P.logo) return 0;
+  const basis=[P.baseColor.toLowerCase(), P.darkColor.toLowerCase()];
+  return P.logo.farben.filter(h=>!basis.includes(h.toLowerCase())).length;
+}
+function preisInfo(){
+  const g=letzteVolCm3*PREIS.dichte;
+  const stueckRoh = g*PREIS.filamentKg/1000 + (g/PREIS.durchsatz)*PREIS.stundensatz + zusatzFarben()*PREIS.farbe;
+  const n=P.menge, rab=PREIS.staffel(n);
+  const roh = PREIS.grund + n*stueckRoh*rab;
+  const total = Math.max(PREIS.min, Math.ceil(roh*2)/2);
+  return { g, stueckRoh, n, rab, total };
+}
+function preisAnzeigen(){
+  const box=document.getElementById('preisBox'); if(!box) return;
+  const pi=preisInfo(), f=v=>v.toFixed(2);
+  box.innerHTML =
+    `≈ ${pi.g.toFixed(0)} g je Schild · Grund 9.00 + ${pi.n} × ${f(pi.stueckRoh*pi.rab)}`+
+    (pi.rab<1?` <span style="color:var(--acc2)">(−${Math.round((1-pi.rab)*100)} % Set-Rabatt)</span>`:'')+
+    `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
 }
 
 // ---------- Drag & Drop auf der Platte ----------
@@ -772,6 +818,9 @@ farbUI('swDark', DARK_COLORS, 'darkColor');
 slider('breite','breite'); slider('hoehe','hoehe'); slider('dicke','dicke');
 slider('qrs','qrSize'); slider('th','textH'); slider('lw','logoW');
 slider('winkel','winkel'); slider('tiefe','tiefe');
+$('menge').value=P.menge;
+$('menge').addEventListener('input',()=>{ P.menge=parseInt($('menge').value); $('mengeV').textContent=P.menge+' Stk'; preisAnzeigen(); });
+$('mengeV').textContent=P.menge+' Stk';
 modusUI();
 $('logoFile').addEventListener('change', e=>{ if(e.target.files[0]) ladeLogo(e.target.files[0]); });
 $('logoDel').querySelector('button').addEventListener('click',()=>{ P.logo=null; $('logoRow').style.display='none'; $('logoDel').style.display='none'; $('logoInfo').textContent=''; $('logoFile').value=''; rebuild(); });
