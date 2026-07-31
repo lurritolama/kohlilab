@@ -57,9 +57,9 @@
   <div class="sub">nach Mass · KohliLab · 3D-gedruckt</div>
 
   <div class="grp"><h2>1 · Deine Schublade (Innenmass)</h2>
-    <div class="row"><label>Breite</label><input type="range" id="sb" min="120" max="800" step="5"><span class="val" id="sbV"></span></div>
-    <div class="row"><label>Tiefe</label><input type="range" id="st" min="120" max="600" step="5"><span class="val" id="stV"></span></div>
-    <div class="row"><label>Höhe</label><input type="range" id="sh" min="30" max="150" step="5"><span class="val" id="shV"></span></div>
+    <div class="row"><label>Breite</label><input type="range" id="sb" min="90" max="800" step="5"><span class="val" id="sbV"></span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="st" min="90" max="600" step="5"><span class="val" id="stV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="sh" min="20" max="150" step="5"><span class="val" id="shV"></span></div>
     <div class="row"><label>Spiel je Seite</label><input type="range" id="tol" min="0.5" max="3" step="0.5"><span class="val" id="tolV"></span></div>
   </div>
 
@@ -277,8 +277,8 @@ function labelPlan(L, plan){
     if(!lf.n.label || lf.n.einsatz) continue;
     const txt=(lf.n.label.txt||'').trim(); if(!txt) continue;
     const W=lf.r.x1-lf.r.x0, D=lf.r.y1-lf.r.y0;
-    const hMm=Math.min(8, Math.max(5, D*0.28));
-    const mk=textMask(txt, hMm, 0.35); if(!mk) continue;
+    const hMm=lf.n.label.gr || Math.min(8, Math.max(5, D*0.28));
+    const mk=textMask(txt, hMm, Math.max(0.3, hMm/22)); if(!mk) continue;
     if(mk.w>W-8 || mk.h>D-8) continue;                 // passt nicht -> auslassen
     let cx=(lf.r.x0+lf.r.x1)/2, cy=(lf.r.y0+lf.r.y1)/2;
     const pad=0.6, bw=mk.w+2*pad+1, bh=mk.h+2*pad+1;
@@ -669,6 +669,7 @@ function fachAn(p){
   const L=layout();
   return L.leaves.find(lf=> p.x>lf.r.x0&&p.x<lf.r.x1&&p.y>lf.r.y0&&p.y<lf.r.y1 ) || null;
 }
+window.__dbgKlick=(x,y)=>{ const p=pick({clientX:x,clientY:y}); return { p, wand: !!(p&&wandAn(p)), fach: p?(fachAn(p)?.pfad||null):null }; };
 renderer.domElement.addEventListener('pointerdown', ev=>{
   menu.style.display='none';
   if(explode){ downAt=null; return; }
@@ -742,6 +743,14 @@ function zeigeLabelMenu(lf, cx, cy){
   inp.value=lf.n.label?.txt||'';
   inp.style.cssText='width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:12.5px;margin:4px 0 8px';
   menu.appendChild(inp);
+  let gr=lf.n.label?.gr||7;
+  const grRow=document.createElement('div'); grRow.className='row'; grRow.style.padding='0 4px';
+  grRow.innerHTML=`<label style="width:74px">Schriftgrösse</label>`;
+  const grInp=document.createElement('input'); grInp.type='range'; grInp.min=4; grInp.max=14; grInp.step=0.5; grInp.value=gr;
+  const grVal=document.createElement('span'); grVal.className='val'; grVal.textContent=gr+' mm';
+  grInp.addEventListener('input',()=>{ gr=parseFloat(grInp.value); grVal.textContent=gr+' mm'; });
+  grRow.appendChild(grInp); grRow.appendChild(grVal);
+  menu.appendChild(grRow);
   let farbe=lf.n.label?.farbe||'#1c1c1c';
   const sw=document.createElement('div'); sw.className='sw'; sw.style.padding='0 4px 8px';
   PALETTE.forEach(hex=>{ const bt=document.createElement('button'); bt.style.background=hex;
@@ -751,7 +760,7 @@ function zeigeLabelMenu(lf, cx, cy){
   menu.appendChild(sw);
   const ok=document.createElement('button'); ok.textContent='✓  Übernehmen';
   ok.addEventListener('click',()=>{ menu.style.display='none'; snapshot();
-    if(inp.value.trim()) lf.n.label={ txt:inp.value.trim(), farbe }; else delete lf.n.label;
+    if(inp.value.trim()) lf.n.label={ txt:inp.value.trim(), farbe, gr }; else delete lf.n.label;
     rebuild(); });
   menu.appendChild(ok);
   if(lf.n.label){ const del=document.createElement('button'); del.textContent='✕  Beschriftung entfernen';
