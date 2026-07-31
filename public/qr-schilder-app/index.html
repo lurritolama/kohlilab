@@ -86,7 +86,7 @@
     <div class="row" id="logoRow" style="display:none"><label>Logo-Breite</label><input type="range" id="lw" min="8" max="50" step="1"><span class="val" id="lwV"></span></div>
     <div class="btns" id="logoDel" style="display:none"><button>Logo entfernen</button></div>
     <div class="note" id="logoInfo"></div>
-    <div class="note">Am besten ein flaches Logo mit wenigen Farben — es wird automatisch auf max. 4 Druckfarben reduziert.</div>
+    <div class="note">Am besten ein flaches Logo mit wenigen Farben — es wird automatisch auf max. 4 Druckfarben reduziert. <b>Feine Schriftzüge und Linien unter ~1 mm drucken nicht sauber</b> — die Umsetzbarkeit von Logos ist nicht garantiert, wir prüfen jeden Auftrag vor dem Druck.</div>
   </div>
 
   <div class="grp"><h2>Farben</h2>
@@ -97,7 +97,7 @@
   <div class="grp"><h2>Menge &amp; Preis</h2>
     <div class="row"><label>Menge</label><input type="range" id="menge" min="1" max="50" step="1"><span class="val" id="mengeV"></span></div>
     <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
-    <div class="note">Rechnet live: Material + Druckzeit + Farbwechsel. Set-Rabatt: ab 5 Stück −15 %, ab 10 −25 %. Versand separat.</div>
+    <div class="note">Rechnet live: Material + Druckzeit + Farbwechsel. Set-Rabatt: ab 5 Stück −15 %, ab 10 −25 % — jedes zusätzliche Schild mindestens 6.–. Versand separat.</div>
   </div>
 
   <div class="grp"><h2>Export</h2>
@@ -135,6 +135,7 @@ const PREIS = {
   dichte: 1.24,
   farbe: 2,            // CHF je Zusatzfarbe über die 2 Basisfarben
   min: 12,             // Mindestpreis je Auftrag
+  stueckMin: 6,        // jedes ZUSÄTZLICHE Schild kostet mindestens 6.-
   staffel: n => n>=10 ? 0.75 : n>=5 ? 0.85 : 1,
 };
 const FORMEN = [['rechteck','Rechteck'],['rundrect','Abgerundet'],['kreis','Kreis'],['oval','Oval'],['herz','Herz']];
@@ -219,7 +220,21 @@ function ladeLogo(file){
         idx[i]=best;
       }
     }
-    P.logo = { w:c.width, h:c.height, idx, farben: top.map(t=>LOGO_PALETTE[t]) };
+    // Feindetail-Heuristik: mittlere Strichbreite je Farbe ≈ 2·Fläche/Umfang
+    // (in Pixeln) — Schriftzüge/Linien in Logos sind oft zu fein zum Drucken.
+    let dickePx=1e9;
+    for(const t of top){
+      let A=0, U=0;
+      for(let y=0;y<c.height;y++) for(let xx=0;xx<c.width;xx++){
+        if(idx[y*c.width+xx]!==t) continue;
+        A++;
+        const nb=[[1,0],[-1,0],[0,1],[0,-1]];
+        for(const [dx,dy] of nb){ const q=idx[(y+dy)*c.width+(xx+dx)];
+          if(xx+dx<0||y+dy<0||xx+dx>=c.width||y+dy>=c.height||q!==t){ U++; break; } }
+      }
+      if(A>8 && U>0) dickePx=Math.min(dickePx, 2*A/U);
+    }
+    P.logo = { w:c.width, h:c.height, idx, farben: top.map(t=>LOGO_PALETTE[t]), dickePx };
     document.getElementById('logoRow').style.display='flex';
     document.getElementById('logoDel').style.display='flex';
     document.getElementById('logoInfo').textContent = `Logo: ${top.length} Druckfarbe(n): ${P.logo.farben.join(' ')}`;
@@ -613,6 +628,10 @@ function rebuild(){
   if (P.textH < 6 && aktText()) warn += '  ⚠ Text unter 6 mm wird evtl. undeutlich';
   if (anyOverlap()) warn += '  ⚠ Elemente überlappen — bitte auseinanderziehen';
   if (unfit.length) warn += `  ⚠ ${unfit.join(' + ')} passt nicht auf diese Form — verkleinern oder verschieben`;
+  if (P.logo && P.logo.dickePx < 1e9){
+    const feinMm = P.logo.dickePx * (P.logoW / P.logo.w);
+    if (feinMm < 1.0) warn += `  ⚠ Logo hat sehr feine Details (~${feinMm.toFixed(1)} mm, z. B. Schriftzüge) — druckt evtl. nicht sauber. Logo grösser stellen oder vereinfachen.`;
+  }
   preisAnzeigen();
   const aufInfo = P.aufbau==='aufsteller' ? ` · Aufsteller ${P.winkel}°` : '';
   document.getElementById('hud').innerHTML =
@@ -630,16 +649,19 @@ function preisInfo(){
   const g=letzteVolCm3*PREIS.dichte;
   const stueckRoh = g*PREIS.filamentKg/1000 + (g/PREIS.durchsatz)*PREIS.stundensatz + zusatzFarben()*PREIS.farbe;
   const n=P.menge, rab=PREIS.staffel(n);
-  const roh = PREIS.grund + n*stueckRoh*rab;
+  const erst = stueckRoh*rab;
+  const weitere = Math.max(PREIS.stueckMin, stueckRoh*rab);   // jedes weitere: mind. 6.-
+  const roh = PREIS.grund + erst + (n-1)*weitere;
   const total = Math.max(PREIS.min, Math.ceil(roh*2)/2);
-  return { g, stueckRoh, n, rab, total };
+  return { g, stueckRoh, n, rab, erst, weitere, total };
 }
 function preisAnzeigen(){
   const box=document.getElementById('preisBox'); if(!box) return;
   const pi=preisInfo(), f=v=>v.toFixed(2);
   box.innerHTML =
-    `≈ ${pi.g.toFixed(0)} g je Schild · Grund 9.00 + ${pi.n} × ${f(pi.stueckRoh*pi.rab)}`+
-    (pi.rab<1?` <span style="color:var(--acc2)">(−${Math.round((1-pi.rab)*100)} % Set-Rabatt)</span>`:'')+
+    `≈ ${pi.g.toFixed(0)} g je Schild · Grund 9.00 + 1 × ${f(pi.erst)}`+
+    (pi.n>1?` + ${pi.n-1} × ${f(pi.weitere)}`:'')+
+    (pi.rab<1?` <span style="color:var(--acc2)">(Set-Rabatt −${Math.round((1-pi.rab)*100)} %)</span>`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
 }
 
