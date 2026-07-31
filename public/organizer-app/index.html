@@ -83,6 +83,11 @@
     <div class="note">Der Organizer wird einfarbig gedruckt. Optional: Fächer über das Fach-Menü <b>beschriften</b> — die Schrift liegt bündig und farbig auf der Grundplatte.</div>
   </div>
 
+  <div class="grp"><h2>6 · Preis</h2>
+    <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
+    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.– + Zuschläge. Versand separat.</div>
+  </div>
+
   <div class="grp"><h2>Export</h2>
     <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
     <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit Schwalbenschwanz-Schlüsseln — der Export ist dann ein <b>ZIP mit einer Datei pro Teil</b>, jedes einzeln druckbar.</div>
@@ -118,6 +123,17 @@ const BETT = { x:290, y:310 };
 // Schwalbenschwanz-Schlüssel (Taschen in der Boden-Unterseite, gestufte
 // Trapeze -> rein achsparallele Geometrie = wasserdicht per Konstruktion)
 const DOVE = { kd:7, wn:8, wt:14, stufen:5, fit:0.22, decke:0.8 };
+// Preisrechnung (individuell, live): Manolos Sätze
+const PREIS = {
+  grund: 9,            // CHF je Auftrag (Handling, Kontrolle, Verpackung)
+  filamentKg: 30,      // CHF je kg Filament
+  stundensatz: 0.5,    // CHF je Druckstunde (Maschine)
+  durchsatz: 25,       // g je Stunde (H2D, Schätzung)
+  dichte: 1.24,        // g/cm³ (PLA)
+  modul: 5,            // CHF je ZUSATZ-Modul
+  text: 3,             // CHF pauschal bei Beschriftung
+  min: 15,             // Mindestpreis
+};
 
 const P = {
   sb:400, st:300, sh:60, tol:1.5,
@@ -427,6 +443,12 @@ function organizerGeometrien(){
   }
   const farbe=()=>cK;
   // globale Höhenstufen (inkl. Einsatz-Höhen) für den Lagen-Schnitt
+  // Druckvolumen exakt aus den Zellen (für die Live-Preisrechnung)
+  let volMm3=0;
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
+    const z=info[j*nx+i];
+    volMm3 += (X[i+1]-X[i])*(Y[j+1]-Y[j])*(z.zhi-z.zlo);
+  }
   const zSet=new Set();
   for(const z of info){ zSet.add(z.zlo); zSet.add(z.zhi); }
   const zB=(()=>{ const s=[...zSet].sort((a,b)=>a-b), out=[];
@@ -510,7 +532,7 @@ function organizerGeometrien(){
   }
 
   // Schwalbenschwanz-Schlüssel (ein Mesh, wird je Fuge einmal gedruckt)
-  let schluessel=null;
+  let schluessel=null, keyVolMm3=0;
   if(plan.taschen.length){
     const pos=[], col=[];
     const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
@@ -527,6 +549,7 @@ function organizerGeometrien(){
     for(let j=0;j<nky;j++) for(let i=0;i<nkx;i++){
       if(!at(j,i)) continue;
       const xa=KX[i],xb=KX[i+1],ya=KY[j],yb=KY[j+1];
+      keyVolMm3 += (xb-xa)*(yb-ya)*hK;
       quad([xa,ya,0],[xa,yb,0],[xb,yb,0],[xb,ya,0], cK);
       quad([xa,ya,hK],[xb,ya,hK],[xb,yb,hK],[xa,yb,hK], cK);
       if(!at(j-1,i)) quad([xa,ya,0],[xb,ya,0],[xb,ya,hK],[xa,ya,hK], cK);
@@ -539,7 +562,31 @@ function organizerGeometrien(){
     schluessel.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
     schluessel.computeVertexNormals();
   }
-  return { module, schluessel, plan, L };
+  return { module, schluessel, plan, L, volMm3, keyVolMm3 };
+}
+
+// ---------- Live-Preis ----------
+function preisInfo(){
+  const a=aktuelle;
+  const g=(a.volMm3 + a.keyVolMm3*(a.plan.taschen.length||0))/1000*PREIS.dichte;
+  const stunden=g/PREIS.durchsatz;
+  const material=g*PREIS.filamentKg/1000;
+  const maschine=stunden*PREIS.stundensatz;
+  const zModule=(a.module.length-1)*PREIS.modul;
+  const hatText=layout().leaves.some(l=>l.n.label && (l.n.label.txt||'').trim());
+  const zText=hatText?PREIS.text:0;
+  const roh=PREIS.grund+material+maschine+zModule+zText;
+  const total=Math.max(PREIS.min, Math.ceil(roh*2)/2);
+  return { g, stunden, material, maschine, zModule, zText, total };
+}
+function preisAnzeigen(){
+  const pi=preisInfo();
+  const f=v=>v.toFixed(2);
+  document.getElementById('preisBox').innerHTML =
+    `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h<br>`+
+    `Grund 9.00 · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
+    (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Text +${f(pi.zText)}`:'')+
+    `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
 }
 
 // ---------- Szene ----------
@@ -595,6 +642,7 @@ function rebuild(){
   scene.add(grp);
   baueLade();
   baueLabels();
+  preisAnzeigen();
   const tris=aktuelle.module.reduce((s,g)=>s+g.attributes.position.count/3,0);
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
