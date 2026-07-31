@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KohliLab — Schubladen-Organizer nach Mass</title>
+<style>
+  :root{ --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
+         --ink:#e8e6e1; --mut:#9a9a93; --acc:#ff6b1a; --acc2:#ffb347;
+         --mono:Consolas,"JetBrains Mono",monospace; }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+  #panel{width:340px;min-width:300px;overflow-y:auto;border-right:1px solid var(--line);padding:14px;background:var(--bg2)}
+  #view{flex:1;position:relative;min-width:0}
+  #view canvas{display:block}
+  h1{font-size:17px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:2px}
+  h1 b{color:var(--acc)}
+  .sub{color:var(--mut);font-size:11.5px;margin-bottom:12px}
+  .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
+  .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--acc)}
+  .row .val{font-family:var(--mono);font-size:11px;width:56px;text-align:right;color:var(--ink)}
+  .row input[type=number]{width:76px;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:6px 8px;font-size:13px;font-family:var(--mono)}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .btns button:disabled{opacity:.4;cursor:not-allowed}
+  .sw{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+  .sw button{width:26px;height:26px;border-radius:6px;border:2px solid var(--line);cursor:pointer}
+  .sw button.active{border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,107,26,.35)}
+  .feld{margin:7px 0}
+  .feld label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:3px}
+  .exp{display:flex;gap:8px;margin-top:4px}
+  .exp button{flex:1;background:var(--acc);border:none;color:#141517;font-weight:700;font-family:var(--mono);font-size:12px;letter-spacing:.5px;padding:11px;border-radius:6px;cursor:pointer;text-transform:uppercase}
+  .exp button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500}
+  #hud{position:absolute;left:12px;bottom:12px;right:12px;font-family:var(--mono);font-size:11px;color:var(--acc2);background:rgba(20,21,23,.85);border:1px solid var(--line);border-radius:6px;padding:8px 11px;pointer-events:none;line-height:1.5}
+  #topbar{position:absolute;top:12px;left:12px;display:flex;gap:8px}
+  #topbar button{background:rgba(20,21,23,.85);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  #topbar button.active{border-color:var(--acc);color:var(--acc)}
+  #topbar button:disabled{opacity:.4}
+  .note{font-size:11px;color:var(--mut);margin-top:6px;line-height:1.45}
+  .warn{color:#f5c518}
+  #menu{position:absolute;display:none;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--ink);padding:7px 10px;font-size:12.5px;cursor:pointer;border-radius:5px}
+  #menu button:hover{background:#17181b;color:var(--acc)}
+  #menu button:disabled{color:var(--line2);cursor:not-allowed}
+  #menu .mtitle{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--mut);padding:2px 10px 6px}
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>SCHUBLADEN-<b>ORGANIZER</b></h1>
+  <div class="sub">nach Mass · KohliLab · 3D-gedruckt</div>
+
+  <div class="grp"><h2>1 · Deine Schublade (Innenmass)</h2>
+    <div class="row"><label>Breite</label><input type="range" id="sb" min="120" max="800" step="5"><span class="val" id="sbV"></span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="st" min="120" max="600" step="5"><span class="val" id="stV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="sh" min="30" max="150" step="5"><span class="val" id="shV"></span></div>
+    <div class="row"><label>Spiel je Seite</label><input type="range" id="tol" min="0.5" max="3" step="0.5"><span class="val" id="tolV"></span></div>
+  </div>
+
+  <div class="grp"><h2>2 · Einsatz</h2>
+    <div class="row"><label>Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
+    <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.2" max="2.8" step="0.2"><span class="val" id="wandV"></span></div>
+    <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
+  </div>
+
+  <div class="grp"><h2>3 · Vorlage</h2>
+    <div class="btns" id="vorlagen"></div>
+    <div class="note">Vorlagen sind Startpunkte — danach frei umbauen.</div>
+  </div>
+
+  <div class="grp"><h2>4 · Fächer</h2>
+    <div class="note" style="margin-top:0">In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Löschen, <b>Wand ziehen</b> zum Verschieben. Oben links: Draufsicht &amp; Rückgängig.</div>
+  </div>
+
+  <div class="grp"><h2>5 · Farben (AMS)</h2>
+    <div class="feld"><label>Boden</label><div class="sw" id="swBoden"></div></div>
+    <div class="feld"><label>Aussenwände</label><div class="sw" id="swAussen"></div></div>
+    <div class="feld"><label>Trennwände</label><div class="sw" id="swTrenn"></div></div>
+  </div>
+
+  <div class="grp"><h2>Export</h2>
+    <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
+    <div class="note">Testphase: Datei herunterladen und selbst slicen. Beschriftung, Spezial-Einsätze (USB, SD, Bits …) und Modul-Teilung mit Schwalbenschwanz folgen in Kürze.</div>
+  </div>
+</div>
+
+<div id="view">
+  <div id="topbar">
+    <button id="btnPlan">◱ Draufsicht</button>
+    <button id="btnUndo" disabled>↶ Rückgängig</button>
+    <button id="btnRedo" disabled>↷ Wiederholen</button>
+  </div>
+  <div id="hud"></div>
+  <div id="menu"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- Konstanten ----------
+const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#ef7d1a','#f5c518','#37a24a','#2f6fd6'];
+const FACH_MIN = 25;                 // kleinste Fachbreite (mm)
+const BETT = { x:310, y:300 };       // H2D nutzbar mit Marge (Einzeldüse 325x320)
+
+const P = {
+  sb:400, st:300, sh:60, tol:1.5,
+  eh:40, wand:1.6, boden:1.8,
+  fBoden:'#c9cfd2', fAussen:'#2f6fd6', fTrenn:'#eceff0',
+};
+
+// ---------- Fächer-Baum ----------
+// leaf: {t:'leaf'}   split: {t:'split', dir:'v'|'h', pos:0..1, a, b}
+let tree = { t:'leaf' };
+const undoStack=[], redoStack=[];
+function snapshot(){ undoStack.push(JSON.stringify(tree)); if(undoStack.length>120) undoStack.shift(); redoStack.length=0; syncTopbar(); }
+function undo(){ if(!undoStack.length) return; redoStack.push(JSON.stringify(tree)); tree=JSON.parse(undoStack.pop()); rebuild(); }
+function redo(){ if(!redoStack.length) return; undoStack.push(JSON.stringify(tree)); tree=JSON.parse(redoStack.pop()); rebuild(); }
+function syncTopbar(){ btnUndo.disabled=!undoStack.length; btnRedo.disabled=!redoStack.length; }
+
+function einsatzMasse(){
+  const W=P.sb-2*P.tol, D=P.st-2*P.tol;
+  return { W, D, x0:-W/2, y0:-D/2 };
+}
+// Rechtecke aller Blätter (Kavitäten, ohne Wände) + Wandsegmente + Blattliste
+function layout(){
+  const { W, D, x0, y0 } = einsatzMasse();
+  const w=P.wand;
+  const leaves=[], walls=[];
+  const rec=(n, r, pfad)=>{
+    if(n.t==='leaf'){ leaves.push({ n, r, pfad }); return; }
+    if(n.dir==='v'){
+      const xc = r.x0 + n.pos*(r.x1-r.x0);
+      walls.push({ n, dir:'v', c:xc, y0:r.y0, y1:r.y1, r });
+      rec(n.a, {x0:r.x0, x1:xc-w/2, y0:r.y0, y1:r.y1}, pfad+'a');
+      rec(n.b, {x0:xc+w/2, x1:r.x1, y0:r.y0, y1:r.y1}, pfad+'b');
+    } else {
+      const yc = r.y0 + n.pos*(r.y1-r.y0);
+      walls.push({ n, dir:'h', c:yc, x0:r.x0, x1:r.x1, r });
+      rec(n.a, {x0:r.x0, x1:r.x1, y0:r.y0, y1:yc-w/2}, pfad+'a');
+      rec(n.b, {x0:r.x0, x1:r.x1, y0:yc+w/2, y1:r.y1}, pfad+'b');
+    }
+  };
+  rec(tree, { x0:x0+w, x1:x0+W-w, y0:y0+w, y1:y0+D-w }, 'r');
+  return { leaves, walls, W, D, x0, y0 };
+}
+
+// ---------- Geometrie: globales Raster -> wasserdicht per Konstruktion ----------
+function organizerGeometrie(){
+  const L = layout();
+  const cB=new THREE.Color(P.fBoden), cA=new THREE.Color(P.fAussen), cT=new THREE.Color(P.fTrenn);
+  const xs=new Set([L.x0, L.x0+L.W]), ys=new Set([L.y0, L.y0+L.D]);
+  for(const lf of L.leaves){ xs.add(lf.r.x0); xs.add(lf.r.x1); ys.add(lf.r.y0); ys.add(lf.r.y1); }
+  const X=[...xs].sort((a,b)=>a-b), Y=[...ys].sort((a,b)=>a-b);
+  const nx=X.length-1, ny=Y.length-1;
+  // Zell-Klassifizierung: Kavität (Fachboden) oder Wand (aussen/trenn)
+  const typ = Array.from({length:ny},()=>new Array(nx).fill('t'));  // default Trennwand
+  const innen = { x0:L.x0+P.wand, x1:L.x0+L.W-P.wand, y0:L.y0+P.wand, y1:L.y0+L.D-P.wand };
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
+    const cx=(X[i]+X[i+1])/2, cy=(Y[j]+Y[j+1])/2;
+    if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1){ typ[j][i]='a'; continue; }
+    for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ[j][i]='k'; break; } }
+  }
+  const hoehe = t => t==='k' ? P.boden : P.eh;
+  const farbe = t => t==='k' ? cB : (t==='a' ? cA : cT);
+  const pos=[], col=[];
+  const push=(x,y,z,c)=>{ pos.push(x,y,z); col.push(c.r,c.g,c.b); };
+  const quad=(a,b,c2,d,cc)=>{ push(...a,cc);push(...b,cc);push(...c2,cc); push(...a,cc);push(...c2,cc);push(...d,cc); };
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
+    const t=typ[j][i], h=hoehe(t), c=farbe(t);
+    const xa=X[i],xb=X[i+1],ya=Y[j],yb=Y[j+1];
+    quad([xa,ya,0],[xa,yb,0],[xb,yb,0],[xb,ya,0], cB);            // Unterseite
+    quad([xa,ya,h],[xb,ya,h],[xb,yb,h],[xa,yb,h], c);             // Deckel/Fachboden
+    // vertikale Übergänge zu Nachbarn (nur einmal je Kante: vom höheren aus)
+    const nb=(jj,ii)=> (ii<0||jj<0||ii>=nx||jj>=ny) ? -1 : hoehe(typ[jj][ii]);
+    const seite=(hN, a, b)=>{ if(hN>=h) return; const lo=Math.max(hN,0);
+      quad([a[0],a[1],lo],[b[0],b[1],lo],[b[0],b[1],h],[a[0],a[1],h], c); };
+    // Aussenkante: Nachbar -1 -> Wand 0..h
+    seite(nb(j-1,i), [xa,ya],[xb,ya]);
+    seite(nb(j+1,i), [xb,yb],[xa,yb]);
+    seite(nb(j,i-1), [xa,yb],[xa,ya]);
+    seite(nb(j,i+1), [xb,ya],[xb,yb]);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  return g;
+}
+
+// ---------- Szene ----------
+const view=document.getElementById('view');
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x141517);
+const camera=new THREE.PerspectiveCamera(38,1,1,5000); camera.position.set(0,-420,420);
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+view.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.maxDistance=1600; controls.minDistance=120;
+scene.add(new THREE.HemisphereLight(0xffffff,0x333638,1.05));
+scene.add(new THREE.AmbientLight(0xffffff,0.4));
+const key=new THREE.DirectionalLight(0xffffff,1.0); key.position.set(200,300,400); scene.add(key);
+let mesh=null, currentGeo=null, lade=null;
+
+// Holz-Schublade (nur Vorschau, wird nicht exportiert)
+function baueLade(){
+  if(lade){ scene.remove(lade); lade.traverse(o=>o.geometry&&o.geometry.dispose()); }
+  lade=new THREE.Group();
+  const holz=new THREE.MeshStandardMaterial({color:0x9a7551, roughness:0.75, metalness:0.02});
+  const holzD=new THREE.MeshStandardMaterial({color:0x86633f, roughness:0.8});
+  const t=12, B=P.sb, T=P.st, H=P.sh;
+  const boden=new THREE.Mesh(new THREE.BoxGeometry(B+2*t, T+2*t, 9), holzD);
+  boden.position.set(0,0,-4.5); lade.add(boden);
+  const wandN=(w,h,d,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), holz); m.position.set(x,y,z); lade.add(m); };
+  wandN(B+2*t, t, H+9, 0, -(T+t)/2, (H+9)/2-4.5);   // Front
+  wandN(B+2*t, t, H+9, 0, (T+t)/2, (H+9)/2-4.5);    // Rueck
+  wandN(t, T, H+9, -(B+t)/2, 0, (H+9)/2-4.5);
+  wandN(t, T, H+9, (B+t)/2, 0, (H+9)/2-4.5);
+  scene.add(lade);
+}
+
+function rebuild(){
+  P.eh=Math.min(P.eh, P.sh); syncUI(); syncTopbar();
+  if(mesh){ scene.remove(mesh); mesh.geometry.dispose(); }
+  currentGeo=organizerGeometrie();
+  mesh=new THREE.Mesh(currentGeo, new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.7, metalness:0.03, side:THREE.DoubleSide}));
+  scene.add(mesh);
+  baueLade();
+  const L=layout();
+  const tris=currentGeo.attributes.position.count/3;
+  let warn='';
+  if(L.W>BETT.x||L.D>BETT.y) warn=`  ⚠ grösser als Druckbett (${BETT.x}×${BETT.y}) — Modul-Teilung mit Schwalbenschwanz folgt; aktuell exportiert EIN Teil`;
+  document.getElementById('hud').innerHTML =
+    `Einsatz ${L.W.toFixed(0)}×${L.D.toFixed(0)}×${P.eh} mm · ${L.leaves.length} ${L.leaves.length===1?'Fach':'Fächer'} · Wand ${P.wand} mm · ${(tris/1000).toFixed(1)}k Dreiecke`+
+    (warn?`<br><span class="warn">${warn}</span>`:'');
+}
+
+// ---------- Interaktion: Fach anklicken, Wand ziehen ----------
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
+const menu=document.getElementById('menu');
+let drag=null, downAt=null;
+
+function pick(ev){
+  const r=renderer.domElement.getBoundingClientRect();
+  ptr.x=((ev.clientX-r.left)/r.width)*2-1; ptr.y=-((ev.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ptr,camera);
+  const hit=mesh?ray.intersectObject(mesh)[0]:null;
+  return hit?{x:hit.point.x, y:hit.point.y}:null;
+}
+function wandAn(p){
+  const L=layout();
+  for(const w of L.walls){
+    if(w.dir==='v'){ if(Math.abs(p.x-w.c)<P.wand/2+1.6 && p.y>w.y0-1&&p.y<w.y1+1) return w; }
+    else { if(Math.abs(p.y-w.c)<P.wand/2+1.6 && p.x>w.x0-1&&p.x<w.x1+1) return w; }
+  }
+  return null;
+}
+function fachAn(p){
+  const L=layout();
+  return L.leaves.find(lf=> p.x>lf.r.x0&&p.x<lf.r.x1&&p.y>lf.r.y0&&p.y<lf.r.y1 ) || null;
+}
+renderer.domElement.addEventListener('pointerdown', ev=>{
+  menu.style.display='none';
+  const p=pick(ev); if(!p) { downAt=null; return; }
+  downAt={x:ev.clientX, y:ev.clientY};
+  const w=wandAn(p);
+  if(w){ snapshot(); drag={w}; controls.enabled=false; }
+});
+let lastBuild=0;
+renderer.domElement.addEventListener('pointermove', ev=>{
+  if(!drag) return;
+  const p=pick(ev); if(!p) return;
+  const w=drag.w, r=w.r;
+  if(w.dir==='v'){
+    const span=r.x1-r.x0;
+    const min=(FACH_MIN+P.wand/2)/span, max=1-min;
+    w.n.pos=Math.max(min, Math.min(max, (p.x-r.x0)/span));
+    hudLive(`Wand: links ${(w.n.pos*span-P.wand/2).toFixed(0)} mm · rechts ${((1-w.n.pos)*span-P.wand/2).toFixed(0)} mm`);
+  } else {
+    const span=r.y1-r.y0;
+    const min=(FACH_MIN+P.wand/2)/span, max=1-min;
+    w.n.pos=Math.max(min, Math.min(max, (p.y-r.y0)/span));
+    hudLive(`Wand: vorne ${(w.n.pos*span-P.wand/2).toFixed(0)} mm · hinten ${((1-w.n.pos)*span-P.wand/2).toFixed(0)} mm`);
+  }
+  const now=performance.now();
+  if(now-lastBuild>70){ lastBuild=now; rebuild(); }
+});
+addEventListener('pointerup', ev=>{
+  if(drag){ drag=null; controls.enabled=true; rebuild(); return; }
+  if(!downAt) return;
+  if(Math.hypot(ev.clientX-downAt.x, ev.clientY-downAt.y)>6){ downAt=null; return; }
+  const p=pick(ev); downAt=null; if(!p) return;
+  if(wandAn(p)) return;
+  const lf=fachAn(p);
+  if(lf) zeigeMenu(lf, ev.clientX, ev.clientY);
+});
+function hudLive(s){ document.getElementById('hud').innerHTML=s; }
+
+function zeigeMenu(lf, cx, cy){
+  const bw=(lf.r.x1-lf.r.x0).toFixed(0), bt=(lf.r.y1-lf.r.y0).toFixed(0);
+  const kannV=(lf.r.x1-lf.r.x0)>=2*FACH_MIN+P.wand;
+  const kannH=(lf.r.y1-lf.r.y0)>=2*FACH_MIN+P.wand;
+  menu.innerHTML=`<div class="mtitle">FACH ${bw} × ${bt} MM</div>`;
+  const b=(txt,fn,dis)=>{ const el=document.createElement('button'); el.textContent=txt; el.disabled=!!dis;
+    el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
+  b('◫  Senkrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannV);
+  b('⊟  Waagrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannH);
+  if(lf.pfad!=='r') b('✕  Fach entfernen (Wand löschen)', ()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); });
+  b('Spezial-Einsatz (USB, SD …) — folgt bald', null, true);
+  b('Beschriften — folgt bald', null, true);
+  const vr=view.getBoundingClientRect();
+  menu.style.display='block';
+  menu.style.left=Math.min(cx-vr.left, vr.width-230)+'px';
+  menu.style.top=Math.min(cy-vr.top, vr.height-190)+'px';
+}
+function entferneLeaf(pfad){
+  // Elternknoten finden: Pfad 'r' + a/b-Folge
+  const steps=pfad.slice(1).split('');
+  if(!steps.length) return;
+  let parent=null, node=tree, seite=null;
+  for(const s of steps){ parent=node; seite=s; node=s==='a'?node.a:node.b; }
+  const sib=seite==='a'?parent.b:parent.a;
+  delete parent.a; delete parent.b; delete parent.dir; delete parent.pos;
+  Object.assign(parent, JSON.parse(JSON.stringify(sib)));
+}
+
+// ---------- Draufsicht ----------
+let planModus=false, camSave=null;
+document.getElementById('btnPlan').addEventListener('click',()=>{
+  planModus=!planModus;
+  document.getElementById('btnPlan').classList.toggle('active',planModus);
+  if(planModus){
+    camSave={p:camera.position.clone(), t:controls.target.clone()};
+    const d=Math.max(P.sb,P.st)*1.25;
+    camera.position.set(0,-1,d); controls.target.set(0,0,0);
+    controls.enableRotate=false;
+  } else {
+    if(camSave){ camera.position.copy(camSave.p); controls.target.copy(camSave.t); }
+    controls.enableRotate=true;
+  }
+  controls.update();
+});
+const btnUndo=document.getElementById('btnUndo'), btnRedo=document.getElementById('btnRedo');
+btnUndo.addEventListener('click',undo); btnRedo.addEventListener('click',redo);
+addEventListener('keydown',ev=>{ if(ev.ctrlKey&&ev.key==='z'){ev.preventDefault();undo();} if(ev.ctrlKey&&(ev.key==='y'||ev.key==='Z')){ev.preventDefault();redo();} });
+
+// ---------- Vorlagen ----------
+const VORLAGEN = {
+  'Leer': ()=>({t:'leaf'}),
+  'Besteck': ()=>({t:'split',dir:'v',pos:0.22,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.28,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.4,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.65,a:{t:'leaf'},b:{t:'leaf'}}}}}),
+  'Bürotisch': ()=>({t:'split',dir:'h',pos:0.3,a:{t:'split',dir:'v',pos:0.55,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}},b:{t:'split',dir:'v',pos:0.3,a:{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}},b:{t:'leaf'}}}),
+  'Werkzeug': ()=>({t:'split',dir:'h',pos:0.36,a:{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}},b:{t:'split',dir:'v',pos:0.25,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.34,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}}}}),
+  'Schrauben': ()=>{
+    const reihe=()=>({t:'split',dir:'v',pos:0.25,a:{t:'leaf'},b:{t:'split',dir:'v',pos:1/3,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}}});
+    return {t:'split',dir:'h',pos:1/3,a:reihe(),b:{t:'split',dir:'h',pos:0.5,a:reihe(),b:reihe()}};
+  },
+};
+const vh=document.getElementById('vorlagen');
+Object.keys(VORLAGEN).forEach(name=>{
+  const b=document.createElement('button'); b.textContent=name;
+  b.addEventListener('click',()=>{ snapshot(); tree=VORLAGEN[name](); rebuild(); });
+  vh.appendChild(b);
+});
+
+// ---------- Export (bewaehrtes Muster) ----------
+function geomPos(g){ return (g.index?g.toNonIndexed():g).attributes.position.array; }
+function geomCol(g){ const gg=g.index?g.toNonIndexed():g; return gg.attributes.color?gg.attributes.color.array:null; }
+function download(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+function orientConsistent(Parr){
+  const nt=Parr.length/9;
+  const kf=i=>Math.round(Parr[i]*1e4)+'_'+Math.round(Parr[i+1]*1e4)+'_'+Math.round(Parr[i+2]*1e4);
+  const vid=new Map(), T=[];
+  for(let t=0;t<nt;t++){ const a=[]; for(let k2=0;k2<3;k2++){ const kk=kf(t*9+k2*3); let id=vid.get(kk); if(id===undefined){id=vid.size;vid.set(kk,id);} a.push(id);} T.push(a); }
+  const em=new Map(), ek=(a,b)=>a<b?a+'_'+b:b+'_'+a;
+  for(let t=0;t<nt;t++){ const [a,b,c]=T[t]; for(const [x,y] of [[a,b],[b,c],[c,a]]){ const k2=ek(x,y); let arr=em.get(k2); if(!arr){arr=[];em.set(k2,arr);} arr.push(t);} }
+  const flip=new Uint8Array(nt), seen=new Uint8Array(nt);
+  const dirs=t=>{ const [a,b,c]=T[t]; return flip[t]?[[a,c],[c,b],[b,a]]:[[a,b],[b,c],[c,a]]; };
+  for(let s=0;s<nt;s++){ if(seen[s])continue; seen[s]=1; const st=[s];
+    while(st.length){ const t=st.pop(); for(const [x,y] of dirs(t)){ const k2=ek(x,y); for(const nb of em.get(k2)){ if(nb===t||seen[nb])continue;
+      let same=false; for(const [nx,ny] of dirs(nb)) if(nx===x&&ny===y) same=true; if(same) flip[nb]^=1; seen[nb]=1; st.push(nb); } } } }
+  const out=new Float32Array(Parr.length);
+  for(let t=0;t<nt;t++){ const o=t*9; if(flip[t]){ out[o]=Parr[o];out[o+1]=Parr[o+1];out[o+2]=Parr[o+2]; out[o+3]=Parr[o+6];out[o+4]=Parr[o+7];out[o+5]=Parr[o+8]; out[o+6]=Parr[o+3];out[o+7]=Parr[o+4];out[o+8]=Parr[o+5]; } else out.set(Parr.subarray(o,o+9),o); }
+  let vol=0; for(let i=0;i<out.length;i+=9){ vol += (out[i]*(out[i+4]*out[i+8]-out[i+5]*out[i+7]) + out[i+1]*(out[i+5]*out[i+6]-out[i+3]*out[i+8]) + out[i+2]*(out[i+3]*out[i+7]-out[i+4]*out[i+6]))/6; }
+  if(vol<0) for(let i=0;i<out.length;i+=9){ const a=out[i+3],b=out[i+4],c=out[i+5]; out[i+3]=out[i+6];out[i+4]=out[i+7];out[i+5]=out[i+8]; out[i+6]=a;out[i+7]=b;out[i+8]=c; }
+  return out;
+}
+const CT=`<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>`;
+const RELS=`<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
+async function make3mf(geo){
+  const p=orientConsistent(geomPos(geo)); const c=geomCol(geo);
+  const palette=[], palIdx=new Map(); const idxOf=hex=>{ const k2=hex.toUpperCase(); if(!palIdx.has(k2)){palIdx.set(k2,palette.length);palette.push(k2);} return palIdx.get(k2); };
+  const map=new Map(), verts=[], tris=[];
+  for(let i=0;i<p.length;i+=9){ const ids=[];
+    for(let k2=0;k2<9;k2+=3){ const x=p[i+k2].toFixed(3),y=p[i+k2+1].toFixed(3),z=p[i+k2+2].toFixed(3); const key2=x+','+y+','+z; let id=map.get(key2); if(id===undefined){id=verts.length;verts.push(`<vertex x="${x}" y="${y}" z="${z}"/>`);map.set(key2,id);} ids.push(id); }
+    if(ids[0]===ids[1]||ids[1]===ids[2]||ids[0]===ids[2]) continue;
+    const hex = c ? '#'+[0,1,2].map(o=>Math.round(c[i+o]*255).toString(16).padStart(2,'0')).join('') : '#cccccc';
+    tris.push(`<triangle v1="${ids[0]}" v2="${ids[1]}" v3="${ids[2]}" p1="${idxOf(hex)}"/>`);
+  }
+  const colorGroup=`<m:colorgroup id="2">${palette.map(h=>`<m:color color="${h.toUpperCase()}FF"/>`).join('')}</m:colorgroup>`;
+  const model=`<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02"><metadata name="Application">KohliLab Organizer</metadata><resources>${colorGroup}<object id="1" type="model" pid="2" pindex="0"><mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object></resources><build><item objectid="1"/></build></model>`;
+  const zip=new JSZip(); zip.file('[Content_Types].xml',CT); zip.folder('_rels').file('.rels',RELS); zip.folder('3D').file('3dmodel.model',model);
+  return zip.generateAsync({type:'blob',mimeType:'model/3mf',compression:'DEFLATE'});
+}
+function stlString(geo){ const p=orientConsistent(geomPos(geo)); let s='solid organizer\n'; for(let i=0;i<p.length;i+=9){ s+='facet normal 0 0 0\n outer loop\n'; for(let j=0;j<9;j+=3) s+=`  vertex ${p[i+j].toFixed(3)} ${p[i+j+1].toFixed(3)} ${p[i+j+2].toFixed(3)}\n`; s+=' endloop\nendfacet\n'; } return s+'endsolid organizer\n'; }
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+function slider(id,key){ $(id).value=P[key]; $(id).addEventListener('input',()=>{ P[key]=parseFloat($(id).value); rebuild(); }); }
+function syncUI(){
+  $('eh').max=Math.min(120,P.sh);
+  for(const [id,key,einh] of [['sb','sb',' mm'],['st','st',' mm'],['sh','sh',' mm'],['tol','tol',' mm'],['eh','eh',' mm'],['wand','wand',' mm'],['boden','boden',' mm']]){
+    if(parseFloat($(id).value)!==P[key]) $(id).value=P[key];
+    $(id+'V').textContent=P[key]+einh;
+  }
+}
+function farbUI(hostId,key){
+  const host=$(hostId);
+  PALETTE.forEach(hex=>{
+    const b=document.createElement('button'); b.style.background=hex;
+    if(P[key]===hex) b.classList.add('active');
+    b.addEventListener('click',()=>{ P[key]=hex; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); rebuild(); });
+    host.appendChild(b);
+  });
+}
+slider('sb','sb'); slider('st','st'); slider('sh','sh'); slider('tol','tol');
+slider('eh','eh'); slider('wand','wand'); slider('boden','boden');
+farbUI('swBoden','fBoden'); farbUI('swAussen','fAussen'); farbUI('swTrenn','fTrenn');
+async function busy(btn,fn){ const alt=btn.textContent; btn.textContent='erzeugt …'; btn.disabled=true;
+  try{ await new Promise(r=>setTimeout(r,30)); await fn(); } finally { btn.textContent=alt; btn.disabled=false; } }
+$('ex3mf').addEventListener('click',()=>busy($('ex3mf'),async()=>{ download(await make3mf(currentGeo),'kohlilab_organizer.3mf'); }));
+$('exstl').addEventListener('click',()=>busy($('exstl'),async()=>{ download(new Blob([stlString(currentGeo)],{type:'model/stl'}),'kohlilab_organizer.stl'); }));
+
+window.__geoPos=()=>geomPos(currentGeo);
+function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+tree=VORLAGEN['Bürotisch']();
+rebuild();
+(function loop(){ requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x+80, camera.position.y+120, Math.abs(camera.position.z)+260); renderer.render(scene,camera); })();
+</script>
+</body>
+</html>
