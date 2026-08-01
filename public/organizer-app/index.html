@@ -41,7 +41,9 @@
   #topbar button:disabled{opacity:.4}
   .note{font-size:11px;color:var(--mut);margin-top:6px;line-height:1.45}
   .warn{color:#f5c518}
-  #menu{position:absolute;display:none;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #menu{position:absolute;display:none;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.5);max-height:78vh;overflow-y:auto;min-width:215px}
+  #menu .mkat{font-family:var(--mono);font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--acc);padding:8px 10px 3px;border-top:1px solid var(--line);margin-top:4px}
+  #menu .mtitle + .mkat{border-top:none;margin-top:0}
   #menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--ink);padding:7px 10px;font-size:12.5px;cursor:pointer;border-radius:5px}
   #menu button:hover{background:#17181b;color:var(--acc)}
   #menu button:disabled{color:var(--line2);cursor:not-allowed}
@@ -218,16 +220,18 @@ function layout(){
 
 // ---------- Spezial-Einsätze (parametrisch, passen sich dem Fach an) ----------
 // Alles achsparallel bzw. in Stufen -> bleibt in der Zellen-Engine wasserdicht.
+const EINSATZ_KAT = ['Büro','Elektronik','Werkstatt','Nähen','Allgemein'];   // Reihenfolge im Menü
 const EINSAETZE = {
-  usb:    { name:'USB-Sticks',        minW:22, minD:14 },
-  sd:     { name:'SD-Karten',         minW:33, minD:12 },
-  stift:  { name:'Stift-Rinnen',      minW:60, minD:22 },
-  aa:     { name:'Batterien AA',      minW:56, minD:23 },
-  aaa:    { name:'Batterien AAA',     minW:50, minD:19 },
-  cr2032: { name:'Knopfzellen CR2032',minW:29, minD:14 },
-  neunv:  { name:'9V-Block',          minW:34, minD:26 },
-  bits:   { name:'Bit-Raster ¼"',     minW:19, minD:19 },
-  scoop:  { name:'Scoop-Mulde',       minW:30, minD:34 },
+  usb:    { name:'USB-Sticks',        minW:22, minD:14, kat:'Büro' },
+  sd:     { name:'SD-Karten',         minW:33, minD:12, kat:'Büro' },
+  stift:  { name:'Stift-Rinnen',      minW:60, minD:22, kat:'Büro' },
+  aa:     { name:'Batterien AA',      minW:56, minD:23, kat:'Elektronik' },
+  aaa:    { name:'Batterien AAA',     minW:50, minD:19, kat:'Elektronik' },
+  cr2032: { name:'Knopfzellen CR2032',minW:29, minD:14, kat:'Elektronik' },
+  neunv:  { name:'9V-Block',          minW:34, minD:26, kat:'Elektronik' },
+  bits:   { name:'Bit-Raster ¼"',     minW:19, minD:19, kat:'Werkstatt' },
+  garn:   { name:'Garn-/Spulenzapfen',minW:34, minD:34, kat:'Nähen' },
+  scoop:  { name:'Scoop-Mulde',       minW:30, minD:34, kat:'Allgemein' },
 };
 // Liefert pro Fach: zusätzliche Rasterkoordinaten + Höhenfunktion zhi(cx,cy)
 function einsatzDaten(lf){
@@ -289,14 +293,52 @@ function einsatzDaten(lf){
   else if(typ==='aa') fn=rinnen(15.5, 9);
   else if(typ==='aaa') fn=rinnen(12, 7.5);
   else if(typ==='scoop'){
-    const stufen=[[2,10],[4,8],[6,6],[8,4],[10,2.4],[13,1]];
-    for(const [d] of stufen) ys.push(r.y0+d);
-    const H=cap(b+10);
-    fn=(cx,cy)=>{
-      const d=cy-r.y0;
-      for(const [dd,hh] of stufen) if(d<dd) return Math.min(H, b+hh);
-      return null;                                   // Rest normaler Boden
-    };
+    // Viertelkreis-Hohlkehle an der Vorderkante: Kleinteile lassen sich mit
+    // dem Finger der Rundung entlang herausschieben. Radius skaliert mit
+    // Fachtiefe und Einsatzhöhe (max 25 mm), in 8 Stufen (druckbar, dicht).
+    const R=Math.min(P.eh-b-2, D*0.5, 25);
+    if(R>=5){
+      const N=8, seg=[];
+      for(let i=0;i<N;i++){
+        const d1=R*(i+1)/N, dm=R*(i+0.5)/N;
+        const h=R-Math.sqrt(Math.max(0, R*R-(R-dm)*(R-dm)));
+        seg.push([d1, b+h]);
+        ys.push(r.y0+d1);
+      }
+      fn=(cx,cy)=>{
+        const d=cy-r.y0;
+        if(d>=R) return null;                        // Rest normaler Boden
+        for(const [dd,z] of seg) if(d<dd) return z;
+        return null;
+      };
+    }
+  }
+  else if(typ==='garn'){
+    // Aufrechte Zapfen im Raster – Garnrollen/Schnüre werden aufgesteckt.
+    // Achteckiger Querschnitt (rundlicher, passt besser ins runde Spulenloch).
+    const pitch=34;                                  // Rastermass (Rolle bis ~30 mm ⌀)
+    const halb=3;                                    // halbe Zapfenbreite -> ~6 mm Zapfen
+    const oct=halb*0.41;                             // Achteck-Fase
+    const nx=Math.floor((W-2*m)/pitch), ny=Math.floor((D-2*m)/pitch);
+    if(nx>=1 && ny>=1){
+      const spanX=nx*pitch, spanY=ny*pitch;
+      const cx0=r.x0+(W-spanX)/2+pitch/2, cy0=r.y0+(D-spanY)/2+pitch/2;
+      const zentren=[];
+      for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
+        const px=cx0+i*pitch, py=cy0+j*pitch;
+        zentren.push([px,py]);
+        xs.push(px-halb, px-oct, px+oct, px+halb);
+        ys.push(py-halb, py-oct, py+oct, py+halb);
+      }
+      const H=cap(b+42);                             // Zapfenhöhe (kappt auf Fachhöhe-2)
+      fn=(cx,cy)=>{
+        for(const [px,py] of zentren){
+          const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
+          if(dx<=halb && dy<=halb && dx+dy<=halb*1.31) return H;
+        }
+        return b;                                    // fester Boden zwischen den Zapfen
+      };
+    }
   }
   if(!fn) return null;
   return { xs, ys, zhi:fn };
@@ -698,7 +740,7 @@ function baueLabels(){
   const haupt=mk('haupt');
   haupt.textContent=`${L.W.toFixed(0)} × ${L.D.toFixed(0)} × ${P.eh} mm`;
   labelDaten.push({ el:haupt, p:new THREE.Vector3(0, L.y0-16, 0) });
-  const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop'};
+  const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop',garn:'Garn'};
   for(const lf of L.leaves){
     const el=mk();
     const zusatz = lf.n.einsatz ? ` · ${KURZ[lf.n.einsatz]||''}` : '';
@@ -807,10 +849,15 @@ function zeigeEinsatzMenu(lf, cx, cy){
   menu.innerHTML=`<div class="mtitle">SPEZIAL-EINSATZ (FACH ${W.toFixed(0)} × ${D.toFixed(0)} MM)</div>`;
   const b=(txt,fn,dis,title)=>{ const el=document.createElement('button'); el.textContent=txt; el.disabled=!!dis; if(title) el.title=title;
     el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
-  for(const [typ,def] of Object.entries(EINSAETZE)){
-    const passt=W>=def.minW && D>=def.minD;
-    b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; delete lf.n.label; rebuild(); }, !passt,
-      passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
+  for(const kat of EINSATZ_KAT){
+    const eintraege=Object.entries(EINSAETZE).filter(([,d])=>d.kat===kat);
+    if(!eintraege.length) continue;
+    const h=document.createElement('div'); h.className='mkat'; h.textContent=kat; menu.appendChild(h);
+    for(const [typ,def] of eintraege){
+      const passt=W>=def.minW && D>=def.minD;
+      b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; delete lf.n.label; rebuild(); }, !passt,
+        passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
+    }
   }
   if(lf.n.einsatz) b('✕  Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; rebuild(); });
   const vr=view.getBoundingClientRect();
