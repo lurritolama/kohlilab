@@ -3,7 +3,9 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # Node 22: @supabase/supabase-js (realtime-js) braucht ab 2.110 ein natives
+  # WebSocket beim createClient — sonst wirft es in der Function.
+  NODE_VERSION = "22"
 
 # pdfkit (QR-Rechnung) liest .afm-Schriftdateien zur Laufzeit vom Dateisystem.
 # esbuild bündelt sie nicht automatisch in die Function -> ohne diese Zeile
