@@ -1,0 +1,19 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="Danke — KohliLab" description="Deine Bestellung ist bei uns angekommen.">
+  <section class="prose" style="max-width:640px">
+    <div class="kicker">// Bestellung eingegangen</div>
+    <h1>Danke für deine Bestellung!</h1>
+    <p>Deine Bestellung <b data-nr>–</b> ist bei uns angekommen. Du bekommst gleich eine Bestätigung mit den Zahlungsangaben (QR-Rechnung) per E-Mail.</p>
+    <p style="color:var(--muted)">Sobald deine Zahlung da ist, drucken wir deine Teile und schicken das Paket. Bei Fragen: <a href="/kontakt">Kontakt</a>.</p>
+    <p style="margin-top:22px"><a class="btn primary" href="/">Zurück zur Startseite</a></p>
+  </section>
+</BaseLayout>
+<script>
+  const nr = new URLSearchParams(location.search).get('nr');
+  const el = document.querySelector('[data-nr]');
+  if (el && nr) el.textContent = nr;
+  // Warenkorb ist nach erfolgreichem Checkout bereits geleert – sicherheitshalber:
+  try { (window as any).KCart?.clear?.(); } catch {}
+</script>

@@ -1,8 +1,10 @@
 import { defineConfig } from 'astro/config';
+import netlify from '@astrojs/netlify';
 
-// KohliLab — statischer Start. Sobald der Bestellweg kommt, wechseln wir wie
-// bei TeeLab auf den Netlify-Adapter mit output 'hybrid' (Astro 4).
+// KohliLab — Inhaltsseiten vorgerendert, Bestellweg (/checkout, /api/*) als
+// Netlify-Functions über den Adapter. In Astro 4 = output 'hybrid'.
 export default defineConfig({
   site: 'https://kohlilab.ch',
-  output: 'static',
+  adapter: netlify(),
+  output: 'hybrid',
 });

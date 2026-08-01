@@ -10,9 +10,17 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^4.16.18",
-    "@fontsource/oswald": "^5.1.0",
+    "@astrojs/netlify": "^5.5.4",
     "@fontsource/inter": "^5.1.1",
-    "@fontsource/jetbrains-mono": "^5.1.2"
+    "@fontsource/jetbrains-mono": "^5.1.2",
+    "@fontsource/oswald": "^5.1.0",
+    "@supabase/supabase-js": "^2.111.0",
+    "astro": "^4.16.18",
+    "fflate": "^0.8.3",
+    "pdfkit": "^0.19.1",
+    "swissqrbill": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/pdfkit": "^0.17.6"
   }
 }

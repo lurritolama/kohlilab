@@ -1,0 +1,149 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="Kasse — KohliLab" description="Bestellung abschliessen bei KohliLab.">
+  <section class="prose" style="max-width:900px">
+    <div class="kicker">// Kasse</div>
+    <h1>Bestellung abschliessen</h1>
+
+    <div data-leer hidden class="korb-note">
+      Dein Warenkorb ist leer. <a href="/qr-schilder">QR-Schilder</a> · <a href="/organizer">Schubladen-Organizer</a>
+    </div>
+
+    <div class="co-grid" data-inhalt hidden>
+      <form class="co-form" id="kForm" novalidate>
+        <div class="co-fehler" data-fehler role="alert" hidden></div>
+
+        <h2>Kontakt</h2>
+        <label>E-Mail<input type="email" name="email" required placeholder="dein@mail.ch" /></label>
+        <label>Telefon (optional)<input type="tel" name="telefon" placeholder="079 …" /></label>
+
+        <h2>Lieferadresse</h2>
+        <label>Name<input type="text" name="name" required /></label>
+        <label>Strasse und Hausnummer<input type="text" name="strasse" required /></label>
+        <div class="co-row">
+          <label>PLZ<input type="text" name="plz" required inputmode="numeric" pattern="[0-9]{4}" placeholder="9055" /></label>
+          <label>Ort<input type="text" name="ort" required /></label>
+        </div>
+        <label>Land
+          <select name="land" required><option value="CH">Schweiz</option><option value="LI">Liechtenstein</option></select>
+        </label>
+
+        <h2>Versand</h2>
+        <div class="co-versand">
+          <label class="co-opt"><input type="radio" name="versandart" value="b_post" checked /> <span>B-Post <small>2–4 Werktage</small></span><b data-v="700">CHF 7.00</b></label>
+          <label class="co-opt"><input type="radio" name="versandart" value="a_post" /> <span>A-Post <small>nächster Werktag</small></span><b data-v="950">CHF 9.50</b></label>
+          <label class="co-opt"><input type="radio" name="versandart" value="abholung" /> <span>Abholung Bühler AR <small>nach Absprache</small></span><b data-v="0">gratis</b></label>
+        </div>
+
+        <label>Bemerkung (optional)<textarea name="bemerkung" rows="2" placeholder="z. B. Wunschtermin …"></textarea></label>
+
+        <p class="co-pay">Wir drucken deine Teile und schicken sie per Post. Bezahlung per QR-Rechnung / TWINT – du bekommst nach dem Absenden eine Bestätigung per E-Mail.</p>
+        <button type="submit" class="btn primary" data-submit>Bestellung abschicken</button>
+      </form>
+
+      <aside class="co-summary">
+        <h2>Deine Bestellung</h2>
+        <ul data-summary-liste></ul>
+        <div class="co-sum-zeile"><span>Zwischensumme</span><span data-sum-subtotal></span></div>
+        <div class="co-sum-zeile"><span>Versand</span><span data-sum-versand></span></div>
+        <div class="co-sum-zeile co-total"><span>Total</span><span data-sum-total></span></div>
+        <p class="note-klein">Der endgültige Preis wird beim Absenden serverseitig aus den Druckdaten geprüft. Die Druckdateien werden mit der Bestellung an KohliLab übermittelt.</p>
+      </aside>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .korb-note { color:var(--muted); }
+  .co-grid { display:grid; grid-template-columns:1.3fr .9fr; gap:26px; align-items:start; }
+  .co-form label { display:block; font-size:13px; color:var(--muted); margin:9px 0; }
+  .co-form input, .co-form select, .co-form textarea { width:100%; margin-top:4px; background:#17181b; border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:9px 10px; font-size:14px; font-family:inherit; }
+  .co-form h2 { font-family:var(--disp); font-size:18px; text-transform:uppercase; letter-spacing:.5px; margin:20px 0 4px; }
+  .co-row { display:grid; grid-template-columns:1fr 2fr; gap:12px; }
+  .co-versand { display:flex; flex-direction:column; gap:8px; }
+  .co-opt { display:flex!important; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:11px 13px; margin:0!important; cursor:pointer; }
+  .co-opt span { flex:1; color:var(--ink); font-size:14px; } .co-opt small { color:var(--muted); display:block; font-size:11.5px; }
+  .co-opt b { font-family:var(--mono); color:var(--acc2); }
+  .co-fehler { background:#3b1212; border:1px solid #f87171; color:#fca5a5; border-radius:8px; padding:11px 14px; margin-bottom:14px; font-size:13.5px; }
+  .co-fehler :global(div) { margin:2px 0; }
+  .co-pay { color:var(--muted); font-size:13px; margin:16px 0; line-height:1.6; }
+  .co-summary { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; position:sticky; top:16px; }
+  .co-summary h2 { font-family:var(--disp); font-size:17px; text-transform:uppercase; margin-bottom:10px; }
+  .co-summary ul { list-style:none; margin:0 0 12px; padding:0; }
+  .co-summary :global(li) { display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--ink); padding:5px 0; border-bottom:1px solid var(--line); }
+  .co-sum-zeile { display:flex; justify-content:space-between; font-size:14px; color:var(--muted); padding:5px 0; }
+  .co-total { color:var(--ink); font-weight:700; font-size:16px; border-top:1px solid var(--line); margin-top:4px; padding-top:10px; }
+  .co-total span:last-child { font-family:var(--mono); color:var(--acc2); }
+  .note-klein { color:var(--muted); font-size:11.5px; margin-top:12px; line-height:1.5; }
+  @media (max-width:760px){ .co-grid { grid-template-columns:1fr; } }
+</style>
+
+<script>
+  const KC = () => (window as any).KCart;
+  const chf = (r: number) => 'CHF ' + new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(r / 100);
+
+  const leer = document.querySelector('[data-leer]') as HTMLElement | null;
+  const inhalt = document.querySelector('[data-inhalt]') as HTMLElement | null;
+  const sumListe = document.querySelector('[data-summary-liste]') as HTMLElement | null;
+  const form = document.getElementById('kForm') as HTMLFormElement | null;
+  const fehlerEl = document.querySelector('[data-fehler]') as HTMLElement | null;
+  const submitBtn = document.querySelector('[data-submit]') as HTMLButtonElement | null;
+  let items: any[] = [];
+
+  function versandRappen(): number {
+    const r = document.querySelector('input[name="versandart"]:checked') as HTMLElement | null;
+    return r ? Number((r.closest('.co-opt')?.querySelector('b') as HTMLElement)?.dataset.v || 0) : 0;
+  }
+  function rendern(): void {
+    if (leer) leer.hidden = items.length > 0;
+    if (inhalt) inhalt.hidden = items.length === 0;
+    if (!items.length) return;
+    if (sumListe) {
+      sumListe.textContent = '';
+      for (const it of items) {
+        const li = document.createElement('li');
+        const l = document.createElement('span'); l.textContent = it.titel;
+        const r = document.createElement('span'); r.textContent = chf(it.gesamtRappen);
+        li.append(l, r); sumListe.append(li);
+      }
+    }
+    const sub = items.reduce((s, it) => s + it.gesamtRappen, 0);
+    const vers = versandRappen();
+    const set = (sel: string, v: string) => { const el = document.querySelector(sel); if (el) el.textContent = v; };
+    set('[data-sum-subtotal]', chf(sub));
+    set('[data-sum-versand]', vers === 0 ? 'gratis' : chf(vers));
+    set('[data-sum-total]', chf(sub + vers));
+  }
+  function zeigeFehler(m: string[]): void {
+    if (!fehlerEl) return;
+    fehlerEl.innerHTML = m.map((x) => `<div>${x}</div>`).join('');
+    fehlerEl.hidden = m.length === 0;
+    if (m.length) fehlerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  async function absenden(e: Event): Promise<void> {
+    e.preventDefault(); zeigeFehler([]);
+    if (!form || !items.length) return;
+    const fd = new FormData(form);
+    const positionen = items.map((it) => ({ typ: it.typ, konfig: it.konfig, menge: it.menge, dateien: it.dateien }));
+    const bytes = JSON.stringify(positionen).length;
+    if (bytes > 4_500_000) { zeigeFehler(['Die Bestellung ist zu gross für eine Übertragung. Bitte teile sie in zwei Bestellungen auf (Positionen im Warenkorb entfernen).']); return; }
+    const nutzlast = {
+      positionen,
+      email: String(fd.get('email') || ''), name: String(fd.get('name') || ''), strasse: String(fd.get('strasse') || ''),
+      plz: String(fd.get('plz') || ''), ort: String(fd.get('ort') || ''), land: String(fd.get('land') || 'CH'),
+      telefon: String(fd.get('telefon') || ''), versandart: String(fd.get('versandart') || 'b_post'), bemerkung: String(fd.get('bemerkung') || ''),
+    };
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Wird gesendet …'; }
+    try {
+      const antwort = await fetch('/api/konfig-checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nutzlast) });
+      const daten = await antwort.json();
+      if (daten.ok && daten.weiter) { await KC().clear(); window.location.assign(daten.weiter); return; }
+      zeigeFehler(Array.isArray(daten.fehler) ? daten.fehler : ['Bestellung konnte nicht abgeschlossen werden.']);
+    } catch { zeigeFehler(['Verbindung fehlgeschlagen. Bitte versuch es gleich nochmals.']); }
+    finally { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Bestellung abschicken'; } }
+  }
+  document.querySelectorAll('input[name="versandart"]').forEach((r) => r.addEventListener('change', rendern));
+  form?.addEventListener('submit', absenden);
+  (async () => { items = await KC().all(); rendern(); })();
+</script>

@@ -100,14 +100,20 @@
     <div class="note">Rechnet live: Material + Druckzeit + Farbwechsel. Set-Rabatt: ab 5 Stück −15 %, ab 10 −25 % — jedes zusätzliche Schild mindestens 6.–. Versand separat.</div>
   </div>
 
-  <div class="grp"><h2>Export</h2>
-    <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
-    <div class="note">Testphase: Datei herunterladen und selbst slicen. In Bambu Studio den Farben Filamente zuweisen.</div>
+  <div class="grp"><h2>Bestellen</h2>
+    <div class="exp"><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
+    <div class="note">Legt dein Schild mit dem Live-Preis in den Warenkorb. Bezahlt wird bequem per QR-Rechnung nach der Bestellung.</div>
+  </div>
+
+  <div class="grp"><h2>Export (Test)</h2>
+    <div class="exp"><button id="ex3mf" class="ghost">3MF</button><button id="exstl" class="ghost">STL</button></div>
+    <div class="note">Testphase: Datei herunterladen und selbst slicen.</div>
   </div>
 </div>
 
 <div id="view"><div id="hint">Ziehen mit der Maus: QR, Text und Logo direkt auf der Platte verschieben</div><div id="hud"></div></div>
 
+<script src="/kcart.js"></script>
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
 </script>
@@ -852,6 +858,21 @@ async function busy(btn, fn){
 }
 $('ex3mf').addEventListener('click', ()=>busy($('ex3mf'), async ()=>{ download(await make3mf(currentGeo), 'kohlilab_qr_schild.3mf'); }));
 $('exstl').addEventListener('click', ()=>busy($('exstl'), async ()=>{ download(new Blob([stlString(currentGeo)],{type:'model/stl'}), 'kohlilab_qr_schild.stl'); }));
+
+function blobB64(blob){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.readAsDataURL(blob); }); }
+$('cart').addEventListener('click', ()=>busy($('cart'), async ()=>{
+  const pi = preisInfo();
+  const rappen = Math.round(pi.total * 100);            // Konfigurator rechnet in CHF
+  const b64 = await blobB64(await make3mf(currentGeo));
+  const cart = (window.top && window.top.KCart) || window.KCart;
+  const aufLabel = P.aufbau==='aufsteller' ? 'L-Aufsteller' : 'Flache Platte';
+  await cart.add({
+    typ:'schild', titel:`QR-Schild · ${aufLabel} · ${P.menge}×`, menge:P.menge, gesamtRappen:rappen,
+    stueckRappen:rappen, konfig:{ aufbau:P.aufbau, form:P.form, menge:P.menge, breite:P.breite, hoehe:P.hoehe, typ:P.typ },
+    dateien:{ datei:b64 },
+  });
+  (window.top||window).location.href='/warenkorb';
+}));
 
 window.__geoPos = () => geomPos(currentGeo);   // Debug-Haken für Manifold-Checks
 window.__geoCol = () => geomCol(currentGeo);

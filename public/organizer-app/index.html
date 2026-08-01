@@ -114,8 +114,13 @@
     <button id="btnLiefer" class="lieferbtn">ⓘ Wie wird das geliefert?</button>
   </div>
 
-  <div class="grp"><h2>Export</h2>
-    <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
+  <div class="grp"><h2>Bestellen</h2>
+    <div class="exp"><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
+    <div class="note">Legt deinen Einsatz mit dem Live-Preis in den Warenkorb. Bezahlt wird bequem per QR-Rechnung nach der Bestellung.</div>
+  </div>
+
+  <div class="grp"><h2>Export (Test)</h2>
+    <div class="exp"><button id="ex3mf" class="ghost">3MF</button><button id="exstl" class="ghost">STL</button></div>
     <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen.</div>
   </div>
 </div>
@@ -144,6 +149,7 @@
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
 </script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="/kcart.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -1072,6 +1078,25 @@ function mitLieferGate(fn){
 }
 $('ex3mf').addEventListener('click',()=>mitLieferGate(()=>busy($('ex3mf'),()=>exportTeile('3mf'))));
 $('exstl').addEventListener('click',()=>mitLieferGate(()=>busy($('exstl'),()=>exportTeile('stl'))));
+
+function blobB64(blob){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.readAsDataURL(blob); }); }
+async function inWarenkorb(){
+  const a=aktuelle, dateien={};
+  for(let k=0;k<a.module.length;k++){ const off=bboxOffset(a.module[k]); const b=await make3mfMulti([{geo:a.module[k],name:`Modul ${k+1}`,...off}]); dateien[`modul_${k+1}`]=await blobB64(b); }
+  const pi=preisInfo();
+  const rappen=Math.round(pi.total*100);                 // Konfigurator rechnet in CHF
+  const L=layout(), hatText=L.leaves.some(l=>l.n.label&&(l.n.label.txt||'').trim());
+  const n=a.module.length;
+  const cart=(window.top&&window.top.KCart)||window.KCart;
+  await cart.add({
+    typ:'organizer', titel:`Schubladen-Organizer · ${P.sb}×${P.st}×${P.eh} mm · ${n} Teil${n>1?'e':''}`,
+    menge:1, gesamtRappen:rappen, stueckRappen:rappen,
+    konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length },
+    dateien,
+  });
+  (window.top||window).location.href='/warenkorb';
+}
+$('cart').addEventListener('click',()=>mitLieferGate(()=>busy($('cart'), inWarenkorb)));
 
 window.__geos=()=>aktuelle.module.map(g=>geomPos(g));
 window.__plan=()=>({ xs:aktuelle.plan.xs, ys:aktuelle.plan.ys, tenons:aktuelle.plan.tenons.length, tenonDetail:aktuelle.plan.tenons.slice(0,3) });

@@ -30,6 +30,7 @@ nav { display:flex; align-items:center; justify-content:space-between; padding:1
 .navbtn { font-family:var(--mono); font-size:12px; letter-spacing:1px; color:#141517; background:var(--acc);
   font-weight:700; padding:9px 16px; border-radius:3px; text-transform:uppercase; }
 .navbtn:hover { background:var(--acc2); }
+.cart-count { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 4px; margin-left:4px; background:#141517; color:var(--acc); border-radius:9px; font-size:10.5px; }
 
 /* hero */
 .hero { display:grid; grid-template-columns:1.1fr .9fr; gap:32px; padding:64px 26px 52px; align-items:center; position:relative;

@@ -4,3 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# pdfkit (QR-Rechnung) liest .afm-Schriftdateien zur Laufzeit vom Dateisystem.
+# esbuild bündelt sie nicht automatisch in die Function -> ohne diese Zeile
+# ENOENT Helvetica.afm bei der PDF-Erzeugung.
+[functions]
+  included_files = ["node_modules/pdfkit/js/data/*.afm"]

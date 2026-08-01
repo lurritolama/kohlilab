@@ -43,5 +43,13 @@ const {
       </main>
       <Footer />
     </div>
+    <script src="/kcart.js" is:inline></script>
+    <script is:inline>
+      // Warenkorb-Zähler im Header live halten
+      (function(){
+        async function upd(){ try { const n = await window.KCart.count(); const b = document.querySelector('[data-cart-count]'); if(b){ b.textContent = n; b.style.display = n>0 ? 'inline-flex' : 'none'; } } catch(e){} }
+        window.addEventListener('pageshow', upd); document.addEventListener('DOMContentLoaded', upd); upd();
+      })();
+    </script>
   </body>
 </html>

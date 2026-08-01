@@ -1,0 +1,73 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="Warenkorb — KohliLab" description="Deine konfigurierten Schilder und Organizer.">
+  <section class="prose" style="max-width:820px">
+    <div class="kicker">// Warenkorb</div>
+    <h1>Dein Warenkorb</h1>
+
+    <div data-leer hidden class="korb-note">
+      Noch nichts drin. Gestalte dein Teil im <a href="/qr-schilder">QR-Schilder-Konfigurator</a> oder im <a href="/organizer">Schubladen-Organizer</a>.
+    </div>
+
+    <div data-inhalt hidden>
+      <ul class="kw-liste" data-liste></ul>
+      <div class="kw-summe"><span>Zwischensumme (ohne Versand)</span><b data-subtotal>–</b></div>
+      <div class="kw-aktionen">
+        <a class="btn ghost" href="/#produkte">Weiter gestalten</a>
+        <a class="btn primary" href="/checkout">Zur Kasse</a>
+      </div>
+      <p class="note-klein">Menge und Optionen stellst du im jeweiligen Konfigurator ein. Zum Ändern das Teil entfernen und neu gestalten.</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .korb-note { color:var(--muted); }
+  .kw-liste { list-style:none; margin:0 0 18px; padding:0; }
+  .kw-liste :global(li) { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
+  .kw-liste :global(.kw-titel) { flex:1 1 260px; font-weight:600; color:var(--ink); }
+  .kw-liste :global(.kw-typ) { font-family:var(--mono); font-size:11px; letter-spacing:1.5px; color:var(--acc2); text-transform:uppercase; display:block; margin-bottom:3px; }
+  .kw-liste :global(.kw-preis) { font-family:var(--mono); color:var(--acc2); min-width:96px; text-align:right; }
+  .kw-liste :global(.kw-weg) { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; }
+  .kw-liste :global(.kw-weg:hover) { color:var(--acc); }
+  .kw-summe { display:flex; justify-content:space-between; font-size:16px; padding:12px 4px; border-top:1px solid var(--line); color:var(--ink); }
+  .kw-summe b { font-family:var(--mono); color:var(--acc2); }
+  .kw-aktionen { display:flex; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .note-klein { color:var(--muted); font-size:12px; margin-top:12px; }
+</style>
+
+<script>
+  const KC = () => (window as any).KCart;
+  const chf = (r: number) => 'CHF ' + new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(r / 100);
+
+  const leer = document.querySelector('[data-leer]') as HTMLElement | null;
+  const inhalt = document.querySelector('[data-inhalt]') as HTMLElement | null;
+  const liste = document.querySelector('[data-liste]') as HTMLElement | null;
+  const subEl = document.querySelector('[data-subtotal]') as HTMLElement | null;
+
+  async function render(): Promise<void> {
+    const items = await KC().all();
+    if (leer) leer.hidden = items.length > 0;
+    if (inhalt) inhalt.hidden = items.length === 0;
+    if (!liste) return;
+    liste.textContent = '';
+    let sub = 0;
+    for (const it of items) {
+      sub += it.gesamtRappen;
+      const li = document.createElement('li');
+      const titel = document.createElement('span'); titel.className = 'kw-titel';
+      const typ = document.createElement('span'); typ.className = 'kw-typ';
+      typ.textContent = it.typ === 'organizer' ? 'Organizer' : 'QR-Schild';
+      const name = document.createElement('span'); name.textContent = it.titel;
+      titel.append(typ, name);
+      const preis = document.createElement('span'); preis.className = 'kw-preis'; preis.textContent = chf(it.gesamtRappen);
+      const weg = document.createElement('button'); weg.className = 'kw-weg'; weg.type = 'button'; weg.textContent = '✕'; weg.title = 'Entfernen';
+      weg.addEventListener('click', async () => { await KC().remove(it.id); render(); });
+      li.append(titel, preis, weg);
+      liste.append(li);
+    }
+    if (subEl) subEl.textContent = chf(sub);
+  }
+  render();
+</script>
