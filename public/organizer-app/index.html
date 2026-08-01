@@ -220,7 +220,7 @@ function layout(){
 
 // ---------- Spezial-Einsätze (parametrisch, passen sich dem Fach an) ----------
 // Alles achsparallel bzw. in Stufen -> bleibt in der Zellen-Engine wasserdicht.
-const EINSATZ_KAT = ['Büro','Elektronik','Werkstatt','Nähen','Allgemein'];   // Reihenfolge im Menü
+const EINSATZ_KAT = ['Büro','Elektronik','Werkstatt','Schmuck','Nähen','Allgemein'];   // Reihenfolge im Menü
 const EINSAETZE = {
   usb:    { name:'USB-Sticks',        minW:22, minD:14, kat:'Büro' },
   sd:     { name:'SD-Karten',         minW:33, minD:12, kat:'Büro' },
@@ -230,7 +230,12 @@ const EINSAETZE = {
   cr2032: { name:'Knopfzellen CR2032',minW:29, minD:14, kat:'Elektronik' },
   neunv:  { name:'9V-Block',          minW:34, minD:26, kat:'Elektronik' },
   bits:   { name:'Bit-Raster ¼"',     minW:19, minD:19, kat:'Werkstatt' },
-  garn:   { name:'Garn-/Spulenzapfen',minW:34, minD:34, kat:'Nähen' },
+  ringr:  { name:'Ring-Rillen',       minW:30, minD:24, kat:'Schmuck' },
+  ringk:  { name:'Ring-Kegel',        minW:28, minD:28, kat:'Schmuck' },
+  uhr:    { name:'Uhren-/Armband-Steg',minW:40, minD:60, kat:'Schmuck' },
+  ohrh:   { name:'Ohrhänger-Leisten', minW:30, minD:24, kat:'Schmuck' },
+  ohrs:   { name:'Ohrstecker-Mulden', minW:24, minD:24, kat:'Schmuck' },
+  garn:   { name:'Garn-/Spulenzapfen',minW:25, minD:25, kat:'Nähen' },
   scoop:  { name:'Scoop-Mulde',       minW:30, minD:34, kat:'Allgemein' },
 };
 // Liefert pro Fach: zusätzliche Rasterkoordinaten + Höhenfunktion zhi(cx,cy)
@@ -289,6 +294,7 @@ function einsatzDaten(lf){
   else if(typ==='cr2032') fn=slotGrid(21, 3.6, 3.2, 15, 1);
   else if(typ==='neunv') fn=slotGrid(27.6, 18.6, 3, 18, 1);
   else if(typ==='bits') fn=slotGrid(6.9, 6.9, 3.5, 13, 1);
+  else if(typ==='ohrs') fn=slotGrid(16, 16, 3, 10, 1);   // eine Mulde pro Stecker-Paar
   else if(typ==='stift') fn=rinnen(15, 10);
   else if(typ==='aa') fn=rinnen(15.5, 9);
   else if(typ==='aaa') fn=rinnen(12, 7.5);
@@ -313,32 +319,112 @@ function einsatzDaten(lf){
       };
     }
   }
+  else if(typ==='ringr'){
+    // Juwelier-Klemmstege: Ringe stecken hochkant in den Schlitzen dazwischen.
+    const steg=7, schlitz=3, per=steg+schlitz;
+    const n=Math.floor((D-2*m-schlitz)/per);         // Anzahl Stege
+    if(n>=2){
+      const bh=n*per+schlitz;                        // schlitz|steg|…|steg|schlitz
+      const by0=r.y0+(D-bh)/2, bx0=r.x0+m, bx1=r.x1-m;
+      xs.push(bx0,bx1); ys.push(by0,by0+bh);
+      const stege=[];
+      for(let j=0;j<n;j++){
+        const s0=by0+schlitz+j*per;
+        stege.push([s0,s0+steg]);
+        ys.push(s0,s0+steg);
+      }
+      const H=cap(b+18);
+      fn=(cx,cy)=>{
+        if(cx<bx0||cx>bx1||cy<by0||cy>by0+bh) return null;
+        for(const [s0,s1] of stege) if(cy>s0&&cy<s1) return H;
+        return b;                                    // Schlitzboden
+      };
+    }
+  }
+  else if(typ==='ringk'){
+    // Gestufte Kegel: Ringe aufstecken — sortieren sich nach Grösse von selbst.
+    const pitch=30, N=5, hwB=9, hwT=3.5;             // Basis ⌀18, Spitze ⌀7
+    const nx=Math.max(1, Math.floor((W-2*m)/pitch)), ny=Math.max(1, Math.floor((D-2*m)/pitch));
+    const cx0=r.x0+(W-nx*pitch)/2+pitch/2, cy0=r.y0+(D-ny*pitch)/2+pitch/2;
+    const Hk=cap(b+30)-b;
+    const lvl=[];                                    // [Halbweite, Oberkante] breit→schmal
+    for(let i=0;i<N;i++) lvl.push([hwB-(hwB-hwT)*i/(N-1), b+Hk*(i+1)/N]);
+    const zentren=[];
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
+      const px=cx0+i*pitch, py=cy0+j*pitch;
+      zentren.push([px,py]);
+      for(const [hw] of lvl){ xs.push(px-hw,px-hw*0.41,px+hw*0.41,px+hw); ys.push(py-hw,py-hw*0.41,py+hw*0.41,py+hw); }
+    }
+    fn=(cx,cy)=>{
+      for(const [px,py] of zentren){
+        const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
+        if(dx>hwB||dy>hwB) continue;
+        let z=null;                                  // schmalste passende Stufe = höchste
+        for(const [hw,zo] of lvl) if(dx<=hw&&dy<=hw&&dx+dy<=hw*1.31) z=zo;
+        if(z!==null) return z;
+      }
+      return b;
+    };
+  }
+  else if(typ==='uhr'){
+    // Breiter Quersteg mit gerundeter Schulter — Uhr/Armband drüberlegen,
+    // die Bänder hängen beidseitig in den Freiraum.
+    const wb=26, mitte=(r.y0+r.y1)/2;
+    const H=cap(b+32);
+    const prof=[[0.28,0],[0.36,3],[0.43,7],[0.50,12]];   // [Anteil Breite, Absenkung]
+    const bx0=r.x0+m, bx1=r.x1-m;
+    xs.push(bx0,bx1);
+    for(const [f] of prof){ ys.push(mitte-f*wb, mitte+f*wb); }
+    fn=(cx,cy)=>{
+      if(cx<bx0||cx>bx1) return null;
+      const d=Math.abs(cy-mitte);
+      for(const [f,ab] of prof) if(d<=f*wb) return Math.max(b, H-ab);
+      return null;                                   // Rest normaler Boden
+    };
+  }
+  else if(typ==='ohrh'){
+    // Dünne Querleisten — Hänger-Ohrringe werden eingehängt und baumeln seitlich.
+    const dicke=2.5, abstand=20;
+    const n=Math.max(1, Math.floor((D-2*m)/abstand));
+    const cy0=r.y0+(D-n*abstand)/2+abstand/2;
+    const bx0=r.x0+m, bx1=r.x1-m;
+    xs.push(bx0,bx1);
+    const H=cap(b+24);
+    const rows=[];
+    for(let j=0;j<n;j++){ const c=cy0+j*abstand; rows.push(c); ys.push(c-dicke/2,c+dicke/2); }
+    fn=(cx,cy)=>{
+      if(cx<bx0||cx>bx1) return null;
+      for(const c of rows) if(Math.abs(cy-c)<dicke/2) return H;
+      return null;
+    };
+  }
   else if(typ==='garn'){
     // Aufrechte Zapfen im Raster – Garnrollen/Schnüre werden aufgesteckt.
     // Achteckiger Querschnitt (rundlicher, passt besser ins runde Spulenloch).
-    const pitch=34;                                  // Rastermass (Rolle bis ~30 mm ⌀)
-    const halb=3;                                    // halbe Zapfenbreite -> ~6 mm Zapfen
+    // Dicke, Abstand und Höhe pro Fach konfigurierbar (Regler im Menü).
+    const cfg=lf.n.garnCfg||{};
+    const pitch=cfg.abstand||34;                     // Rastermass
+    const halb=(cfg.dicke||6)/2;                     // halbe Zapfendicke
     const oct=halb*0.41;                             // Achteck-Fase
-    const nx=Math.floor((W-2*m)/pitch), ny=Math.floor((D-2*m)/pitch);
-    if(nx>=1 && ny>=1){
-      const spanX=nx*pitch, spanY=ny*pitch;
-      const cx0=r.x0+(W-spanX)/2+pitch/2, cy0=r.y0+(D-spanY)/2+pitch/2;
-      const zentren=[];
-      for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
-        const px=cx0+i*pitch, py=cy0+j*pitch;
-        zentren.push([px,py]);
-        xs.push(px-halb, px-oct, px+oct, px+halb);
-        ys.push(py-halb, py-oct, py+oct, py+halb);
-      }
-      const H=cap(b+42);                             // Zapfenhöhe (kappt auf Fachhöhe-2)
-      fn=(cx,cy)=>{
-        for(const [px,py] of zentren){
-          const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
-          if(dx<=halb && dy<=halb && dx+dy<=halb*1.31) return H;
-        }
-        return b;                                    // fester Boden zwischen den Zapfen
-      };
+    const nx=Math.max(1, Math.floor((W-2*m)/pitch)); // mind. 1 Zapfen (zentriert)
+    const ny=Math.max(1, Math.floor((D-2*m)/pitch));
+    const spanX=nx*pitch, spanY=ny*pitch;
+    const cx0=r.x0+(W-spanX)/2+pitch/2, cy0=r.y0+(D-spanY)/2+pitch/2;
+    const zentren=[];
+    for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
+      const px=cx0+i*pitch, py=cy0+j*pitch;
+      zentren.push([px,py]);
+      xs.push(px-halb, px-oct, px+oct, px+halb);
+      ys.push(py-halb, py-oct, py+oct, py+halb);
     }
+    const H=cap(b+(cfg.hoehe||42));                  // Zapfenhöhe (kappt auf Fachhöhe-2)
+    fn=(cx,cy)=>{
+      for(const [px,py] of zentren){
+        const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
+        if(dx<=halb && dy<=halb && dx+dy<=halb*1.31) return H;
+      }
+      return b;                                      // fester Boden zwischen den Zapfen
+    };
   }
   if(!fn) return null;
   return { xs, ys, zhi:fn };
@@ -740,7 +826,8 @@ function baueLabels(){
   const haupt=mk('haupt');
   haupt.textContent=`${L.W.toFixed(0)} × ${L.D.toFixed(0)} × ${P.eh} mm`;
   labelDaten.push({ el:haupt, p:new THREE.Vector3(0, L.y0-16, 0) });
-  const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop',garn:'Garn'};
+  const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop',garn:'Garn',
+              ringr:'Ringe',ringk:'Ringkegel',uhr:'Uhr',ohrh:'Ohrhänger',ohrs:'Ohrstecker'};
   for(const lf of L.leaves){
     const el=mk();
     const zusatz = lf.n.einsatz ? ` · ${KURZ[lf.n.einsatz]||''}` : '';
@@ -826,6 +913,15 @@ addEventListener('pointerup', ev=>{
   if(lf) zeigeMenu(lf, ev.clientX, ev.clientY);
 });
 function hudLive(s){ document.getElementById('hud').innerHTML=s; }
+// Menü so platzieren, dass es komplett sichtbar bleibt (sonst intern scrollen)
+function platziereMenu(cx, cy){
+  const vr=view.getBoundingClientRect();
+  menu.style.maxHeight=(vr.height-16)+'px';
+  menu.style.display='block';
+  const mw=menu.offsetWidth, mh=menu.offsetHeight;
+  menu.style.left=Math.max(8, Math.min(cx-vr.left, vr.width-mw-8))+'px';
+  menu.style.top=Math.max(8, Math.min(cy-vr.top, vr.height-mh-8))+'px';
+}
 function zeigeMenu(lf, cx, cy){
   const bw=(lf.r.x1-lf.r.x0).toFixed(0), bt=(lf.r.y1-lf.r.y0).toFixed(0);
   const kannV=(lf.r.x1-lf.r.x0)>=2*FACH_MIN+P.wand;
@@ -839,10 +935,7 @@ function zeigeMenu(lf, cx, cy){
   b('▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
   b((lf.n.label?'● ':'')+'✎  Beschriften …', ()=>zeigeLabelMenu(lf, cx, cy), !!lf.n.einsatz,
     lf.n.einsatz?'Fach hat einen Spezial-Einsatz — erst entfernen':'');
-  const vr=view.getBoundingClientRect();
-  menu.style.display='block';
-  menu.style.left=Math.min(cx-vr.left, vr.width-230)+'px';
-  menu.style.top=Math.min(cy-vr.top, vr.height-190)+'px';
+  platziereMenu(cx, cy);
 }
 function zeigeEinsatzMenu(lf, cx, cy){
   const W=lf.r.x1-lf.r.x0, D=lf.r.y1-lf.r.y0;
@@ -855,15 +948,46 @@ function zeigeEinsatzMenu(lf, cx, cy){
     const h=document.createElement('div'); h.className='mkat'; h.textContent=kat; menu.appendChild(h);
     for(const [typ,def] of eintraege){
       const passt=W>=def.minW && D>=def.minD;
-      b((lf.n.einsatz===typ?'● ':'') + def.name, ()=>{ snapshot(); lf.n.einsatz=typ; delete lf.n.label; rebuild(); }, !passt,
-        passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
+      b((lf.n.einsatz===typ?'● ':'') + def.name + (typ==='garn'?' …':''), ()=>{
+        if(typ==='garn'){ zeigeGarnMenu(lf, cx, cy); return; }
+        snapshot(); lf.n.einsatz=typ; delete lf.n.label; rebuild();
+      }, !passt, passt?'':'Fach zu klein — mind. '+def.minW+'×'+def.minD+' mm');
     }
   }
-  if(lf.n.einsatz) b('✕  Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; rebuild(); });
-  const vr=view.getBoundingClientRect();
-  menu.style.display='block';
-  menu.style.left=Math.min(cx-vr.left, vr.width-240)+'px';
-  menu.style.top=Math.min(cy-vr.top, vr.height-320)+'px';
+  if(lf.n.einsatz) b('✕  Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; delete lf.n.garnCfg; rebuild(); });
+  platziereMenu(cx, cy);
+}
+// Garn-Zapfen: Dicke/Abstand/Höhe per Regler, Modell aktualisiert live
+function zeigeGarnMenu(lf, cx, cy){
+  snapshot();
+  lf.n.einsatz='garn'; delete lf.n.label;
+  const cfg = lf.n.garnCfg = Object.assign({dicke:6, abstand:34, hoehe:42}, lf.n.garnCfg);
+  menu.innerHTML=`<div class="mtitle">GARN-/SPULENZAPFEN</div>`;
+  let lb=0;
+  const rb=()=>{ const now=performance.now(); if(now-lb>90){ lb=now; rebuild(); } };
+  const slider=(lbl,key,min,max,step)=>{
+    const row=document.createElement('div'); row.className='row'; row.style.padding='2px 10px';
+    row.innerHTML=`<label style="width:60px">${lbl}</label>`;
+    const inp=document.createElement('input'); inp.type='range'; inp.min=min; inp.max=max; inp.step=step; inp.value=cfg[key];
+    const val=document.createElement('span'); val.className='val'; val.textContent=cfg[key]+' mm';
+    inp.addEventListener('input',()=>{ cfg[key]=parseFloat(inp.value); val.textContent=cfg[key]+' mm'; rb(); });
+    inp.addEventListener('change',()=>rebuild());
+    row.appendChild(inp); row.appendChild(val);
+    menu.appendChild(row);
+  };
+  slider('Dicke','dicke',3,12,0.5);      // Spulenloch meist 6–8 mm
+  slider('Abstand','abstand',15,80,1);
+  slider('Höhe','hoehe',8,60,1);
+  const hint=document.createElement('div');
+  hint.style.cssText='font-size:10.5px;color:var(--mut);padding:3px 10px 7px;max-width:220px';
+  hint.textContent='Höhe wird auf Einsatzhöhe − 2 mm begrenzt. Abstand = Rastermass der Zapfen.';
+  menu.appendChild(hint);
+  const b=(txt,fn)=>{ const el=document.createElement('button'); el.textContent=txt;
+    el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
+  b('✓  Fertig', ()=>{});
+  b('✕  Einsatz entfernen', ()=>{ delete lf.n.einsatz; delete lf.n.garnCfg; rebuild(); });
+  rebuild();
+  platziereMenu(cx, cy);
 }
 function zeigeLabelMenu(lf, cx, cy){
   menu.innerHTML=`<div class="mtitle">FACH BESCHRIFTEN (bündig auf der Grundplatte)</div>`;
@@ -895,10 +1019,7 @@ function zeigeLabelMenu(lf, cx, cy){
   if(lf.n.label){ const del=document.createElement('button'); del.textContent='✕  Beschriftung entfernen';
     del.addEventListener('click',()=>{ menu.style.display='none'; snapshot(); delete lf.n.label; rebuild(); });
     menu.appendChild(del); }
-  const vr=view.getBoundingClientRect();
-  menu.style.display='block';
-  menu.style.left=Math.min(cx-vr.left, vr.width-250)+'px';
-  menu.style.top=Math.min(cy-vr.top, vr.height-220)+'px';
+  platziereMenu(cx, cy);
   inp.focus();
 }
 function entferneLeaf(pfad){
