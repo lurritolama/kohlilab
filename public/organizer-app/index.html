@@ -932,7 +932,8 @@ function zeigeMenu(lf, cx, cy){
   b('◫  Senkrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannV);
   b('⊟  Waagrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannH);
   if(lf.pfad!=='r') b('✕  Fach entfernen (Wand löschen)', ()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); });
-  b('▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
+  b((lf.n.einsatz?'● ':'')+'▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
+  if(lf.n.einsatz) b('✕  Spezial-Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; delete lf.n.garnCfg; rebuild(); });
   b((lf.n.label?'● ':'')+'✎  Beschriften …', ()=>zeigeLabelMenu(lf, cx, cy), !!lf.n.einsatz,
     lf.n.einsatz?'Fach hat einen Spezial-Einsatz — erst entfernen':'');
   platziereMenu(cx, cy);
