@@ -300,22 +300,23 @@ function labelPlan(L, plan){
     if(mk.w>W-8 || mk.h>D-8) continue;                 // passt nicht -> auslassen
     let cx=(lf.r.x0+lf.r.x1)/2, cy=(lf.r.y0+lf.r.y1)/2;
     const pad=0.6, bw=mk.w+2*pad+1, bh=mk.h+2*pad+1;
-    for(const c of plan.xs){                            // nicht über x-Schnitt
-      if(cx-bw/2<c+1 && cx+bw/2>c-1){
+    const frei=DOVE.kd+DOVE.fit+3;                       // Abstand zur Fuge inkl. Puzzle-Zapfen
+    for(const c of plan.xs){                             // nicht über x-Schnitt
+      if(cx-bw/2<c+frei && cx+bw/2>c-frei){
         const links=c-lf.r.x0, rechts=lf.r.x1-c;
-        cx = rechts>links ? Math.min(lf.r.x1-4-bw/2, c+2+bw/2) : Math.max(lf.r.x0+4+bw/2, c-2-bw/2);
+        cx = rechts>links ? Math.min(lf.r.x1-4-bw/2, c+frei+bw/2) : Math.max(lf.r.x0+4+bw/2, c-frei-bw/2);
       }
     }
     for(const c of plan.ys){
-      if(cy-bh/2<c+1 && cy+bh/2>c-1){
+      if(cy-bh/2<c+frei && cy+bh/2>c-frei){
         const vorn=c-lf.r.y0, hinten=lf.r.y1-c;
-        cy = hinten>vorn ? Math.min(lf.r.y1-4-bh/2, c+2+bh/2) : Math.max(lf.r.y0+4+bh/2, c-2-bh/2);
+        cy = hinten>vorn ? Math.min(lf.r.y1-4-bh/2, c+frei+bh/2) : Math.max(lf.r.y0+4+bh/2, c-frei-bh/2);
       }
     }
     const box={ x0:cx-bw/2, x1:cx+bw/2, y0:cy-bh/2, y1:cy+bh/2 };
     let ok = box.x0>lf.r.x0+2 && box.x1<lf.r.x1-2 && box.y0>lf.r.y0+2 && box.y1<lf.r.y1-2;
-    for(const c of plan.xs) if(box.x0<c&&box.x1>c) ok=false;
-    for(const c of plan.ys) if(box.y0<c&&box.y1>c) ok=false;
+    for(const c of plan.xs) if(box.x0<c+frei&&box.x1>c-frei) ok=false;
+    for(const c of plan.ys) if(box.y0<c+frei&&box.y1>c-frei) ok=false;
     if(ok) out.push({ box, mk, pad, farbe:lf.n.label.farbe||'#1c1c1c' });
   }
   return out;
@@ -324,7 +325,7 @@ function labelPlan(L, plan){
 // ---------- Modul-Schnitte + Schwalbenschwanz-Taschen ----------
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
-  if(passtDirekt) return { xs:[], ys:[], taschen:[] };
+  if(passtDirekt) return { xs:[], ys:[], tenons:[] };
   const nx=Math.max(1, Math.ceil(L.W/BETT.x)), ny=Math.max(1, Math.ceil(L.D/BETT.y));
   const roh=(n,von,len)=>Array.from({length:n-1},(_,i)=>von+len*(i+1)/n);
   // an durchgehende Wände snappen (Schnitt in Wandmitte = unsichtbare Fuge)
@@ -361,8 +362,11 @@ function schnittPlan(L){
       for(let k=0;k<n;k++){
         const m = a+(b-a)*k/(n-1);
         if(quer.some(qc=>Math.abs(qc-m)<DOVE.bh/2+DOVE.bw+2)) continue;
-        const wall = axis==='x' ? istWand(c,m) : istWand(m,c);
-        tenons.push({ axis, c, m, wall });
+        // kein Zapfen in Fächern mit Spezial-Einsatz (Kollision mit Features)
+        const px = axis==='x' ? c : m, py = axis==='x' ? m : c;
+        const lf = L.leaves.find(l=>px>l.r.x0-DOVE.kd-1&&px<l.r.x1+DOVE.kd+1&&py>l.r.y0&&py<l.r.y1);
+        if(lf && lf.n.einsatz) continue;
+        tenons.push({ axis, c, m });
       }
     }
   };
@@ -415,9 +419,6 @@ function organizerGeometrien(){
     const tipHwG=DOVE.wt/2+F;
     if(t.axis==='x'){ for(const d of tief) xs.add(t.c+d); ys.add(t.m-tipHwG); ys.add(t.m+tipHwG); }
     else { for(const d of tief) ys.add(t.c+d); xs.add(t.m-tipHwG); xs.add(t.m+tipHwG); }
-    // Boss-Rechteck (vollhoher Pfosten um die Leiste)
-    if(t.axis==='x'){ xs.add(t.c-DOVE.bw); xs.add(t.c+DOVE.bw); ys.add(t.m-DOVE.bh/2); ys.add(t.m+DOVE.bh/2); }
-    else { ys.add(t.c-DOVE.bw); ys.add(t.c+DOVE.bw); xs.add(t.m-DOVE.bh/2); xs.add(t.m+DOVE.bh/2); }
   }
   // Beinahe-Duplikate mergen (Float-Arithmetik): sonst entstehen Null-
   // Breite-Zellen -> deckungsgleiche Faces -> Mehrfach-Kanten im Mesh.
@@ -460,19 +461,13 @@ function organizerGeometrien(){
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
     else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
     const mod=modIdx(cx,cy);
-    // Verbindungspfosten: im Boss volle Höhe nur in echten Wänden,
-    // sonst niedrige Rippe (hLow) — keine Säulen im offenen Fach.
-    let bossH=0;
-    for(const t of plan.tenons){
-      const dn=Math.abs(t.axis==='x'?cx-t.c:cy-t.c), dl=Math.abs(t.axis==='x'?cy-t.m:cx-t.m);
-      if(dn<DOVE.bw && dl<DOVE.bh/2){ bossH = t.wall ? P.eh : Math.min(P.eh, DOVE.hLow); break; }
-    }
+    // Puzzle-Verzahnung liegt flach im Boden (Zapfen = umgehängte Zellen,
+    // Nut = Spielspalt) — KEINE Pfosten/Bosse, nichts ragt über den Boden.
     let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
-    if(typ==='k' && fach && !bossH){
+    if(typ==='k' && fach){
       const ee=einsaetze.find(x=>x.lf===fach);
       if(ee){ const h=ee.e.zhi(cx,cy); if(h!==null) zhi=h; }
     }
-    if(bossH) zhi=Math.max(zhi, bossH);
     let lbl=-1;
     if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
       if(cx>b.x0&&cx<b.x1&&cy>b.y0&&cy<b.y1){ lbl=li; break; } }
