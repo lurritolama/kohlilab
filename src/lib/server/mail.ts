@@ -23,9 +23,10 @@ export interface MailInhalt {
 }
 
 export async function sendeMail(mail: MailInhalt): Promise<boolean> {
-  const apiKey = import.meta.env.RESEND_API_KEY;
-  const absender = import.meta.env.MAIL_FROM;
-  const shopEmail = import.meta.env.SHOP_EMAIL;
+  const env: Record<string, string | undefined> = { ...(import.meta.env as any), ...(typeof process !== 'undefined' ? process.env : {}) };
+  const apiKey = env.RESEND_API_KEY;
+  const absender = env.MAIL_FROM;
+  const shopEmail = env.SHOP_EMAIL;
 
   if (!apiKey || !absender) {
     console.warn(

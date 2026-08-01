@@ -10,8 +10,11 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 let instanz: SupabaseClient | null = null;
 
 export function supabaseAdmin(): SupabaseClient {
-  const url = import.meta.env.PUBLIC_SUPABASE_URL;
-  const serviceKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  // In der Netlify-Function sind nicht-öffentliche Env-Vars zur Laufzeit über
+  // process.env verlässlich (import.meta.env kann leer sein) -> Fallback.
+  const env: Record<string, string | undefined> = { ...(import.meta.env as any), ...(typeof process !== 'undefined' ? process.env : {}) };
+  const url = env.PUBLIC_SUPABASE_URL;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceKey) {
     throw new Error(

@@ -18,9 +18,10 @@ import type { CheckoutAuftrag, CheckoutErgebnis, PaymentProvider } from './types
 
 export class ManualProvider implements PaymentProvider {
   async createCheckout(auftrag: CheckoutAuftrag): Promise<CheckoutErgebnis> {
-    const shopEmail = import.meta.env.SHOP_EMAIL;
-    const iban = import.meta.env.ZAHLUNG_IBAN?.trim();
-    const twintTel = import.meta.env.ZAHLUNG_TWINT_TEL?.trim();
+    const env: Record<string, string | undefined> = { ...(import.meta.env as any), ...(typeof process !== 'undefined' ? process.env : {}) };
+    const shopEmail = env.SHOP_EMAIL;
+    const iban = env.ZAHLUNG_IBAN?.trim();
+    const twintTel = env.ZAHLUNG_TWINT_TEL?.trim();
     const b = auftrag.bestellung;
 
     // Ist eine IBAN hinterlegt, bekommt die Kundschaft Zahlungsangaben +
