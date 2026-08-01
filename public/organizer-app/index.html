@@ -46,6 +46,27 @@
   #menu button:hover{background:#17181b;color:var(--acc)}
   #menu button:disabled{color:var(--line2);cursor:not-allowed}
   #menu .mtitle{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--mut);padding:2px 10px 6px}
+  #lieferBox{font-size:12.5px;line-height:1.55;margin-bottom:8px}
+  .lief-badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:700;padding:5px 10px;border-radius:6px;border:1px solid var(--line2)}
+  .lief-1{color:#7bd88f;border-color:#2f6b3d;background:#14251a}
+  .lief-n{color:var(--acc2);border-color:#6b4a10;background:#2a2008}
+  .lieferbtn{width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:8px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  .lieferbtn:hover{border-color:var(--acc);color:var(--acc)}
+  #modal-bg{position:fixed;inset:0;background:rgba(8,9,10,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  #modal-bg.on{display:flex}
+  #modal{background:var(--bg2);border:1px solid var(--line2);border-radius:12px;max-width:520px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto}
+  #modal h3{font-size:19px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  #modal .msub{color:var(--mut);font-size:12.5px;margin-bottom:16px}
+  #modal .mzahl{font-family:var(--mono);font-size:15px;color:var(--acc2);font-weight:700;margin:14px 0 6px}
+  #modal ul{list-style:none;margin:12px 0}
+  #modal li{font-size:13px;color:var(--ink);padding:5px 0 5px 24px;position:relative;line-height:1.5}
+  #modal li::before{content:"✓";position:absolute;left:0;color:var(--acc);font-weight:700}
+  #modal svg{display:block;margin:8px auto 4px}
+  #modal-btns{display:flex;gap:10px;margin-top:18px}
+  #modal-btns button{flex:1;border:none;border-radius:7px;padding:12px;font-size:13px;font-weight:700;font-family:var(--mono);letter-spacing:.5px;cursor:pointer;text-transform:uppercase}
+  .m-primary{background:var(--acc);color:#141517}
+  .m-primary:hover{background:var(--acc2)}
+  .m-ghost{background:transparent;border:1px solid var(--line2)!important;color:var(--ink)}
   #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
   .lbl{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10.5px;color:#e8e6e1;background:rgba(20,21,23,.72);border:1px solid rgba(74,79,86,.8);border-radius:4px;padding:1px 6px;white-space:nowrap}
   .lbl.haupt{color:var(--acc2);border-color:var(--acc);font-size:11.5px;padding:3px 9px}
@@ -88,9 +109,14 @@
     <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.– + Zuschläge. Versand separat.</div>
   </div>
 
+  <div class="grp" id="lieferGrp"><h2>Lieferung</h2>
+    <div id="lieferBox"></div>
+    <button id="btnLiefer" class="lieferbtn">ⓘ Wie wird das geliefert?</button>
+  </div>
+
   <div class="grp"><h2>Export</h2>
     <div class="exp"><button id="ex3mf">3MF (farbig)</button><button id="exstl" class="ghost">STL</button></div>
-    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen. Wird der Einsatz grösser als das H2D-Druckbett (2-Düsen-Betrieb: nutzbar ~290×310 mm), teilt er sich automatisch in Module mit angeformten <b>Schwalbenschwanz-Leisten</b> (von oben zusammenschieben, keine losen Teile) — der Export ist ein <b>ZIP mit einer Datei pro Modul</b>, jedes einzeln druckbar.</div>
+    <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen.</div>
   </div>
 </div>
 
@@ -105,6 +131,13 @@
   <div id="labels"></div>
   <div id="hud"></div>
   <div id="menu"></div>
+</div>
+
+<div id="modal-bg">
+  <div id="modal">
+    <div id="modal-inhalt"></div>
+    <div id="modal-btns"></div>
+  </div>
 </div>
 
 <script type="importmap">
@@ -637,6 +670,7 @@ function rebuild(){
   baueLade();
   baueLabels();
   preisAnzeigen();
+  lieferAnzeigen();
   const tris=aktuelle.module.reduce((s,g)=>s+g.attributes.position.count/3,0);
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
@@ -971,8 +1005,73 @@ async function exportTeile(art){
   }
   download(await zip.generateAsync({type:'blob'}), `kohlilab_organizer_teile_${art}.zip`);
 }
-$('ex3mf').addEventListener('click',()=>busy($('ex3mf'),()=>exportTeile('3mf')));
-$('exstl').addEventListener('click',()=>busy($('exstl'),()=>exportTeile('stl')));
+// ---------- Lieferung: kommunizieren, dass es Module sein können ----------
+function anzahlModule(){ return aktuelle ? aktuelle.module.length : 1; }
+function lieferAnzeigen(){
+  const box=$('lieferBox'); if(!box) return;
+  const n=anzahlModule();
+  box.innerHTML = n<=1
+    ? `<span class="lief-badge lief-1">📦 1 Teil · kommt am Stück</span>`
+    : `<span class="lief-badge lief-n">📦 ${n} Teile · zum Zusammenstecken</span>`
+      + `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Deine Schublade ist grösser als unser Druckbereich — der Einsatz kommt in ${n} passgenauen Teilen, die du in der Schublade zusammensteckst.</div>`;
+}
+function snapSVG(){
+  return `<svg width="300" height="90" viewBox="0 0 300 90" xmlns="http://www.w3.org/2000/svg">
+    <rect x="34" y="24" width="86" height="52" rx="4" fill="#2a2d31" stroke="#4a4f56" stroke-width="2"/>
+    <rect x="150" y="24" width="86" height="52" rx="4" fill="#2a2d31" stroke="#4a4f56" stroke-width="2"/>
+    <path d="M120 40 h10 a6 6 0 0 1 0 10 h-10 z" fill="#ff6b1a"/>
+    <path d="M150 40 h-10 a6 6 0 0 0 0 10 h10" fill="none" stroke="#ff6b1a" stroke-width="2"/>
+    <path d="M128 62 h14 M135 58 l7 4 -7 4" stroke="#ffb347" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="77" y="16" text-anchor="middle" fill="#9a9a93" font-size="10" font-family="monospace">Teil 1</text>
+    <text x="193" y="16" text-anchor="middle" fill="#9a9a93" font-size="10" font-family="monospace">Teil 2</text>
+  </svg>`;
+}
+function schliesseModal(){ $('modal-bg').classList.remove('on'); }
+// modus 'info' = optional aus dem Panel; 'confirm' = verpflichtend vor Abschluss
+function zeigeLieferModal(modus, onOk){
+  const n=anzahlModule();
+  const inhalt=$('modal-inhalt'), btns=$('modal-btns');
+  if(n<=1){
+    inhalt.innerHTML=`<h3>So wird geliefert</h3><div class="msub">Dein Organizer</div>
+      <span class="lief-badge lief-1">📦 1 Teil · kommt am Stück</span>
+      <p style="font-size:13px;color:var(--mut);margin-top:14px;line-height:1.6">Dein Einsatz passt komplett auf unser Druckbett und kommt als ein einziges, fertiges Teil — einfach in die Schublade legen.</p>`;
+  } else {
+    inhalt.innerHTML=`<h3>Dein Einsatz kommt in ${n} Teilen</h3>
+      <div class="msub">Kein Mangel — so passt er in jede Schublade</div>
+      ${snapSVG()}
+      <p style="font-size:13px;color:var(--mut);margin-top:6px;line-height:1.6">Deine Schublade ist grösser als unser Druckbereich (2-Düsen-Betrieb: ~290×310 mm). Darum drucken wir den Einsatz in <b style="color:var(--ink)">${n} passgenauen Teilen</b> — geschnitten bevorzugt entlang der Trennwände, damit die Fugen kaum auffallen.</p>
+      <ul>
+        <li>Die Teile stecken mit angeformten Schwalbenschwanz-Leisten zusammen — von oben in der Schublade, ganz ohne Kleber und ohne lose Kleinteile.</li>
+        <li>Zusammengesteckt ergibt sich exakt dein konfigurierter Einsatz.</li>
+        <li>Jedes Teil ist einzeln entnehmbar und passt sauber in deine Schublade.</li>
+      </ul>`;
+  }
+  btns.innerHTML='';
+  if(modus==='confirm' && n>1){
+    const ok=document.createElement('button'); ok.className='m-primary'; ok.textContent='Verstanden — weiter';
+    ok.onclick=()=>{ schliesseModal(); onOk&&onOk(); };
+    const ex=document.createElement('button'); ex.className='m-ghost'; ex.textContent='Teile ansehen';
+    ex.onclick=()=>{ schliesseModal(); if(!explode){ explode=true; document.getElementById('btnExplode').classList.add('active'); rebuild(); } };
+    btns.append(ex, ok);
+  } else {
+    const ok=document.createElement('button'); ok.className='m-primary'; ok.textContent=modus==='confirm'?'Weiter':'Alles klar';
+    ok.onclick=()=>{ schliesseModal(); if(modus==='confirm') onOk&&onOk(); };
+    btns.append(ok);
+  }
+  $('modal-bg').classList.add('on');
+}
+$('btnLiefer').addEventListener('click',()=>zeigeLieferModal('info'));
+$('modal-bg').addEventListener('click',e=>{ if(e.target===$('modal-bg')) schliesseModal(); });
+
+// Vor dem Abschluss (Export = Platzhalter für späteren Bezahl-Schritt):
+// bei mehrteiligen Einsätzen ist die Modul-Info PFLICHT und muss bestätigt
+// werden, bevor die Datei kommt.
+function mitLieferGate(fn){
+  if(anzahlModule()>1) zeigeLieferModal('confirm', fn);
+  else fn();
+}
+$('ex3mf').addEventListener('click',()=>mitLieferGate(()=>busy($('ex3mf'),()=>exportTeile('3mf'))));
+$('exstl').addEventListener('click',()=>mitLieferGate(()=>busy($('exstl'),()=>exportTeile('stl'))));
 
 window.__geos=()=>aktuelle.module.map(g=>geomPos(g));
 window.__plan=()=>({ xs:aktuelle.plan.xs, ys:aktuelle.plan.ys, tenons:aktuelle.plan.tenons.length, tenonDetail:aktuelle.plan.tenons.slice(0,3) });
