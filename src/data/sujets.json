@@ -16,14 +16,6 @@
     "bild": "/sujets/haus.png"
   },
   {
-    "slug": "sandburg",
-    "name": "Sandburg",
-    "beschreibung": "Strandsaison 2026",
-    "preisRappen": 1200,
-    "neu": true,
-    "bild": "/sujets/sandburg.png"
-  },
-  {
     "slug": "pokal",
     "name": "Pokal",
     "beschreibung": "Turnier-Saison",

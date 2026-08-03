@@ -58,7 +58,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const li = document.createElement('li');
       const titel = document.createElement('span'); titel.className = 'kw-titel';
       const typ = document.createElement('span'); typ.className = 'kw-typ';
-      typ.textContent = it.typ === 'organizer' ? 'Organizer' : 'QR-Schild';
+      typ.textContent = it.typ === 'organizer' ? 'Organizer' : it.typ === 'ventilkappe' ? 'Ventilkappe' : 'QR-Schild';
       const name = document.createElement('span'); name.textContent = it.titel;
       titel.append(typ, name);
       const preis = document.createElement('span'); preis.className = 'kw-preis'; preis.textContent = chf(it.gesamtRappen);

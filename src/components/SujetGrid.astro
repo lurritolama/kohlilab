@@ -25,9 +25,95 @@ const icons: Record<string, string> = {
             <div class="nm">{s.name}</div>
             <div class="ds">{s.beschreibung}</div>
           </div>
-          <div class="pr">{preisFormat(s.preisRappen)}</div>
+          <div class="pr">{preisFormat(s.preisRappen)}<span class="pr-set">4er-Set</span></div>
         </div>
+        {s.bild ? (
+          <div class="order" data-sujet={s.slug} data-name={s.name} data-rappen={s.preisRappen}>
+            <div class="gw" role="group" aria-label="Gewinde wählen">
+              <button type="button" class="gw-opt is-on" data-gw="schrader">Schrader<small>Auto / Velo</small></button>
+              <button type="button" class="gw-opt" data-gw="presta">Presta<small>Rennvelo</small></button>
+            </div>
+            <button type="button" class="btn-cart" data-add>In den Warenkorb</button>
+          </div>
+        ) : (
+          <div class="order order--bald"><span>In Vorbereitung</span></div>
+        )}
       </div>
     ))}
   </div>
+  <p class="setnote">Preise gelten pro 4er-Set (4 Ventilkappen). Wähle je Sujet dein Ventilgewinde: <b>Schrader</b> (Auto und die meisten Velos) oder <b>Presta</b> (Rennvelo).</p>
 </section>
+
+<style>
+  .pr { display:flex; flex-direction:column; align-items:flex-end; line-height:1.12; }
+  .pr-set { font-size:0.7rem; font-weight:400; letter-spacing:0.02em; color:var(--mut,#9a9a93); text-transform:uppercase; }
+  .setnote { margin:1.2rem 0 0; font-size:0.8rem; color:var(--mut,#9a9a93); }
+
+  .order { margin-top:0.9rem; display:flex; flex-direction:column; gap:0.55rem; }
+  .order--bald { align-items:flex-start; }
+  .order--bald span {
+    font-family:var(--mono,monospace); font-size:0.68rem; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--mut,#9a9a93);
+    border:1px solid var(--line,#33373c); border-radius:999px; padding:0.3rem 0.7rem;
+  }
+  .gw { display:flex; gap:0.4rem; }
+  .gw-opt {
+    flex:1; display:flex; flex-direction:column; gap:1px; align-items:center;
+    padding:0.4rem 0.3rem; border:1px solid var(--line,#33373c); border-radius:7px;
+    background:transparent; color:var(--ink,#e8e6e1); cursor:pointer;
+    font-size:0.82rem; font-weight:600; line-height:1.1;
+  }
+  .gw-opt small { font-size:0.6rem; font-weight:400; color:var(--mut,#9a9a93); letter-spacing:0.02em; }
+  .gw-opt.is-on { border-color:var(--acc,#ff6b1a); color:var(--acc,#ff6b1a); background:rgba(255,107,26,0.08); }
+  .gw-opt.is-on small { color:var(--acc,#ff6b1a); }
+  .btn-cart {
+    width:100%; padding:0.6rem; border:none; border-radius:7px; cursor:pointer;
+    background:var(--acc,#ff6b1a); color:#141517; font-weight:700; font-size:0.9rem;
+    transition:filter .12s;
+  }
+  .btn-cart:hover { filter:brightness(1.08); }
+  .btn-cart.ok { background:#4ade80; }
+</style>
+
+<script>
+  const chf = (r) => 'CHF ' + new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(r / 100).replace(/\.00$/, '.—');
+  const GW_LABEL = { schrader: 'Schrader', presta: 'Presta' };
+
+  async function zaehlerAktualisieren() {
+    try {
+      const n = await window.KCart.count();
+      const b = document.querySelector('[data-cart-count]');
+      if (b) { b.textContent = String(n); b.style.display = n > 0 ? 'inline-flex' : 'none'; }
+    } catch (e) {}
+  }
+
+  document.querySelectorAll('.order[data-sujet]').forEach((box) => {
+    let gewinde = 'schrader';
+    box.querySelectorAll('.gw-opt').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        gewinde = opt.getAttribute('data-gw');
+        box.querySelectorAll('.gw-opt').forEach((o) => o.classList.toggle('is-on', o === opt));
+      });
+    });
+    const btn = box.querySelector('[data-add]');
+    btn.addEventListener('click', async () => {
+      const sujet = box.getAttribute('data-sujet');
+      const name = box.getAttribute('data-name');
+      const rappen = Number(box.getAttribute('data-rappen')) || 1200;
+      await window.KCart.add({
+        typ: 'ventilkappe',
+        titel: `${name} · ${GW_LABEL[gewinde]} · 4er-Set`,
+        menge: 1,
+        stueckRappen: rappen,
+        gesamtRappen: rappen,
+        konfig: { sujet, gewinde },
+        dateien: {},
+      });
+      await zaehlerAktualisieren();
+      const alt = btn.textContent;
+      btn.textContent = '✓ Im Warenkorb';
+      btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = alt; btn.classList.remove('ok'); }, 1400);
+    });
+  });
+</script>

@@ -23,7 +23,10 @@ import type { MailBestellung } from '../../lib/server/mail-templates';
 const ANKER: Record<string, string> = {
   schild: 'c0111ab0-0000-4000-8000-000000000001',
   organizer: 'c0111ab0-0000-4000-8000-000000000002',
+  ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
 };
+const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
+const GEWINDE_LABEL: Record<string, string> = { schrader: 'Schrader', presta: 'Presta' };
 const BUCKET = 'konfigurator';
 const MAX_POSITIONEN = 12;
 const MAX_DATEI_BYTES = 8 * 1024 * 1024;
@@ -66,14 +69,26 @@ export const POST: APIRoute = async ({ request }) => {
   if (posRoh.length > MAX_POSITIONEN) fehler.push(`Maximal ${MAX_POSITIONEN} Positionen pro Bestellung.`);
 
   // ---- Positionen validieren + Preise serverseitig aus dem 3MF -----------
-  type Pos = { typ: 'schild' | 'organizer'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
+  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
   const positionen: Pos[] = [];
   posRoh.forEach((p: any, i: number) => {
     const nr = i + 1;
     const typ = p?.typ;
     const konfig = p?.konfig ?? {};
     try {
-      if (typ === 'schild') {
+      if (typ === 'ventilkappe') {
+        // Katalog-Produkt: fester 4er-Set-Preis, keine Kundendatei. Kunde
+        // wählt Sujet + Gewinde (Schrader/Presta); wir drucken aus unserem
+        // freigegebenen Sujet-Bestand.
+        const menge = Math.round(Number(p?.menge));
+        if (!Number.isInteger(menge) || menge < 1 || menge > 50) { fehler.push(`Position ${nr}: Menge muss 1–50 sein.`); return; }
+        const sujet = typeof konfig.sujet === 'string' ? konfig.sujet.trim().slice(0, 40) : '';
+        if (!sujet) { fehler.push(`Position ${nr}: Sujet fehlt.`); return; }
+        const gewinde = konfig.gewinde === 'presta' ? 'presta' : 'schrader';
+        const preis = VENTILKAPPE_SET_RAPPEN * menge;
+        const titel = `Ventilkappe · ${sujet} · ${GEWINDE_LABEL[gewinde]} · 4er-Set · ${menge}×`;
+        positionen.push({ typ, konfig: { sujet, gewinde, sets: menge }, menge, preis, titel, dateien: [] });
+      } else if (typ === 'schild') {
         const menge = Math.round(Number(p?.menge));
         if (!Number.isInteger(menge) || menge < 1 || menge > 50) { fehler.push(`Position ${nr}: Schild-Menge muss 1–50 sein.`); return; }
         const b = buf(p?.dateien?.datei, `${nr}/schild`);
