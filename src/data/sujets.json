@@ -1,5 +1,13 @@
 [
   {
+    "slug": "glace",
+    "name": "Glace",
+    "beschreibung": "Softeis im Becher — der Hochsommer auf deinem Ventil. Cremiger Swirl mit Kirsche, Schrader-Gewinde direkt im Becherfuss.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/glace.png"
+  },
+  {
     "slug": "haus",
     "name": "Haus",
     "beschreibung": "4-Farben-Klassiker",
