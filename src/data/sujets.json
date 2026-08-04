@@ -1,5 +1,13 @@
 [
   {
+    "slug": "bierglas",
+    "name": "Bierglas",
+    "beschreibung": "Prost auf die Ausfahrt — Stange mit Schaumkrone fürs Ventil. Goldenes Bier, überquellender Schaum, Gewinde direkt im Glas.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/bierglas.png"
+  },
+  {
     "slug": "glace",
     "name": "Glace",
     "beschreibung": "Softeis im Becher — der Hochsommer auf deinem Ventil. Cremiger Swirl mit Kirsche, Schrader-Gewinde direkt im Becherfuss.",
