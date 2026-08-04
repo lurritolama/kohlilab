@@ -95,8 +95,11 @@ export const POST: APIRoute = async ({ request }) => {
         const gramm = grammAus([b]);
         const zusatzFarben = Math.max(0, farbAnzahl(b) - 2);
         const preis = schildGesamtRappen({ gramm, zusatzFarben, menge });
-        const aufbau = konfig.aufbau === 'aufsteller' ? 'L-Aufsteller' : 'Flach';
-        const titel = `QR-Schild · ${aufbau}${zusatzFarben > 0 ? ` · Logo (${zusatzFarben} Extra-Farbe${zusatzFarben > 1 ? 'n' : ''})` : ''} · ${menge}×`;
+        const jeton = konfig.aufbau === 'jeton';
+        const aufbau = jeton ? 'Wägeli-Jeton' : konfig.aufbau === 'aufsteller' ? 'L-Aufsteller' : 'Flach';
+        const titel = jeton
+          ? `Wägeli-Jeton · ⌀${Number(konfig.jetonD ?? 27.4).toFixed(1)} mm · QR beidseitig · ${menge}×`
+          : `QR-Schild · ${aufbau}${zusatzFarben > 0 ? ` · Logo (${zusatzFarben} Extra-Farbe${zusatzFarben > 1 ? 'n' : ''})` : ''} · ${menge}×`;
         positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), zusatzFarben }, menge, preis, titel, dateien: [{ name: `pos${nr}_schild.3mf`, buf: b }] });
       } else if (typ === 'organizer') {
         const dateienObj = p?.dateien ?? {};
