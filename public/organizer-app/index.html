@@ -239,12 +239,24 @@ const EINSAETZE = {
   scoop:  { name:'Scoop-Mulde',       minW:30, minD:34, kat:'Allgemein' },
 };
 // Liefert pro Fach: zusätzliche Rasterkoordinaten + Höhenfunktion zhi(cx,cy)
-function einsatzDaten(lf){
+// plan (optional): Modul-Schnittplan — Einzel-Features (Zapfen/Kegel) meiden
+// Fugen und Schwalbenschwänze, sonst stünden halbierte Pins am Modulrand.
+function einsatzDaten(lf, plan){
   const typ=lf.n.einsatz, r=lf.r;
   if(!typ || !EINSAETZE[typ]) return null;
   const W=r.x1-r.x0, D=r.y1-r.y0, m=2;
   const xs=[], ys=[], b=P.boden;
   const cap=h=>Math.min(h, P.eh-2);
+  const reich=DOVE.kd+DOVE.fit, tHalb=DOVE.wt/2+DOVE.fit;
+  const stoert=(px,py,halb)=>{
+    if(!plan) return false;
+    if((plan.xs||[]).some(c=>Math.abs(px-c)<halb+0.8)) return true;   // Fuge schneidet Feature
+    if((plan.ys||[]).some(c=>Math.abs(py-c)<halb+0.8)) return true;
+    return (plan.tenons||[]).some(t=>{                                 // Schwalbenschwanz trifft Feature
+      const fc = t.axis==='x' ? px : py, fm = t.axis==='x' ? py : px;
+      return fc>t.c-halb-0.4 && fc<t.c+reich+halb+0.4 && Math.abs(fm-t.m)<tHalb+halb+0.6;
+    });
+  };
   const slotGrid=(sw,sd,wall,blockH,slotBodenPlus)=>{
     const nx=Math.floor((W-2*m+wall)/(sw+wall)), ny=Math.floor((D-2*m+wall)/(sd+wall));
     if(nx<1||ny<1) return null;
@@ -352,6 +364,7 @@ function einsatzDaten(lf){
     const zentren=[];
     for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
       const px=cx0+i*pitch, py=cy0+j*pitch;
+      if(stoert(px,py,hwB)) continue;                // nie halbe Kegel am Modulrand
       zentren.push([px,py]);
       for(const [hw] of lvl){ xs.push(px-hw,px-hw*0.41,px+hw*0.41,px+hw); ys.push(py-hw,py-hw*0.41,py+hw*0.41,py+hw); }
     }
@@ -413,6 +426,7 @@ function einsatzDaten(lf){
     const zentren=[];
     for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
       const px=cx0+i*pitch, py=cy0+j*pitch;
+      if(stoert(px,py,halb)) continue;               // nie halbe Zapfen am Modulrand
       zentren.push([px,py]);
       xs.push(px-halb, px-oct, px+oct, px+halb);
       ys.push(py-halb, py-oct, py+oct, py+halb);
@@ -493,75 +507,83 @@ function labelPlan(L, plan){
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
   if(passtDirekt) return { xs:[], ys:[], tenons:[] };
-  // Schnitte orientieren sich an vorhandenen Wänden: pro Fuge wird die
-  // Position gewählt, an der möglichst viel Wandlänge auf der Schnittlinie
-  // liegt (Fuge in Wandmitte = unsichtbar + stabil). Keine lohnende Wand
-  // in Reichweite -> gleichmässige Teilung als Rückfall. Fenster so, dass
-  // jedes Modul aufs Bett passt.
+  const reich=DOVE.kd+DOVE.fit;                      // Zapfen-Reichweite über die Fuge (+Seite)
+  // Schnitte MEIDEN Wände (Manolo-Regel): eine Fuge in einer parallelen Wand
+  // halbiert sie längs (2×0.9mm-Reste = zu dünn), eine Fuge knapp daneben
+  // lässt den Zapfen die Wand ankerben. Erlaubt ist höchstens die Fuge EXAKT
+  // an der Wandkante (w.c+wand/2): Wand bleibt ganz auf der −Seite, Zapfen
+  // zeigen in +Richtung ins offene Fach. Sonst: möglichst nahe an der
+  // gleichmässigen Teilung, im wandfreien Bereich.
   const schneide=(von,len,bett,dir)=>{
     const n=Math.ceil(len/bett);
     if(n<2) return [];
-    const kand=[];                                   // Wandlinien: {c, cov=Summe Wandlänge}
-    for(const w of L.walls){
-      if(w.dir!==dir) continue;
-      const span = dir==='v' ? (w.y1-w.y0) : (w.x1-w.x0);
-      const f=kand.find(k=>Math.abs(k.c-w.c)<0.01);
-      if(f) f.cov+=span; else kand.push({ c:w.c, cov:span });
+    const zonen=[];                                  // verbotene c-Bereiche je Parallelwand
+    for(const w of L.walls){ if(w.dir!==dir) continue;
+      zonen.push([w.c-P.wand/2-reich-1, w.c+P.wand/2-0.01]);
     }
+    const erlaubt=c=>!zonen.some(([z0,z1])=>c>z0&&c<z1);
     const ende=von+len, cuts=[];
     let prev=von;
     for(let i=1;i<n;i++){
       const ideal=von+len*i/n;
       const lo=Math.max(prev+60, ende-(n-i)*bett);   // Rest muss noch aufs Bett passen
       const hi=Math.min(prev+bett, ende-(n-i)*60);   // Modul <= Bett, Rest nicht zu schmal
-      let best=Math.max(lo, Math.min(hi, ideal)), bestScore=20;   // Schwelle: nur lohnende Wände
-      for(const k of kand){
-        if(k.c<lo||k.c>hi) continue;
-        const score=k.cov - 0.5*Math.abs(k.c-ideal); // Wandabdeckung minus Abweichung
-        if(score>bestScore){ bestScore=score; best=k.c; }
-      }
-      cuts.push(best); prev=best;
+      let best=null, bestD=1e9;
+      const probier=(cc,bonus)=>{ if(cc<lo-1e-6||cc>hi+1e-6||!erlaubt(cc)) return;
+        const dd=Math.abs(cc-ideal)-(bonus||0); if(dd<bestD){ bestD=dd; best=cc; } };
+      for(let cc=lo; cc<=hi; cc+=0.5) probier(cc, 0);
+      // Wandkanten als saubere Kandidaten (Fuge exakt an der Kante, leicht bevorzugt)
+      for(const w of L.walls) if(w.dir===dir) probier(w.c+P.wand/2, 0.4);
+      cuts.push(best!==null ? best : Math.max(lo, Math.min(hi, ideal)));
+      prev=cuts[cuts.length-1];
     }
     return cuts;
   };
   const xs=schneide(L.x0,L.W,BETT.x,'v');
   const ys=schneide(L.y0,L.D,BETT.y,'h');
-  // Wand an (x,y)? (Aussenwand, Trennwand) — dann verschwindet der Pfosten
-  // unsichtbar in der Wand; sonst niedrige Rippe im offenen Fach.
-  const istWand=(x,y)=>{
-    if(x<L.x0+P.wand-0.01||x>L.x0+L.W-P.wand+0.01||y<L.y0+P.wand-0.01||y>L.y0+L.D-P.wand+0.01) return true;
-    for(const lf of L.leaves) if(x>lf.r.x0+0.01&&x<lf.r.x1-0.01&&y>lf.r.y0+0.01&&y<lf.r.y1-0.01) return false;
-    return true;
-  };
-  // Schwalbenschwanz-Paare entlang jeder Fuge, nach Priorität:
-  //   1. Fuge läuft in einer Wand (gesnappt)      -> unsichtbar, vollhoch
-  //   2. Querwand kreuzt die Fuge                 -> steckt in der Wand
-  //   3. offenes Fach ohne Spezial-Einsatz        -> flache Puzzle-Verzahnung
-  //   4. Notfall: auch durch Einsatz-Fächer       -> nie weniger als 2 pro Fuge
+  // Schwalbenschwanz-Paare NUR im offenen Fachboden — nie in oder an Wänden
+  // (kein Ankerben kreuzender Wände, keine Schlitze in der Gegenwand).
+  // Bevorzugt in Fächern ohne Spezial-Einsatz; nie weniger als 2 pro Fuge
+  // (3 ab 400 mm), gleichmässig verteilt.
   const tenons=[];
   const lege=(cuts, axis, ce0, ce1, quer)=>{
+    const SAFE=DOVE.wt/2+P.wand/2+1.5;               // Mindestabstand Zapfen<->Wand längs der Fuge
     for(const c of cuts){
       const a=ce0+DOVE.bh/2+2, b=ce1-DOVE.bh/2-2;
       if(b<a) continue;
+      // Sperrzonen entlang der Fuge:
+      const sperr=[];
+      for(const w of L.walls){
+        const querWand = axis==='x' ? w.dir==='h' : w.dir==='v';
+        if(querWand){
+          // Wand quer zur Fuge: sperrt um ihre Linie, wenn ihr Spann die
+          // Zapfenzone [c-1, c+reich+1] berührt (kreuzend ODER dort beginnend)
+          const s0=axis==='x'?w.x0:w.y0, s1=axis==='x'?w.x1:w.y1;
+          if(s1<c-1 || s0>c+reich+1) continue;
+          sperr.push([w.c-SAFE, w.c+SAFE]);
+        } else {
+          // Parallelwand auf der +Seite in Zapfen-Reichweite: ihr ganzer
+          // Spann ist tabu (sollte durch die Schnittwahl nie vorkommen)
+          if(w.c<=c+0.01 || w.c>c+reich+1) continue;
+          const s0=axis==='x'?w.y0:w.x0, s1=axis==='x'?w.y1:w.x1;
+          sperr.push([s0-1, s1+1]);
+        }
+      }
       const frei=m=>!quer.some(qc=>Math.abs(qc-m)<DOVE.bh/2+DOVE.bw+2);
-      const imWand=m=>{ const px=axis==='x'?c:m, py=axis==='x'?m:c; return istWand(px,py); };
+      const wandfrei=m=>!sperr.some(([s0,s1])=>m>s0&&m<s1);
       const ohneEinsatz=m=>{ const px=axis==='x'?c:m, py=axis==='x'?m:c;
         const lf=L.leaves.find(l=>px>l.r.x0-DOVE.kd-1&&px<l.r.x1+DOVE.kd+1&&py>l.r.y0&&py<l.r.y1);
         return !(lf&&lf.n.einsatz); };
       const ziel=Math.max(2, Math.round((b-a)/95)+1);
       const raster=Array.from({length:ziel},(_,k)=>a+(b-a)*(ziel===1?0.5:k/(ziel-1)));
-      const kreuz=[];                                // Querwände, die die Fuge kreuzen
-      for(const w of L.walls){
-        if(axis==='x'){ if(w.dir==='h' && w.x0<c && w.x1>c) kreuz.push(w.c); }
-        else          { if(w.dir==='v' && w.y0<c && w.y1>c) kreuz.push(w.c); }
-      }
       const gewaehlt=[];
-      const nimm=m=>{ if(m>=a&&m<=b&&frei(m)&&!gewaehlt.some(g=>Math.abs(g-m)<40)){ gewaehlt.push(m); return true; } return false; };
-      for(const m of raster) if(imWand(m)) nimm(m);                              // 1
-      for(const m of kreuz)  if(gewaehlt.length<ziel) nimm(m);                   // 2
-      for(const m of raster) if(gewaehlt.length<ziel && ohneEinsatz(m)) nimm(m); // 3
+      const nimm=m=>{ if(m>=a&&m<=b&&frei(m)&&wandfrei(m)&&!gewaehlt.some(g=>Math.abs(g-m)<40)){ gewaehlt.push(m); return true; } return false; };
+      // vom Wunschpunkt in ±2mm-Schritten zum nächsten zulässigen Platz rutschen
+      const rutsch=(m0,test)=>{ for(let d=0;d<=48;d+=2){ for(const m of (d?[m0-d,m0+d]:[m0])){ if(m>=a&&m<=b&&test(m)&&nimm(m)) return true; } } return false; };
+      for(const m of raster) rutsch(m, ohneEinsatz);                             // 1: Fachboden ohne Einsatz
+      for(const m of raster) if(gewaehlt.length<ziel) rutsch(m, ()=>true);       // 2: Fachboden (auch Einsatz)
       const notmin=(b-a)>400?3:2;                    // lange Fugen: 3 statt 2
-      for(const m of [a, b, (a+b)/2]) if(gewaehlt.length<notmin) nimm(m);        // 4: verteilt
+      for(const m of [a, b, (a+b)/2]) if(gewaehlt.length<notmin) rutsch(m, ()=>true);  // 3: Notfall verteilt
       gewaehlt.sort((x,y)=>x-y);
       for(const m of gewaehlt) tenons.push({ axis, c, m });
     }
@@ -594,7 +616,7 @@ function organizerGeometrien(){
   const einsaetze=[];
   for(const lf of L.leaves){
     xs.add(lf.r.x0); xs.add(lf.r.x1); ys.add(lf.r.y0); ys.add(lf.r.y1);
-    const e=einsatzDaten(lf);
+    const e=einsatzDaten(lf, plan);
     if(e){ einsaetze.push({ lf, e }); for(const v of e.xs) xs.add(v); for(const v of e.ys) ys.add(v); }
   }
   for(const c of plan.xs) xs.add(c);
