@@ -17,14 +17,6 @@
     "bild": "/sujets/glace.png"
   },
   {
-    "slug": "haus",
-    "name": "Haus",
-    "beschreibung": "4-Farben-Klassiker",
-    "preisRappen": 1200,
-    "neu": true,
-    "bild": "/sujets/haus.png"
-  },
-  {
     "slug": "pokal",
     "name": "Pokal",
     "beschreibung": "Turnier-Saison",
