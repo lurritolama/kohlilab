@@ -19,6 +19,9 @@ const icons: Record<string, string> = {
           {s.bild
             ? <img src={s.bild} alt={s.name} loading="lazy" />
             : <Fragment set:html={icons[s.slug] ?? ''} />}
+          {s.bild && s.bildTyp !== 'foto' && (
+            <span class="bildhinweis" title="Bild aus dem 3D-Modell gerendert — sobald das Sujet gedruckt ist, ersetzen wir es durch ein Foto.">Renderbild · Foto folgt</span>
+          )}
         </div>
         <div class="meta">
           <div>
