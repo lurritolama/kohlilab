@@ -1,5 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+// Bauzeit-Stempel als Cache-Buster: Browser cachen iframe-Inhalte gern
+// ueber normale Reloads hinweg — mit neuer ?v= pro Deploy holt jeder
+// Besucher nach einem Deploy automatisch die frische App.
+const v = Date.now();
 ---
 <BaseLayout
   title="Schubladen-Organizer nach Mass — KohliLab"
@@ -16,7 +20,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </p>
   </section>
   <div class="konfig-frame">
-    <iframe src="/organizer-app/index.html" title="Schubladen-Organizer-Konfigurator"></iframe>
+    <iframe src={`/organizer-app/index.html?v=${v}`} title="Schubladen-Organizer-Konfigurator"></iframe>
   </div>
 </BaseLayout>
 

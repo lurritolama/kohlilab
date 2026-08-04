@@ -1,5 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+// Bauzeit-Stempel als Cache-Buster: Browser cachen iframe-Inhalte gern
+// ueber normale Reloads hinweg — mit neuer ?v= pro Deploy holt jeder
+// Besucher nach einem Deploy automatisch die frische App.
+const v = Date.now();
 ---
 <BaseLayout
   title="QR-Schilder-Konfigurator — KohliLab"
@@ -17,7 +21,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </p>
   </section>
   <div class="konfig-frame">
-    <iframe src="/qr-schilder-app/index.html" title="QR-Schilder-Konfigurator"></iframe>
+    <iframe src={`/qr-schilder-app/index.html?v=${v}`} title="QR-Schilder-Konfigurator"></iframe>
   </div>
 </BaseLayout>
 
