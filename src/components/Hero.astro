@@ -5,37 +5,59 @@
     <span class="kicker">3D-gedruckte Ventilkappen</span>
     <h1>Dein Ventil.<br />Dein <span class="g">Sujet.</span></h1>
     <p class="sub">
-      Kleine Skulpturen mit Schrader-Gewinde im Sockel — entworfen von einer
-      KI-Mikrofabrik, geprüft und gedruckt im Appenzellerland. Passt auf jedes
-      Auto- und Velo-Ventil.
+      Kleine Skulpturen mit Ventilgewinde im Sockel — entworfen von einer
+      KI-Mikrofabrik, geprüft und gedruckt im Appenzellerland. Wahlweise
+      Schrader oder Presta: passt auf Auto, Velo und Rennvelo.
     </p>
     <div class="cta">
       <a class="btn primary" href="#sujets">Aktuelle Sujets ansehen</a>
       <a class="btn ghost" href="#entstehung">Wie es funktioniert</a>
     </div>
     <div class="specs">
-      <div><div class="n">TR4</div><div class="l">Schrader-Gewinde</div></div>
+      <div><div class="n">TR4 · SV</div><div class="l">Schrader oder Presta</div></div>
       <div><div class="n">~30 mm</div><div class="l">Sujet-Grösse</div></div>
       <div><div class="n">1 Körper</div><div class="l">wasserdicht validiert</div></div>
     </div>
   </div>
   <div class="stage">
-    <div class="plate">
-      <svg class="cap" width="200" height="240" viewBox="0 0 200 240" aria-label="Pokal-Ventilkappe">
-        <g stroke="#e8e6e1" stroke-width="5" fill="none" stroke-linecap="round">
-          <path d="M60 40 h80 v30 a40 40 0 0 1 -80 0 z" fill="#26282c"/>
-          <path d="M60 52 c-25 0 -25 34 2 36" />
-          <path d="M140 52 c25 0 25 34 -2 36" />
-          <path d="M100 112 v18" />
-          <path d="M78 132 h44" fill="#26282c"/>
-        </g>
-        <g>
-          <rect x="72" y="136" width="56" height="46" rx="4" fill="#2f3237" stroke="#ff6b1a" stroke-width="3"/>
-          <path d="M76 148 h48 M76 158 h48 M76 168 h48" stroke="#ff6b1a" stroke-width="2.5" opacity=".8"/>
-        </g>
-        <text x="100" y="215" text-anchor="middle" fill="#9a9a93" font-size="11" letter-spacing="3">GEWINDE IM SOCKEL</text>
-      </svg>
-      <span class="plabel">SUJET 001 · POKAL</span>
+    <div class="plate plate--video">
+      <video
+        class="clip"
+        src="/bilder/ventilkappen-druck.mp4"
+        poster="/bilder/ventilkappen-titel.jpg"
+        autoplay muted loop playsinline preload="metadata"
+        aria-label="Vier Glace-Ventilkappen werden auf dem Bambu-H2D gedruckt"
+      ></video>
+      <span class="plabel">FRISCH VOM DRUCKBETT · GLACE</span>
     </div>
   </div>
 </section>
+
+<style>
+  /* Hochformat-Clip (720×1280) statt der quadratischen Platzhalter-Platte. */
+  .plate--video { aspect-ratio: 3 / 4; overflow: hidden; }
+  .plate--video .clip {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    background: #1d1f22;
+  }
+  .plate--video .plabel {
+    z-index: 1;
+    background: rgba(20, 21, 23, 0.72);
+    padding: 3px 8px; border-radius: 4px;
+  }
+</style>
+
+<script>
+  // Wer im System "Bewegung reduzieren" gewählt hat, bekommt das Standbild
+  // statt der Endlosschleife — mit Bedienelementen zum bewussten Abspielen.
+  const clip = document.querySelector('.plate--video .clip');
+  if (clip && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    clip.removeAttribute('autoplay');
+    clip.removeAttribute('loop');
+    clip.setAttribute('controls', '');
+    clip.pause();
+    clip.currentTime = 0;
+  }
+</script>

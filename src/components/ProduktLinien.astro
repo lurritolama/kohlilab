@@ -23,7 +23,7 @@ const linien = [
     name: 'Ventilkappen',
     status: 'exp',
     beschreibung:
-      'Unser Experiment: Die KI-Mikrofabrik entwirft kleine Skulpturen mit Schrader-Gewinde — Sujets wechseln, ein Mensch gibt frei.',
+      'Unser Experiment: Die KI-Mikrofabrik entwirft kleine Skulpturen mit Ventilgewinde — Schrader oder Presta, Sujets wechseln, ein Mensch gibt frei.',
     href: '/ventilkappen',
   },
   {
@@ -48,7 +48,7 @@ const linien = [
           {l.status === 'exp' && <span class="tag tag-exp">EXPERIMENTELL</span>}
           {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
           {l.slug === 'ventilkappen' ? (
-            <svg width="84" height="100" viewBox="0 0 90 110"><path d="M25 15 h40 v14 a20 20 0 0 1 -40 0 z" fill="none" stroke="#e8e6e1" stroke-width="4"/><path d="M45 52 v10 M32 62 h26" stroke="#e8e6e1" stroke-width="4" fill="none"/><rect x="30" y="66" width="30" height="26" rx="3" fill="none" stroke="#ff6b1a" stroke-width="3"/></svg>
+            <img src="/bilder/ventilkappen-titel.jpg" alt="Vier frisch gedruckte Glace-Ventilkappen auf dem Druckbett" loading="lazy" width="820" height="512" />
           ) : l.slug === 'organizer' ? (
             <svg width="84" height="100" viewBox="0 0 90 110"><rect x="14" y="26" width="62" height="58" rx="5" fill="none" stroke="#e8e6e1" stroke-width="4"/><path d="M38 26 v58 M38 55 h38 M57 55 v29" stroke="#ff6b1a" stroke-width="4"/></svg>
           ) : l.slug === 'qr-schilder' ? (
