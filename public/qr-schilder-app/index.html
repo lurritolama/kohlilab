@@ -63,11 +63,11 @@
       <div class="note">90° = senkrecht, mehr = nach hinten geneigt. Der Fuss hinten wächst automatisch mit, damit nichts kippt. Aufsteller ist immer rechteckig.</div>
     </div>
     <div id="jetonOpts" style="display:none">
-      <div class="btns" id="jetonPresets"></div>
-      <div class="row"><label>Durchmesser</label><input type="range" id="jetonD" min="24" max="34" step="0.1"><span class="val" id="jetonDV"></span></div>
-      <div class="row"><label>Dicke</label><input type="range" id="jetonT" min="1.8" max="3.2" step="0.1"><span class="val" id="jetonTV"></span></div>
-      <div class="note">Münzgrosse Scheibe mit <b>QR auf beiden Seiten</b> (Rückseite gespiegelt, damit sie scanbar bleibt). Der helle Ring bis zur Kante ist die Ruhezone des QR-Codes.<br>
-      <b>Wägeli-Jeton</b> = Maße der 2-Franken-Münze (⌀ 27.4 × 2.15 mm). Wenig Platz → <b>kurze URL nutzen</b>, sonst werden die Module zu fein.</div>
+      <div class="note"><b>Wägeli Jeton</b> — Einkaufswagen-Jeton in Originalgrösse der
+      2-Franken-Münze: <b>⌀ 27.4 × 2.15 mm</b>, fix. <b>QR-Code auf beiden Seiten</b>
+      (Rückseite gespiegelt, damit sie beim Wenden scanbar bleibt).<br>
+      Es gibt nur den QR-Inhalt zu wählen — wenig Platz, darum <b>kurze URL nutzen</b>,
+      sonst werden die Module zu fein.</div>
     </div>
   </div>
 
@@ -96,7 +96,7 @@
     <div class="note">Am besten ein flaches Logo mit wenigen Farben — es wird automatisch auf max. 4 Druckfarben reduziert. <b>Feine Schriftzüge und Linien unter ~1 mm drucken nicht sauber</b> — die Umsetzbarkeit von Logos ist nicht garantiert, wir prüfen jeden Auftrag vor dem Druck.</div>
   </div>
 
-  <div class="grp"><h2>Farben</h2>
+  <div class="grp" id="farbenGrp"><h2>Farben</h2>
     <div class="feld"><label>Grundplatte (hell — für Scan-Kontrast)</label><div class="sw" id="swBase"></div></div>
     <div class="feld"><label>QR &amp; Text (dunkel)</label><div class="sw" id="swDark"></div></div>
   </div>
@@ -163,18 +163,17 @@ const BAUSTEINE = [
   ['Jetzt scannen','Scan me'],
 ];
 
-const AUFBAUTEN = [['flach','Flache Platte'],['aufsteller','L-Aufsteller'],['jeton','Wägeli-Jeton']];
+const AUFBAUTEN = [['flach','Flache Platte'],['aufsteller','L-Aufsteller'],['jeton','Wägeli Jeton']];
 // Jeton: quadratisches QR-Feld in den Kreis eingeschrieben. 0.66 statt 1/√2
 // (0.707) laesst bewusst einen hellen Ring stehen — der ersetzt die Ruhezone.
 const JETON_FELD = 0.66;
-// 2-Franken-Münze: ⌀ 27.40 mm, 2.15 mm dick (Swissmint/Wikipedia) — Vorlage
-// fuer den Einkaufswagen-Jeton.
+// Wägeli Jeton = Einkaufswagen-Jeton in Originalgroesse der 2-Franken-Münze
+// (⌀ 27.40 mm, 2.15 mm dick — Swissmint/Wikipedia). BEWUSST fix: nur in
+// Originalgroesse passt er zuverlaessig in den Wagen, deshalb keine Regler.
 const ZWEIFRANKEN = { d: 27.4, t: 2.15 };
-const JETON_PRESETS = [['zweifr','2 Franken (Wägeli)'],['frei','Freie Masse']];
 const P = {
   form:'rechteck', breite:90, hoehe:60, dicke:3, loecher:'keine',
   aufbau:'flach', winkel:100, tiefe:30,
-  jetonPreset:'zweifr', jetonD:ZWEIFRANKEN.d, jetonT:ZWEIFRANKEN.t,
   typ:'url', url:'https://kohlilab.ch', ssid:'', pass:'', vname:'', vtel:'', vmail:'', vorg:'', email:'', tel:'', frei:'',
   qrSize:30, qrX:-20, qrY:8,
   bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:6, textY:-22,
@@ -397,7 +396,7 @@ function triangulate(outer, holes){
 // beim L-Aufsteller). Ring und Mantel werden ueber den WINKEL parametrisiert,
 // damit Quadrat- und Kreispunkt zueinander passen (kein verdrehter Ring).
 function jetonGeometrie(){
-  const r=P.jetonD/2, z1=P.jetonT, z0=0;
+  const r=ZWEIFRANKEN.d/2, z1=ZWEIFRANKEN.t, z0=0;
   const cBase=new THREE.Color(P.baseColor), cDark=new THREE.Color(P.darkColor);
   const pos=[], col=[];
   const push3=(pt,c)=>{ pos.push(pt[0],pt[1],pt[2]); col.push(c.r,c.g,c.b); };
@@ -405,7 +404,7 @@ function jetonGeometrie(){
   const quad=(a,b,c,d,cc)=>{ tri(a,b,c,cc); tri(a,c,d,cc); };
 
   const { mat, n } = qrMat();
-  const span=P.jetonD*JETON_FELD, half=span/2, cell=span/n;
+  const span=ZWEIFRANKEN.d*JETON_FELD, half=span/2, cell=span/n;
   for(let j=0;j<n;j++) for(let i=0;i<n;i++){
     const x0=-half+i*cell, x1=x0+cell, y0=-half+j*cell, y1=y0+cell;
     const cT = mat[n-1-j][i]       ? cDark : cBase;   // Oberseite
@@ -429,7 +428,7 @@ function jetonGeometrie(){
     quad([s0[0],s0[1],z0],[s1[0],s1[1],z0],[c1[0],c1[1],z0],[c0[0],c0[1],z0], cBase);   // Ring unten
     quad([c0[0],c0[1],z1],[c0[0],c0[1],z0],[c1[0],c1[1],z0],[c1[0],c1[1],z1], cBase);   // Mantel
   }
-  letzteVolCm3 = Math.PI*r*r*P.jetonT/1000;
+  letzteVolCm3 = Math.PI*r*r*ZWEIFRANKEN.t/1000;
   const g=new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
@@ -639,11 +638,7 @@ function anyOverlap(){
 function regelCheck(){
   // Jeton: runde Scheibe fester Groesse — die Platten-Regeln (Rand, Loecher,
   // Element-Platzierung) gelten hier nicht, der QR fuellt das Feld immer aus.
-  if (P.aufbau==='jeton'){
-    if (P.jetonPreset==='zweifr'){ P.jetonD=ZWEIFRANKEN.d; P.jetonT=ZWEIFRANKEN.t; }
-    unfit.length = 0;
-    return;
-  }
+  if (P.aufbau==='jeton'){ unfit.length = 0; return; }
   // L-Aufsteller: kein Fuss hinten -> bei Rueckneigung muss der vordere
   // Fuss die Kipp-Stabilitaet liefern (Gegengewicht + Hebel).
   if (P.aufbau==='aufsteller' && P.winkel > 90){
@@ -699,7 +694,7 @@ function rebuild(){
   scene.add(mesh);
   const { n, fehler } = qrMat();
   const jeton = P.aufbau==='jeton';
-  const modul = jeton ? P.jetonD*JETON_FELD/n : P.qrSize/n;
+  const modul = jeton ? ZWEIFRANKEN.d*JETON_FELD/n : P.qrSize/n;
   const tris = currentGeo.attributes.position.count/3;
   let warn = '';
   if (fehler) warn += '  ⚠ Inhalt zu lang für QR — Fallback kohlilab.ch';
@@ -716,7 +711,7 @@ function rebuild(){
   preisAnzeigen();
   const aufInfo = P.aufbau==='aufsteller' ? ` · Aufsteller ${P.winkel}°` : '';
   const masse = jeton
-    ? `⌀ ${P.jetonD.toFixed(1)}×${P.jetonT.toFixed(2)} mm · QR beidseitig`
+    ? `Wägeli Jeton ⌀ ${ZWEIFRANKEN.d}×${ZWEIFRANKEN.t} mm · QR beidseitig`
     : `${P.breite}×${P.hoehe}×${P.dicke} mm${aufInfo}`;
   document.getElementById('hud').innerHTML =
     `${masse} · QR ${n}×${n} · Modul ${modul.toFixed(2)} mm · ${(tris/1000).toFixed(1)}k Dreiecke` +
@@ -855,11 +850,6 @@ function syncUI(){
     if(parseFloat(el.value)!==P[key]) el.value=P[key];
     $(id+'V').textContent=P[key]+einh;
   }
-  for (const [id,key,nk] of [['jetonD','jetonD',1],['jetonT','jetonT',2]]){
-    const el=$(id); if(!el) continue;
-    if(parseFloat(el.value)!==P[key]) el.value=P[key];
-    $(id+'V').textContent=P[key].toFixed(nk)+' mm';
-  }
 }
 function typFelder(){
   const host=$('typFelder'); host.innerHTML='';
@@ -921,8 +911,11 @@ function modusUI(){
       $('formBtns').querySelectorAll('button').forEach(x=>x.classList.remove('active'));
       b.classList.add('active'); }
   });
+  // Jeton = festes Produkt: sichtbar bleiben nur der QR-Inhalt und die
+  // Bestelldetails. Groesse, Form, Aufhaengung, Text, Logo und Farben sind
+  // vorgegeben (helle Scheibe, dunkler QR — sonst nicht scanbar).
   const qrsRow=$('qrs'); if(qrsRow) qrsRow.closest('.row').style.display = jet ? 'none' : '';
-  for(const id of ['grundformGrp','textGrp','logoGrp']){
+  for(const id of ['grundformGrp','textGrp','logoGrp','farbenGrp']){
     const el=$(id); if(el) el.style.display = jet ? 'none' : '';
   }
 }
@@ -936,11 +929,6 @@ farbUI('swDark', DARK_COLORS, 'darkColor');
 slider('breite','breite'); slider('hoehe','hoehe'); slider('dicke','dicke');
 slider('qrs','qrSize'); slider('th','textH'); slider('lw','logoW');
 slider('winkel','winkel'); slider('tiefe','tiefe');
-mkBtns('jetonPresets', JETON_PRESETS, 'jetonPreset');
-// Freie Masse: Regler wirken; 2-Franken-Vorgabe wird in regelCheck erzwungen.
-slider('jetonD','jetonD'); slider('jetonT','jetonT');
-for(const id of ['jetonD','jetonT']) $(id).addEventListener('input',()=>{ P.jetonPreset='frei';
-  $('jetonPresets').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active', i===1)); });
 $('menge').value=P.menge;
 $('menge').addEventListener('input',()=>{ P.menge=parseInt($('menge').value); $('mengeV').textContent=P.menge+' Stk'; preisAnzeigen(); });
 $('mengeV').textContent=P.menge+' Stk';
@@ -961,15 +949,15 @@ $('cart').addEventListener('click', ()=>busy($('cart'), async ()=>{
   const b64 = await blobB64(await make3mf(currentGeo));
   const cart = (window.top && window.top.KCart) || window.KCart;
   const jeton = P.aufbau==='jeton';
-  const aufLabel = jeton ? 'Wägeli-Jeton' : P.aufbau==='aufsteller' ? 'L-Aufsteller' : 'Flache Platte';
+  const aufLabel = jeton ? 'Wägeli Jeton' : P.aufbau==='aufsteller' ? 'L-Aufsteller' : 'Flache Platte';
   const titel = jeton
-    ? `Wägeli-Jeton · ⌀${P.jetonD.toFixed(1)} mm · QR beidseitig · ${P.menge}×`
+    ? `Wägeli Jeton · ⌀${ZWEIFRANKEN.d} mm · QR beidseitig · ${P.menge}×`
     : `QR-Schild · ${aufLabel} · ${P.menge}×`;
   await cart.add({
     typ:'schild', titel, menge:P.menge, gesamtRappen:rappen,
     stueckRappen:rappen,
     konfig: jeton
-      ? { aufbau:'jeton', jetonD:P.jetonD, jetonT:P.jetonT, beidseitig:true, menge:P.menge, typ:P.typ }
+      ? { aufbau:'jeton', jetonD:ZWEIFRANKEN.d, jetonT:ZWEIFRANKEN.t, beidseitig:true, menge:P.menge, typ:P.typ }
       : { aufbau:P.aufbau, form:P.form, menge:P.menge, breite:P.breite, hoehe:P.hoehe, typ:P.typ },
     dateien:{ datei:b64 },
   });
