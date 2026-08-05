@@ -1,5 +1,14 @@
 [
   {
+    "slug": "totenkopf",
+    "name": "Totenkopf",
+    "beschreibung": "Ride or die — Schädel mit Halstuch, Gewinde direkt im Fuss.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/totenkopf.png",
+    "bildTyp": "render"
+  },
+  {
     "slug": "kaktus",
     "name": "Kaktus",
     "beschreibung": "Hitzesommer fürs Ventil — Kaktus im Topf, Gewinde direkt im Topfboden. Übersteht auch die trockenste Ausfahrt.",
@@ -34,29 +43,5 @@
     "neu": true,
     "bild": "/sujets/glace.png",
     "bildTyp": "foto"
-  },
-  {
-    "slug": "pokal",
-    "name": "Pokal",
-    "beschreibung": "Turnier-Saison",
-    "preisRappen": 1200,
-    "neu": true,
-    "bild": null
-  },
-  {
-    "slug": "leuchtturm",
-    "name": "Leuchtturm",
-    "beschreibung": "Küsten-Klassiker",
-    "preisRappen": 1200,
-    "neu": false,
-    "bild": null
-  },
-  {
-    "slug": "totenkopf",
-    "name": "Totenkopf",
-    "beschreibung": "Ride or die",
-    "preisRappen": 1200,
-    "neu": false,
-    "bild": null
   }
 ]

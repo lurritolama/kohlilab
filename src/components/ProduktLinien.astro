@@ -21,9 +21,9 @@ const linien = [
   {
     slug: 'ventilkappen',
     name: 'Ventilkappen',
-    status: 'exp',
+    status: 'live',
     beschreibung:
-      'Unser Experiment: Die KI-Mikrofabrik entwirft kleine Skulpturen mit Ventilgewinde — Schrader oder Presta, Sujets wechseln, ein Mensch gibt frei.',
+      'Kleine Skulpturen mit Ventilgewinde aus der KI-Mikrofabrik — Schrader oder Presta, neue Sujets laufend, jedes von Hand freigegeben.',
     href: '/ventilkappen',
   },
   {
@@ -45,7 +45,6 @@ const linien = [
         <div class="thumb linie-thumb">
           {l.status === 'live' && <span class="tag">LIVE</span>}
           {l.status === 'test' && <span class="tag tag-test">TEST</span>}
-          {l.status === 'exp' && <span class="tag tag-exp">EXPERIMENTELL</span>}
           {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
           {l.slug === 'ventilkappen' ? (
             <img src="/bilder/ventilkappen-titel.jpg" alt="Vier frisch gedruckte Glace-Ventilkappen auf dem Druckbett" loading="lazy" width="820" height="512" />
