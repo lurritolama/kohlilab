@@ -1,5 +1,14 @@
 [
   {
+    "slug": "popcorn",
+    "name": "Popcorn",
+    "beschreibung": "Openair-Kino fuers Ventil - Becher mit Popcorn-Krone, Gewinde direkt im Becherfuss.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/popcorn.png",
+    "bildTyp": "render"
+  },
+  {
     "slug": "bierglas",
     "name": "Bierglas",
     "beschreibung": "Prost auf die Ausfahrt — Stange mit Schaumkrone fürs Ventil. Goldenes Bier, überquellender Schaum, Gewinde direkt im Glas.",
