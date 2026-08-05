@@ -1,5 +1,14 @@
 [
   {
+    "slug": "kaktus",
+    "name": "Kaktus",
+    "beschreibung": "Hitzesommer fürs Ventil — Kaktus im Topf, Gewinde direkt im Topfboden. Übersteht auch die trockenste Ausfahrt.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/kaktus.png",
+    "bildTyp": "render"
+  },
+  {
     "slug": "popcorn",
     "name": "Popcorn",
     "beschreibung": "Openair-Kino fürs Ventil — Becher mit Popcorn-Krone. Rot, weisser Rand, maisgelbe Krone, Gewinde direkt im Becherfuss.",
