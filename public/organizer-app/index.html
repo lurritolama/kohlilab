@@ -1314,6 +1314,9 @@ const CT=`<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.o
 const RELS=`<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
 async function make3mfMulti(geos){
   // mehrere Objekte in einem 3MF: Module + Schlüssel, nebeneinander platziert
+  // Three.js haelt Vertexfarben LINEAR — fuers 3MF nach sRGB zurueckwandeln,
+  // sonst kommen Koerper- und Beschriftungsfarben zu dunkel im Slicer an.
+  const srgb=v=>Math.round((v<=0.0031308 ? v*12.92 : 1.055*Math.pow(v,1/2.4)-0.055)*255);
   const palette=[], palIdx=new Map(); const idxOf=hex=>{ const k2=hex.toUpperCase(); if(!palIdx.has(k2)){palIdx.set(k2,palette.length);palette.push(k2);} return palIdx.get(k2); };
   let objs='', items='';
   geos.forEach((eintrag,oi)=>{
@@ -1322,7 +1325,7 @@ async function make3mfMulti(geos){
     for(let i=0;i<p.length;i+=9){ const ids=[];
       for(let k2=0;k2<9;k2+=3){ const x=p[i+k2].toFixed(3),y=p[i+k2+1].toFixed(3),z=p[i+k2+2].toFixed(3); const key2=x+','+y+','+z; let id=map.get(key2); if(id===undefined){id=verts.length;verts.push(`<vertex x="${x}" y="${y}" z="${z}"/>`);map.set(key2,id);} ids.push(id); }
       if(ids[0]===ids[1]||ids[1]===ids[2]||ids[0]===ids[2]) continue;
-      const hex = c ? '#'+[0,1,2].map(o=>Math.round(c[i+o]*255).toString(16).padStart(2,'0')).join('') : '#cccccc';
+      const hex = c ? '#'+[0,1,2].map(o=>srgb(c[i+o]).toString(16).padStart(2,'0')).join('') : '#cccccc';
       tris.push(`<triangle v1="${ids[0]}" v2="${ids[1]}" v3="${ids[2]}" p1="${idxOf(hex)}"/>`);
     }
     const id=oi+10;

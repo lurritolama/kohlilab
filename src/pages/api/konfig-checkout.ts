@@ -26,6 +26,7 @@ const ANKER: Record<string, string> = {
   ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
 };
 const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
+const WUNSCH_AUFPREIS_RAPPEN = 500;                  // Wunsch-Sujet: +CHF 5.— (Machbarkeit wird geprüft)
 const GEWINDE_LABEL: Record<string, string> = { schrader: 'Schrader', presta: 'Presta' };
 const BUCKET = 'konfigurator';
 const MAX_POSITIONEN = 12;
@@ -85,6 +86,17 @@ export const POST: APIRoute = async ({ request }) => {
         const sujet = typeof konfig.sujet === 'string' ? konfig.sujet.trim().slice(0, 40) : '';
         if (!sujet) { fehler.push(`Position ${nr}: Sujet fehlt.`); return; }
         const gewinde = konfig.gewinde === 'presta' ? 'presta' : 'schrader';
+        if (sujet === 'wunsch') {
+          // Wunsch-Sujet: Kunde beschreibt das Motiv, WIR pruefen die
+          // Machbarkeit nach der Bestellung. Aufpreis serverseitig fix.
+          const wunsch = typeof konfig.wunsch === 'string' ? konfig.wunsch.trim().slice(0, 300) : '';
+          if (wunsch.length < 5) { fehler.push(`Position ${nr}: Beschreibung des Wunsch-Sujets fehlt.`); return; }
+          const preis = (VENTILKAPPE_SET_RAPPEN + WUNSCH_AUFPREIS_RAPPEN) * menge;
+          const kurz = wunsch.length > 40 ? wunsch.slice(0, 40) + '…' : wunsch;
+          const titel = `Ventilkappe · Wunsch-Sujet «${kurz}» · ${GEWINDE_LABEL[gewinde]} · 4er-Set · ${menge}× (Machbarkeit wird geprüft)`;
+          positionen.push({ typ, konfig: { sujet: 'wunsch', wunsch, gewinde, sets: menge }, menge, preis, titel, dateien: [] });
+          return;
+        }
         const preis = VENTILKAPPE_SET_RAPPEN * menge;
         const titel = `Ventilkappe · ${sujet} · ${GEWINDE_LABEL[gewinde]} · 4er-Set · ${menge}×`;
         positionen.push({ typ, konfig: { sujet, gewinde, sets: menge }, menge, preis, titel, dateien: [] });

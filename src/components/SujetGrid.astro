@@ -43,6 +43,29 @@ const icons: Record<string, string> = {
         )}
       </div>
     ))}
+    <div class="card card--wunsch">
+      <div class="thumb">
+        <span class="tag tag-wunsch">WUNSCH</span>
+        <svg width="90" height="110" viewBox="0 0 90 110"><path d="M30 78 L62 30 l10 7 -32 48 -14 5 z" fill="none" stroke="#ff6b1a" stroke-width="4" stroke-linejoin="round"/><path d="M58 36 l10 7" stroke="#ff6b1a" stroke-width="3"/><rect x="30" y="88" width="30" height="14" rx="3" fill="none" stroke="#e8e6e1" stroke-width="3"/></svg>
+      </div>
+      <div class="meta">
+        <div>
+          <div class="nm">Dein Wunsch-Sujet</div>
+          <div class="ds">Beschreib dein Motiv — die Mikrofabrik entwirft es als Ventilkappe. Wir prüfen zuerst, ob es druckbar ist.</div>
+        </div>
+        <div class="pr">{preisFormat(1700)}<span class="pr-set">4er-Set</span></div>
+      </div>
+      <div class="order order--wunsch" data-wunsch data-rappen="1700">
+        <textarea data-wunsch-text maxlength="200" rows="2"
+          placeholder="z. B. «kleiner Fliegenpilz» oder «Berggipfel mit Kreuz» — kompakte Motive funktionieren am besten"></textarea>
+        <div class="gw" role="group" aria-label="Gewinde wählen">
+          <button type="button" class="gw-opt is-on" data-gw="schrader">Schrader<small>Auto / Velo</small></button>
+          <button type="button" class="gw-opt" data-gw="presta">Presta<small>Rennvelo</small></button>
+        </div>
+        <button type="button" class="btn-cart" data-add>In den Warenkorb</button>
+        <p class="wunsch-note">CHF 12.— + 5.— Wunsch-Aufpreis. <b>Wir prüfen die Machbarkeit nach der Bestellung</b> — feine Details, dünne Anbauten und geschützte Motive gehen nicht. Falls dein Motiv nicht umsetzbar ist, stornieren wir kostenlos und du zahlst nichts.</p>
+      </div>
+    </div>
   </div>
   <p class="setnote">Preise gelten pro 4er-Set (4 Ventilkappen). Wähle je Sujet dein Ventilgewinde: <b>Schrader</b> (Auto und die meisten Velos) oder <b>Presta</b> (Rennvelo).</p>
 </section>
@@ -76,6 +99,17 @@ const icons: Record<string, string> = {
   }
   .btn-cart:hover { filter:brightness(1.08); }
   .btn-cart.ok { background:#4ade80; }
+
+  .card--wunsch { border-style:dashed; }
+  .tag-wunsch { background:transparent; color:var(--acc,#ff6b1a); border:1px solid var(--acc,#ff6b1a); }
+  .order--wunsch textarea {
+    width:100%; resize:vertical; min-height:52px;
+    background:#17181b; border:1px solid var(--line,#33373c); border-radius:7px;
+    color:var(--ink,#e8e6e1); padding:0.5rem 0.6rem; font-size:0.82rem; font-family:inherit;
+  }
+  .order--wunsch textarea:focus { outline:none; border-color:var(--acc,#ff6b1a); }
+  .wunsch-note { margin:0; font-size:0.72rem; line-height:1.45; color:var(--mut,#9a9a93); }
+  .wunsch-note b { color:var(--ink,#e8e6e1); font-weight:600; }
 </style>
 
 <script>
@@ -119,4 +153,46 @@ const icons: Record<string, string> = {
       setTimeout(() => { btn.textContent = alt; btn.classList.remove('ok'); }, 1400);
     });
   });
+
+  // Wunsch-Sujet: Freitext + Gewinde, CHF 17.— (12 + 5 Aufpreis).
+  // Machbarkeit wird nach der Bestellung geprüft (Anfrage-Ablauf, QR-Rechnung
+  // kommt erst nach Bestätigung zum Zug — bei Storno zahlt niemand).
+  const wbox = document.querySelector('[data-wunsch]');
+  if (wbox) {
+    let gewinde = 'schrader';
+    wbox.querySelectorAll('.gw-opt').forEach((opt) => {
+      opt.addEventListener('click', () => {
+        gewinde = opt.getAttribute('data-gw');
+        wbox.querySelectorAll('.gw-opt').forEach((o) => o.classList.toggle('is-on', o === opt));
+      });
+    });
+    const ta = wbox.querySelector('[data-wunsch-text]');
+    const btn = wbox.querySelector('[data-add]');
+    btn.addEventListener('click', async () => {
+      const wunsch = (ta.value || '').trim();
+      if (wunsch.length < 5) {
+        ta.style.borderColor = '#f87171';
+        ta.placeholder = 'Bitte beschreib dein Wunsch-Motiv (mind. 5 Zeichen) …';
+        ta.focus();
+        setTimeout(() => { ta.style.borderColor = ''; }, 1600);
+        return;
+      }
+      const rappen = Number(wbox.getAttribute('data-rappen')) || 1700;
+      const kurz = wunsch.length > 32 ? wunsch.slice(0, 32) + '…' : wunsch;
+      await window.KCart.add({
+        typ: 'ventilkappe',
+        titel: `Wunsch-Sujet «${kurz}» · ${GW_LABEL[gewinde]} · 4er-Set`,
+        menge: 1,
+        stueckRappen: rappen,
+        gesamtRappen: rappen,
+        konfig: { sujet: 'wunsch', wunsch, gewinde },
+        dateien: {},
+      });
+      await zaehlerAktualisieren();
+      const alt = btn.textContent;
+      btn.textContent = '✓ Im Warenkorb — wir prüfen die Machbarkeit';
+      btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = alt; btn.classList.remove('ok'); }, 2200);
+    });
+  }
 </script>
