@@ -72,6 +72,10 @@
   #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
   .lbl{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10.5px;color:#e8e6e1;background:rgba(20,21,23,.72);border:1px solid rgba(74,79,86,.8);border-radius:4px;padding:1px 6px;white-space:nowrap}
   .lbl.haupt{color:var(--acc2);border-color:var(--acc);font-size:11.5px;padding:3px 9px}
+  /* Editierbare Masszahlen: klicken -> Eingabefeld, Wand folgt dem Wert */
+  .lbl .mz{pointer-events:auto;cursor:text;text-decoration:underline dotted rgba(255,107,26,.75);text-underline-offset:2px}
+  .lbl .mz:hover{color:var(--acc)}
+  .lbl input{pointer-events:auto;width:4ch;background:#17181b;border:1px solid var(--acc);color:var(--acc2);border-radius:3px;font-family:var(--mono);font-size:inherit;padding:0 2px;text-align:center;outline:none}
 </style>
 </head>
 <body>
@@ -869,20 +873,93 @@ function rebuild(){
 const labelHost=document.getElementById('labels');
 let labelDaten=[];
 let zeigeMasse=true;
+// Masszahl anklickbar machen: Klick -> Eingabefeld an Ort und Stelle,
+// Enter/Blur uebernimmt, Escape bricht ab. anwenden(wert) verschiebt die
+// Waende (bzw. aendert die Schubladenmasse) und loest rebuild() aus.
+function machEditierbar(span, titel, anwenden){
+  span.className='mz';
+  span.title=titel;
+  span.addEventListener('pointerdown', ev=>ev.stopPropagation());
+  span.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const alt=span.textContent;
+    const inp=document.createElement('input');
+    inp.type='text'; inp.inputMode='decimal'; inp.value=alt;
+    inp.style.width=Math.max(4, alt.length+1)+'ch';
+    span.replaceWith(inp);
+    inp.focus(); inp.select();
+    let fertig=false;
+    const abschliessen=(uebernehmen)=>{
+      if(fertig) return; fertig=true;
+      const wert=parseFloat(String(inp.value).replace(',','.'));
+      if(uebernehmen && isFinite(wert) && wert>0) anwenden(wert);
+      else baueLabels();                       // zurueck zur Anzeige
+    };
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter') abschliessen(true);
+      else if(e.key==='Escape') abschliessen(false);
+    });
+    inp.addEventListener('blur', ()=>abschliessen(true));
+  });
+}
+
+// Fachmass setzen: die Wand an der rechten/hinteren Fachkante wird so
+// verschoben, dass das Fach den Zielwert bekommt (sonst die linke/vordere).
+// Grenzen wie beim Ziehen: FACH_MIN auf beiden Seiten des Splits. Faecher
+// ohne Innenwand in dieser Richtung aendern die Schubladengroesse.
+function setzeFachMass(lf, dim, wert){
+  const L=layout(), w=P.wand;
+  const dir = dim==='w' ? 'v' : 'h';
+  const findWand=(c)=>L.walls.find(wl=>{
+    if(wl.dir!==dir || Math.abs(wl.c-c)>w/2+0.02) return false;
+    const s0=dir==='v'?wl.y0:wl.x0, s1=dir==='v'?wl.y1:wl.x1;   // Wand muss die
+    const l0=dir==='v'?lf.r.y0:lf.r.x0, l1=dir==='v'?lf.r.y1:lf.r.x1; // Fachkante decken
+    return s0<=l0+0.02 && s1>=l1-0.02;
+  });
+  const kante1 = dim==='w' ? lf.r.x1 : lf.r.y1;
+  const kante0 = dim==='w' ? lf.r.x0 : lf.r.y0;
+  let wl=findWand(kante1+w/2), cNeu=kante0+wert+w/2;
+  if(!wl){ wl=findWand(kante0-w/2); cNeu=kante1-wert-w/2; }
+  if(!wl){
+    // keine Innenwand in dieser Richtung: Mass = Schubladen-Innenmass
+    snapshot();
+    if(dim==='w') P.sb=Math.max(90, Math.min(800, Math.round(wert+2*P.tol)));
+    else          P.st=Math.max(90, Math.min(600, Math.round(wert+2*P.tol)));
+    rebuild(); return;
+  }
+  const region=wl.r;
+  const basis = dir==='v' ? region.x0 : region.y0;
+  const span  = dir==='v' ? region.x1-region.x0 : region.y1-region.y0;
+  const minP=(FACH_MIN+w/2)/span;
+  snapshot();
+  wl.n.pos=Math.max(minP, Math.min(1-minP, (cNeu-basis)/span));
+  rebuild();
+}
+
 function baueLabels(){
   labelHost.innerHTML=''; labelDaten=[];
   if(!zeigeMasse) return;
   const L=layout();
   const mk=(cls)=>{ const d=document.createElement('div'); d.className='lbl'+(cls?' '+cls:''); labelHost.appendChild(d); return d; };
+  const zahl=(txt)=>{ const s=document.createElement('span'); s.textContent=txt; return s; };
+  // Hauptmass: Einsatz B × T × H — editierbar (B/T rechnen die Toleranz auf
+  // das Schubladen-Innenmass um, H setzt die Einsatzhoehe)
   const haupt=mk('haupt');
-  haupt.textContent=`${L.W.toFixed(0)} × ${L.D.toFixed(0)} × ${P.eh} mm`;
+  const zW=zahl(L.W.toFixed(0)), zD=zahl(L.D.toFixed(0)), zH=zahl(String(P.eh));
+  machEditierbar(zW,'Einsatzbreite in mm — ändert die Schubladenbreite', v=>{ P.sb=Math.max(90, Math.min(800, Math.round(v+2*P.tol))); rebuild(); });
+  machEditierbar(zD,'Einsatztiefe in mm — ändert die Schubladentiefe',  v=>{ P.st=Math.max(90, Math.min(600, Math.round(v+2*P.tol))); rebuild(); });
+  machEditierbar(zH,'Einsatzhöhe in mm', v=>{ P.eh=Math.max(10, Math.min(P.sh, Math.round(v))); rebuild(); });
+  haupt.append(zW, ' × ', zD, ' × ', zH, ' mm');
   labelDaten.push({ el:haupt, p:new THREE.Vector3(0, L.y0-16, 0) });
   const KURZ={usb:'USB',sd:'SD',stift:'Stifte',aa:'AA',aaa:'AAA',cr2032:'CR2032',neunv:'9V',bits:'Bits',scoop:'Scoop',garn:'Garn',
               ringr:'Ringe',ringk:'Ringkegel',uhr:'Uhr',ohrh:'Ohrhänger',ohrs:'Ohrstecker'};
   for(const lf of L.leaves){
     const el=mk();
-    const zusatz = lf.n.einsatz ? ` · ${KURZ[lf.n.einsatz]||''}` : '';
-    el.textContent=`${(lf.r.x1-lf.r.x0).toFixed(0)}×${(lf.r.y1-lf.r.y0).toFixed(0)}${zusatz}`;
+    const zB=zahl((lf.r.x1-lf.r.x0).toFixed(0)), zT=zahl((lf.r.y1-lf.r.y0).toFixed(0));
+    machEditierbar(zB,'Fachbreite in mm — verschiebt die Wand', v=>setzeFachMass(lf,'w',v));
+    machEditierbar(zT,'Fachtiefe in mm — verschiebt die Wand',  v=>setzeFachMass(lf,'d',v));
+    el.append(zB, '×', zT);
+    if(lf.n.einsatz) el.append(` · ${KURZ[lf.n.einsatz]||''}`);
     labelDaten.push({ el, p:new THREE.Vector3((lf.r.x0+lf.r.x1)/2, (lf.r.y0+lf.r.y1)/2, P.eh+1) });
   }
 }
@@ -982,7 +1059,10 @@ function zeigeMenu(lf, cx, cy){
     el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
   b('◫  Senkrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannV);
   b('⊟  Waagrecht teilen', ()=>{ snapshot(); Object.assign(lf.n,{t:'split',dir:'h',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}); rebuild(); }, !kannH);
-  if(lf.pfad!=='r') b('✕  Fach entfernen (Wand löschen)', ()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); });
+  // Wand entfernen: pro angrenzender Innenwand ein eigener, eindeutiger
+  // Eintrag (waagrecht/senkrecht + Seite) — der Nutzer wählt, welche fällt.
+  if(lf.pfad!=='r') for(const k of wandKandidaten(lf))
+    b('✕  '+k.label, k.aktion, !k.aktion, k.grund||'');
   b((lf.n.einsatz?'● ':'')+'▦  Spezial-Einsatz …', ()=>zeigeEinsatzMenu(lf, cx, cy));
   if(lf.n.einsatz) b('✕  Spezial-Einsatz entfernen', ()=>{ snapshot(); delete lf.n.einsatz; delete lf.n.garnCfg; rebuild(); });
   b((lf.n.label?'● ':'')+'✎  Beschriften …', ()=>zeigeLabelMenu(lf, cx, cy), !!lf.n.einsatz,
@@ -1082,6 +1162,92 @@ function entferneLeaf(pfad){
   const sib=seite==='a'?parent.b:parent.a;
   delete parent.a; delete parent.b; delete parent.dir; delete parent.pos;
   Object.assign(parent, JSON.parse(JSON.stringify(sib)));
+}
+
+// Welcher Split besitzt welche Fachkante? (tiefster Split je Kante + ob er
+// der direkte Parent ist). vorne = kleines y (zum Betrachter), hinten = grosses y.
+function kantenInfo(lf){
+  const info={links:null,rechts:null,vorne:null,hinten:null};
+  const steps=lf.pfad.slice(1).split('');
+  let n=tree;
+  steps.forEach((s,tiefe)=>{                        // tiefere Splits überschreiben (= tiefster Besitzer)
+    if(n.dir==='v'){ if(s==='a'){ info.rechts={tiefe}; n=n.a; } else { info.links={tiefe}; n=n.b; } }
+    else           { if(s==='a'){ info.hinten={tiefe}; n=n.a; } else { info.vorne={tiefe}; n=n.b; } }
+  });
+  for(const k of Object.keys(info)) if(info[k]) info[k].parent = info[k].tiefe===steps.length-1;
+  return info;
+}
+
+// Zwei benachbarte Blatt-Fächer zu einem verschmelzen: Rechtecke einsammeln,
+// Union bilden, daraus den Split-Baum NEU aufbauen (Guillotine-Schnitte).
+// Gelingt kein Aufbau (Aufteilung ginge nicht mehr rechteckig auf), passiert
+// nichts und der Nutzer bekommt einen Hinweis.
+function verschmelzeFaecher(lf, nb){
+  // WICHTIG: Blätter über den PFAD identifizieren — lf/nb stammen aus einem
+  // früheren layout()-Aufruf, jeder Aufruf erzeugt neue Objekte (Identitäts-
+  // Vergleich liesse das Paar drin -> Union überlappt -> kein Schnitt).
+  const L=layout(), w=P.wand;
+  const A=L.leaves.find(x=>x.pfad===lf.pfad), B=L.leaves.find(x=>x.pfad===nb.pfad);
+  if(!A||!B) return false;
+  const uebernimm=(n)=>({ t:'leaf', ...(n.einsatz?{einsatz:n.einsatz}:{}), ...(n.garnCfg?{garnCfg:n.garnCfg}:{}), ...(n.label?{label:n.label}:{}) });
+  const aHat=!!(A.n.einsatz||A.n.label), bHat=!!(B.n.einsatz||B.n.label);
+  const nNeu = bHat&&!aHat ? uebernimm(B.n) : aHat&&!bHat ? uebernimm(A.n) : {t:'leaf'};
+  const rects=L.leaves.filter(x=>x.pfad!==A.pfad && x.pfad!==B.pfad).map(x=>({ r:{...x.r}, n:x.n }));
+  rects.push({ r:{ x0:Math.min(A.r.x0,B.r.x0), x1:Math.max(A.r.x1,B.r.x1),
+                   y0:Math.min(A.r.y0,B.r.y0), y1:Math.max(A.r.y1,B.r.y1) }, n:nNeu });
+  const eps=0.05;
+  const bau=(reg, list)=>{
+    if(list.length===1) return JSON.parse(JSON.stringify(list[0].n));
+    for(const dir of ['v','h']){
+      const k0=dir==='v'?'x0':'y0', k1=dir==='v'?'x1':'y1';
+      const cs=[...new Set(list.map(e=>Math.round((e.r[k1]+w/2)*100)/100))]
+        .filter(c=>c>reg[k0]+eps && c<reg[k1]-eps).sort((a,b)=>a-b);
+      for(const c of cs){
+        const a=list.filter(e=>e.r[k1]<=c-w/2+eps), b=list.filter(e=>e.r[k0]>=c+w/2-eps);
+        if(!a.length || !b.length || a.length+b.length!==list.length) continue;
+        const regA = dir==='v' ? {...reg, x1:c-w/2} : {...reg, y1:c-w/2};
+        const regB = dir==='v' ? {...reg, x0:c+w/2} : {...reg, y0:c+w/2};
+        const na=bau(regA, a); if(!na) continue;
+        const nbk=bau(regB, b); if(!nbk) continue;
+        return { t:'split', dir, pos:(c-reg[k0])/(reg[k1]-reg[k0]), a:na, b:nbk };
+      }
+    }
+    return null;
+  };
+  const t=bau({ x0:L.x0+w, x1:L.x0+L.W-w, y0:L.y0+w, y1:L.y0+L.D-w }, rects);
+  if(!t){ hudLive('⚠ Diese Wand lässt sich nicht entfernen — die Aufteilung ginge nicht mehr rechteckig auf.'); return false; }
+  snapshot(); tree=t; rebuild(); return true;
+}
+
+// Auswahl "welche Wand entfernen?" für das Fach-Menü: pro Innenwand-Kante
+// ein Eintrag. Parent-Wand = klassisches Entfernen (Nachbarbereich übernimmt);
+// andere Kanten = Verschmelzen mit dem gleich grossen Nachbarfach.
+function wandKandidaten(lf){
+  const L=layout(), w=P.wand, info=kantenInfo(lf), out=[];
+  const K={ links:  {dim:'x', name:'Senkrechte Wand links'},
+            rechts: {dim:'x', name:'Senkrechte Wand rechts'},
+            vorne:  {dim:'y', name:'Waagrechte Wand vorne'},
+            hinten: {dim:'y', name:'Waagrechte Wand hinten'} };
+  for(const kante of ['links','rechts','vorne','hinten']){
+    if(!info[kante]) continue;                        // Aussenwand
+    const { name }=K[kante];
+    if(info[kante].parent){
+      out.push({ label:`${name} entfernen`, aktion:()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); } });
+      continue;
+    }
+    // Nachbar-Blatt mit exakt gleicher Spannweite auf der anderen Seite?
+    const nb=L.leaves.find(x=>{
+      if(x===lf) return false;
+      if(kante==='links')  return Math.abs(x.r.x1+w-lf.r.x0)<0.05 && Math.abs(x.r.y0-lf.r.y0)<0.05 && Math.abs(x.r.y1-lf.r.y1)<0.05;
+      if(kante==='rechts') return Math.abs(x.r.x0-w-lf.r.x1)<0.05 && Math.abs(x.r.y0-lf.r.y0)<0.05 && Math.abs(x.r.y1-lf.r.y1)<0.05;
+      if(kante==='vorne')  return Math.abs(x.r.y1+w-lf.r.y0)<0.05 && Math.abs(x.r.x0-lf.r.x0)<0.05 && Math.abs(x.r.x1-lf.r.x1)<0.05;
+      return                      Math.abs(x.r.y0-w-lf.r.y1)<0.05 && Math.abs(x.r.x0-lf.r.x0)<0.05 && Math.abs(x.r.x1-lf.r.x1)<0.05;
+    });
+    if(nb) out.push({ label:`${name} entfernen`, aktion:()=>verschmelzeFaecher(lf, nb) });
+    else   out.push({ label:`${name} entfernen`, aktion:null,
+                      grund:'Das Nachbarfach dahinter ist nicht gleich gross — Wände lassen sich nur zwischen deckungsgleichen Fächern entfernen.' });
+  }
+  return out;
 }
 
 // ---------- Draufsicht ----------
