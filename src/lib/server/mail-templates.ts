@@ -4,7 +4,7 @@
  * Clients können nichts anderes zuverlässig), dezentes KohliLab-Branding
  * (Werkstatt-Look: dunkel + Orange).
  */
-import { SHOP, VERSANDARTEN, VAT_HINWEIS, ZAHLUNG_EMPFAENGER, type VersandartId } from '../config';
+import { SHOP, versandLabel, VAT_HINWEIS, ZAHLUNG_EMPFAENGER, type VersandartId } from '../config';
 import { formatPreis } from '../format';
 import type { MailInhalt } from './mail';
 
@@ -52,7 +52,7 @@ function positionenHtml(b: MailBestellung): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;margin:16px 0;">
       ${zeilen}
       <tr>
-        <td style="padding:6px 0;color:#666;">Versand (${VERSANDARTEN[b.versandart].label})</td>
+        <td style="padding:6px 0;color:#666;">Versand (${versandLabel(b.versandart)})</td>
         <td style="padding:6px 0;color:#666;text-align:right;">${formatPreis(b.versandRappen)}</td>
       </tr>
       <tr>
@@ -64,7 +64,7 @@ function positionenHtml(b: MailBestellung): string {
 
 function positionenText(b: MailBestellung): string {
   const zeilen = b.positionen.map((p) => `  ${p.qty} x ${p.titel} – ${formatPreis(p.preisRappen * p.qty)}`).join('\n');
-  return `${zeilen}\n  Versand (${VERSANDARTEN[b.versandart].label}) – ${formatPreis(b.versandRappen)}\n  Total: ${formatPreis(b.totalRappen)}`;
+  return `${zeilen}\n  Versand (${versandLabel(b.versandart)}) – ${formatPreis(b.versandRappen)}\n  Total: ${formatPreis(b.totalRappen)}`;
 }
 
 function rahmen(inhalt: string): string {
@@ -157,7 +157,7 @@ export function mailBenachrichtigungBetreiberin(
       ${positionenHtml(b)}
       <p style="color:#666;font-size:14px;">
         ${esc(b.name)}<br>${esc(b.strasse)}<br>${esc(b.plz)} ${esc(b.ort)} (${esc(b.land)})<br>
-        Versand: ${VERSANDARTEN[b.versandart].label}
+        Versand: ${versandLabel(b.versandart)}
         ${b.bemerkung ? `<br><br>Bemerkung: ${esc(b.bemerkung)}` : ''}
       </p>
     `),
@@ -168,7 +168,7 @@ ${positionenText(b)}
 ${b.name}
 ${b.strasse}
 ${b.plz} ${b.ort} (${b.land})
-Versand: ${VERSANDARTEN[b.versandart].label}
+Versand: ${versandLabel(b.versandart)}
 ${b.bemerkung ? `\nBemerkung: ${b.bemerkung}` : ''}`,
   };
 }

@@ -42,12 +42,6 @@ export const VERSANDARTEN = {
     beschreibung: 'Zustellung in der Regel innert 2–4 Werktagen.',
     kostenRappen: 700,
   },
-  a_post: {
-    id: 'a_post',
-    label: 'A-Post',
-    beschreibung: 'Zustellung in der Regel am nächsten Werktag.',
-    kostenRappen: 950,
-  },
   abholung: {
     id: 'abholung',
     label: `Abholung in ${SHOP.ort}`,
@@ -58,6 +52,22 @@ export const VERSANDARTEN = {
 
 export type VersandartId = keyof typeof VERSANDARTEN;
 export const VERSANDART_IDS = Object.keys(VERSANDARTEN) as VersandartId[];
+
+/**
+ * Labels abgeschaffter Versandarten. Bestellungen in der Datenbank behalten
+ * ihre urspruengliche Versandart – wird eine Art aus VERSANDARTEN entfernt,
+ * darf die Mail zu einer Altbestellung deswegen nicht abstuerzen.
+ * A-Post: entfernt am 06.08.2026.
+ */
+const VERSANDARTEN_ALT: Record<string, string> = {
+  a_post: 'A-Post',
+};
+
+/** Label einer Versandart, auch fuer abgeschaffte (Altbestellungen). */
+export function versandLabel(id: string): string {
+  const v = (VERSANDARTEN as Record<string, { label: string }>)[id];
+  return v?.label ?? VERSANDARTEN_ALT[id] ?? id;
+}
 
 /** Versand nur Schweiz und Fürstentum Liechtenstein. */
 export const LIEFERLAENDER = ['CH', 'LI'] as const;

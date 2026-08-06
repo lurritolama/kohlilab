@@ -13,7 +13,7 @@ import {
   type ZahlungAngaben,
 } from '../server/mail-templates';
 import { baueQrRechnungPdf } from '../server/qr-rechnung';
-import { VERSANDARTEN } from '../config';
+import { versandLabel } from '../config';
 import type { CheckoutAuftrag, CheckoutErgebnis, PaymentProvider } from './types';
 
 export class ManualProvider implements PaymentProvider {
@@ -39,7 +39,7 @@ export class ManualProvider implements PaymentProvider {
             totalRappen: b.totalRappen,
             subtotalRappen: b.subtotalRappen,
             versandRappen: b.versandRappen,
-            versandLabel: VERSANDARTEN[b.versandart].label,
+            versandLabel: versandLabel(b.versandart),
             positionen: b.positionen,
             debtorName: b.name,
             debtorStrasse: b.strasse,
