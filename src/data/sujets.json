@@ -15,7 +15,7 @@
     "preisRappen": 1200,
     "neu": true,
     "bild": "/sujets/kaktus.png",
-    "bildTyp": "render"
+    "bildTyp": "foto"
   },
   {
     "slug": "popcorn",
@@ -24,7 +24,7 @@
     "preisRappen": 1200,
     "neu": true,
     "bild": "/sujets/popcorn.png",
-    "bildTyp": "render"
+    "bildTyp": "foto"
   },
   {
     "slug": "bierglas",

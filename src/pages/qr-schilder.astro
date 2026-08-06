@@ -9,7 +9,7 @@ const v = Date.now();
   title="QR-Schilder-Konfigurator — KohliLab"
   description="Gestalte dein eigenes 3D-gedrucktes QR-Schild: Form, Farben, WLAN/URL/vCard-Inhalt, Text und Logo — mit Echtzeit-3D-Vorschau und druckfertigem Farb-3MF."
 >
-  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren, 3MF herunterladen und Feedback geben. Bestellung folgt.</div>
+  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
   <section class="block" style="padding-top:28px">
     <h2>QR-Schilder-Konfigurator</h2>
     <p class="lead">
@@ -23,6 +23,17 @@ const v = Date.now();
   <div class="konfig-frame">
     <iframe src={`/qr-schilder-app/index.html?v=${v}`} title="QR-Schilder-Konfigurator"></iframe>
   </div>
+
+<script is:inline>
+  // Export-Schluessel durchreichen: /seite?export=... -> iframe?export=...
+  // Seite bleibt statisch (CDN); nur wer den Schluessel hat, laedt neu.
+  (function(){
+    var s = new URLSearchParams(location.search).get('export');
+    if (!s) return;
+    var f = document.querySelector('.konfig-frame iframe');
+    if (f) f.src = f.getAttribute('src') + '&export=' + encodeURIComponent(s);
+  })();
+</script>
 </BaseLayout>
 
 <style>

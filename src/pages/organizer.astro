@@ -9,7 +9,7 @@ const v = Date.now();
   title="Schubladen-Organizer nach Mass — KohliLab"
   description="Massgeschneiderter Schubladeneinsatz, 3D-gedruckt: Innenmass eingeben, Fächer frei einteilen, direkt in der 3D-Schublade gestalten — für Besteck, Büro, Werkzeug, Schrauben und mehr."
 >
-  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren, 3MF herunterladen und Feedback geben. Bestellung folgt.</div>
+  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
   <section class="block" style="padding-top:28px">
     <h2>Schubladen-Organizer nach Mass</h2>
     <p class="lead">
@@ -22,6 +22,17 @@ const v = Date.now();
   <div class="konfig-frame">
     <iframe src={`/organizer-app/index.html?v=${v}`} title="Schubladen-Organizer-Konfigurator"></iframe>
   </div>
+
+<script is:inline>
+  // Export-Schluessel durchreichen: /seite?export=... -> iframe?export=...
+  // Seite bleibt statisch (CDN); nur wer den Schluessel hat, laedt neu.
+  (function(){
+    var s = new URLSearchParams(location.search).get('export');
+    if (!s) return;
+    var f = document.querySelector('.konfig-frame iframe');
+    if (f) f.src = f.getAttribute('src') + '&export=' + encodeURIComponent(s);
+  })();
+</script>
 </BaseLayout>
 
 <style>

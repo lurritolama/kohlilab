@@ -125,7 +125,7 @@
     <div class="note">Legt deinen Einsatz mit dem Live-Preis in den Warenkorb. Bezahlt wird bequem per QR-Rechnung nach der Bestellung.</div>
   </div>
 
-  <div class="grp"><h2>Export (Test)</h2>
+  <div class="grp" id="exportGrp"><h2>Export (Test)</h2>
     <div class="exp"><button id="ex3mf" class="ghost">3MF</button><button id="exstl" class="ghost">STL</button></div>
     <div class="note" id="expNote">Testphase: Datei herunterladen und selbst slicen.</div>
   </div>
@@ -1494,6 +1494,25 @@ addEventListener('resize',resize); resize();
 tree=VORLAGEN['Bürotisch']();
 rebuild();
 (function loop(){ requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x+80, camera.position.y+120, Math.abs(camera.position.z)+260); updateLabels(); renderer.render(scene,camera); })();
+
+// ---------- Export-Sperre ----------
+// Der Datei-Export ist oeffentlich NICHT sichtbar (Kunden bestellen, statt
+// selbst zu drucken). Sichtbar wird er nur mit dem Schluessel in der URL:
+//   ?export=<SCHLUESSEL>   — auch auf der Seite drumherum, die ihn weiterreicht.
+// HINWEIS: Das ist eine Huerde, kein Schutz — die Geometrie entsteht im
+// Browser, wer den Quelltext liest, kommt ohnehin an die Daten.
+(function(){
+  const SCHLUESSEL = 'werkstatt-0310634825f0';
+  const frage = new URLSearchParams(location.search);
+  let frei = frage.get('export') === SCHLUESSEL;
+  try {                                  // Freigabe merken (dieser Tab/Browser)
+    if (frei) sessionStorage.setItem('kl_export', SCHLUESSEL);
+    else frei = sessionStorage.getItem('kl_export') === SCHLUESSEL;
+  } catch(e) {}
+  if (frei) return;                      // alles bleibt wie es ist
+  const gruppe = document.getElementById('exportGrp');
+  if (gruppe) gruppe.style.display = 'none';
+})();
 </script>
 </body>
 </html>
