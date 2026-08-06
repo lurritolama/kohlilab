@@ -21,27 +21,25 @@
     </div>
   </div>
   <div class="stage">
-    <div class="plate">
-      <svg class="cap" width="230" height="230" viewBox="0 0 230 230" aria-label="KohliLab Konfiguratoren">
-        <!-- QR-Schild -->
-        <g transform="translate(18,26)">
-          <rect x="0" y="0" width="92" height="64" rx="7" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
-          <g fill="#ff6b1a"><rect x="10" y="10" width="16" height="16"/><rect x="36" y="10" width="16" height="16"/><rect x="10" y="36" width="16" height="16"/><rect x="40" y="40" width="7" height="7"/><rect x="52" y="32" width="7" height="7"/></g>
-          <path d="M64 16 h30 M64 26 h30 M64 40 h22" stroke="#9a9a93" stroke-width="4" stroke-linecap="round"/>
-        </g>
-        <!-- Organizer -->
-        <g transform="translate(118,112)">
-          <rect x="0" y="0" width="94" height="70" rx="6" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
-          <path d="M34 0 v70 M34 34 h60 M64 34 v36 M0 22 h34" stroke="#ff6b1a" stroke-width="3.5"/>
-        </g>
-        <!-- Ventilkappe -->
-        <g transform="translate(30,124)">
-          <path d="M18 0 h34 v12 a17 17 0 0 1 -34 0 z" fill="#26282c" stroke="#e8e6e1" stroke-width="3.5"/>
-          <path d="M35 32 v8 M24 40 h22" stroke="#e8e6e1" stroke-width="3.5" fill="none"/>
-          <rect x="22" y="44" width="26" height="22" rx="3" fill="#26282c" stroke="#ff6b1a" stroke-width="3"/>
-        </g>
-      </svg>
-      <span class="plabel">KOHLILAB · KONFIGURATOREN</span>
+    <div class="plate plate--foto">
+      <img class="shot" src="/bilder/hero-aufsteller.jpg" width="720" height="960"
+           alt="Gedruckter KohliLab-Aufsteller mit QR-Code, frisch aus dem Drucker" />
+      <span class="plabel">FRISCH VOM DRUCKBETT · BÜHLER AR</span>
     </div>
   </div>
 </section>
+
+<style>
+  /* Echtes Produktfoto statt Platzhalter-Grafik — Hochformat (3:4) wie das Bild. */
+  .plate--foto { aspect-ratio: 3 / 4; overflow: hidden; }
+  .plate--foto .shot {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .plate--foto .plabel {
+    z-index: 1;
+    background: rgba(20, 21, 23, 0.72);
+    padding: 3px 8px; border-radius: 4px;
+  }
+</style>
