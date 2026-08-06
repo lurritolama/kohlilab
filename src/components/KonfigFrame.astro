@@ -1,0 +1,92 @@
+---
+/**
+ * Konfigurator-Rahmen mit Mobil-Hinweis.
+ *
+ * Die Konfiguratoren brauchen Platz: das Bedienfeld ist 340 px breit, daneben
+ * die 3D-Ansicht. Auf einem 375-px-Handy bleiben der Vorschau ganze 35 px —
+ * die Visualisierung ist damit praktisch weg. Statt eine kaputte Ansicht zu
+ * zeigen, blenden wir unter 900 px einen deutlichen Hinweis ein. Wer trotzdem
+ * will, kann den Konfigurator per Knopf öffnen (niemandem etwas wegnehmen).
+ *
+ * Der ?v=-Stempel ist der Cache-Buster pro Deploy; der Export-Schlüssel wird
+ * clientseitig angehängt, damit die Seite statisch bleiben kann.
+ */
+interface Props { app: string; titel: string }
+const { app, titel } = Astro.props;
+const v = Date.now();
+---
+<div class="konfig-frame">
+  <div class="mobil-hinweis" data-mobil-hinweis>
+    <div class="mh-karte">
+      <span class="mh-icon" aria-hidden="true">🖥️</span>
+      <h3>Am Computer öffnen</h3>
+      <p>
+        Der Konfigurator zeigt dein Teil live in 3D — dafür braucht er einen
+        breiten Bildschirm. Auf dem Handy ist die <b>3D-Vorschau nicht
+        nutzbar</b>, weil kein Platz dafür bleibt.
+      </p>
+      <p class="mh-tipp">Tipp: Seite an dich selbst schicken und am Computer öffnen.</p>
+      <div class="mh-knoepfe">
+        <button type="button" class="btn primary" data-teilen hidden>Link an mich senden</button>
+        <button type="button" class="btn ghost" data-trotzdem>Trotzdem hier öffnen</button>
+      </div>
+    </div>
+  </div>
+  <iframe src={`/${app}/index.html?v=${v}`} title={titel} data-konfig-frame></iframe>
+</div>
+
+<script is:inline>
+  (function () {
+    // Export-Schluessel durchreichen: /seite?export=... -> iframe?export=...
+    var s = new URLSearchParams(location.search).get('export');
+    var f = document.querySelector('[data-konfig-frame]');
+    if (s && f) f.src = f.getAttribute('src') + '&export=' + encodeURIComponent(s);
+
+    // "Trotzdem öffnen" hebt die Sperre für diese Seite auf
+    var box = document.querySelector('.konfig-frame');
+    var btn = document.querySelector('[data-trotzdem]');
+    if (btn && box) btn.addEventListener('click', function () { box.classList.add('zeig-trotzdem'); });
+
+    // Teilen-Knopf nur zeigen, wenn das Gerät es kann
+    var teilen = document.querySelector('[data-teilen]');
+    if (teilen && navigator.share) {
+      teilen.hidden = false;
+      teilen.addEventListener('click', function () {
+        navigator.share({ title: document.title, url: location.href }).catch(function () {});
+      });
+    }
+  })();
+</script>
+
+<style>
+  .konfig-frame { padding: 0 26px 48px; }
+  .konfig-frame iframe {
+    width: 100%; height: 80vh; min-height: 560px;
+    border: 1px solid var(--line); border-radius: 10px; background: #141517;
+  }
+  .mobil-hinweis { display: none; }
+
+  /* Unter 900 px reicht der Platz nicht für Bedienfeld + 3D-Ansicht. */
+  @media (max-width: 900px) {
+    .konfig-frame iframe { display: none; }
+    .mobil-hinweis { display: block; }
+    .konfig-frame.zeig-trotzdem iframe { display: block; }
+    .konfig-frame.zeig-trotzdem .mobil-hinweis { display: none; }
+  }
+
+  .mh-karte {
+    background: var(--bg2, #1d1f22);
+    border: 1px solid var(--acc, #ff6b1a);
+    border-radius: 12px;
+    padding: 26px 22px;
+    text-align: center;
+  }
+  .mh-icon { font-size: 34px; line-height: 1; display: block; margin-bottom: 10px; }
+  .mh-karte h3 {
+    font-family: var(--disp, inherit); font-size: 21px;
+    letter-spacing: 0.02em; margin: 0 0 10px; color: var(--acc, #ff6b1a);
+  }
+  .mh-karte p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.55; max-width: 34em; margin-inline: auto; }
+  .mh-tipp { color: var(--muted, #9a9a93); font-size: 13px; }
+  .mh-knoepfe { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+</style>

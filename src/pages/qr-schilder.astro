@@ -1,9 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-// Bauzeit-Stempel als Cache-Buster: Browser cachen iframe-Inhalte gern
-// ueber normale Reloads hinweg — mit neuer ?v= pro Deploy holt jeder
-// Besucher nach einem Deploy automatisch die frische App.
-const v = Date.now();
+import KonfigFrame from '../components/KonfigFrame.astro';
 ---
 <BaseLayout
   title="QR-Schilder-Konfigurator — KohliLab"
@@ -17,29 +14,14 @@ const v = Date.now();
       eingeben (URL, WLAN, vCard …), Text und Logo platzieren — alles bündig
       als Farbflächen, direkt in der 3D-Vorschau. QR und Schrift bleiben
       immer dunkel auf heller Platte, damit jedes Handy den Code liest.
-      Am besten am Desktop bedienen.
+     
     </p>
   </section>
-  <div class="konfig-frame">
-    <iframe src={`/qr-schilder-app/index.html?v=${v}`} title="QR-Schilder-Konfigurator"></iframe>
-  </div>
+  <KonfigFrame app="qr-schilder-app" titel="QR-Schilder-Konfigurator" />
 
-<script is:inline>
-  // Export-Schluessel durchreichen: /seite?export=... -> iframe?export=...
-  // Seite bleibt statisch (CDN); nur wer den Schluessel hat, laedt neu.
-  (function(){
-    var s = new URLSearchParams(location.search).get('export');
-    if (!s) return;
-    var f = document.querySelector('.konfig-frame iframe');
-    if (f) f.src = f.getAttribute('src') + '&export=' + encodeURIComponent(s);
-  })();
-</script>
 </BaseLayout>
 
 <style>
   .test-banner{ background:#3b1a5e; color:#e5b8ff; font-family:var(--mono); font-size:12px;
     letter-spacing:1px; text-align:center; padding:9px 14px; border-bottom:1px solid #5b2a8e; }
-  .konfig-frame{ padding:0 26px 48px; }
-  .konfig-frame iframe{ width:100%; height:78vh; min-height:560px; border:1px solid var(--line);
-    border-radius:10px; background:#141517; }
 </style>
