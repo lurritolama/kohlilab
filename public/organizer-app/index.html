@@ -191,7 +191,9 @@ const PREIS = {
   // Darum wird die ZUSATZ-Zeit der Einsätze separat gerechnet und mit dem
   // Feindruck-Satz bepreist (langsam + Fehldruck-Risiko + Maschine blockiert).
   feinSatz: 2.5,       // CHF je Feindruck-Stunde
-  garnMinuten: 7,      // min je Garn-Zapfen (kalibriert: +6.1 h / ~50 Zapfen)
+  // Kalibrierung: +6.1 h real / ~50 Zapfen ≈ 7 min — gemessen aber mit der
+  // EXPERIMENTELLEN 0.2er-Düse. Produziert wird mit 0.4 (≈ halbe Zeit) -> 4.
+  garnMinuten: 4,      // min je Garn-Zapfen (0.4er-Düse, Standard)
   einsatzMinuten: 25,  // min pauschal je Fach mit anderem Spezial-Einsatz
 };
 
