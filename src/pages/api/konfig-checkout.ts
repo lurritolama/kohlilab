@@ -178,10 +178,15 @@ export const POST: APIRoute = async ({ request }) => {
   if (updErr) console.error('[konfig-checkout] konfiguration speichern:', updErr.message);
 
   // ---- Mail + QR über alle Positionen ------------------------------------
+  // Wunsch-Sujet dabei? Dann erst prüfen, dann Rechnung — die Bestätigung
+  // geht ohne Zahlungsangaben raus (gilt für die GANZE Bestellung, auch bei
+  // gemischtem Warenkorb: einfacher als splitten, die Prüfung ist schnell).
+  const wunschPruefung = positionen.some((p) => p.typ === 'ventilkappe' && p.konfig?.sujet === 'wunsch');
   const mailBestellung: MailBestellung = {
     orderNumber, email, name, strasse, plz, ort, land, versandart, versandRappen, subtotalRappen, totalRappen,
     bemerkung: text(roh.bemerkung) || undefined,
     positionen: positionen.map((p) => ({ titel: p.titel, qty: 1, preisRappen: p.preis })),
+    ...(wunschPruefung ? { wunschPruefung } : {}),
   };
   try { await getPaymentProvider().createCheckout({ orderId, bestellung: mailBestellung }); }
   catch (e) { console.error('[konfig-checkout] Mailversand:', e); }

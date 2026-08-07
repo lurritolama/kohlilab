@@ -34,6 +34,13 @@ export interface MailBestellung {
   totalRappen: number;
   bemerkung?: string;
   positionen: { titel: string; qty: number; preisRappen: number }[];
+  /**
+   * Bestellung enthält ein Wunsch-Sujet: die Bestätigung geht OHNE
+   * Zahlungsangaben raus (erst Machbarkeit prüfen, dann Rechnung) —
+   * das Website-Versprechen «stornieren wir kostenlos» wäre sonst
+   * gebrochen, sobald jemand die QR-Rechnung sofort bezahlt.
+   */
+  wunschPruefung?: boolean;
 }
 
 function esc(text: string): string {
@@ -82,16 +89,12 @@ function rahmen(inhalt: string): string {
   </div>`;
 }
 
-export function mailAnfrageKunde(b: MailBestellung, zahlung?: ZahlungAngaben): MailInhalt {
-  const abholung = b.versandart === 'abholung';
+function zahlungBlockHtml(b: MailBestellung, zahlung: ZahlungAngaben): string {
   const betrag = formatPreis(b.totalRappen);
-
-  const einleitung = zahlung?.mitQrPdf
+  const einleitung = zahlung.mitQrPdf
     ? 'am einfachsten mit der beigelegten QR-Rechnung (PDF): in deiner Banking-App scannen, Betrag und Referenz sind schon drin.'
     : 'per Banküberweisung mit den folgenden Angaben:';
-
-  const zahlungHtml = zahlung
-    ? `
+  return `
       <p style="color:#1c1c1c;"><strong>So kannst du bezahlen</strong> – ${einleitung}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f3;border:1px solid #ddd;border-radius:4px;margin:8px 0 16px;">
         <tr><td style="padding:14px 16px;color:#1c1c1c;font-size:14px;line-height:1.7;">
@@ -102,18 +105,37 @@ export function mailAnfrageKunde(b: MailBestellung, zahlung?: ZahlungAngaben): M
           ${zahlung.twintTel ? `<br><br><strong>Oder TWINT:</strong> an ${esc(zahlung.twintTel)} senden – Betrag ${betrag}, Mitteilung «Bestellung ${esc(b.orderNumber)}».` : ''}
         </td></tr>
       </table>
-      <p style="color:#1c1c1c;">Sobald deine Zahlung bei uns ist, drucken wir deine Teile und machen das Paket bereit.</p>`
-    : `<p style="color:#1c1c1c;"><strong>Wir melden uns in den nächsten Tagen persönlich bei dir</strong>, um die Zahlung zu besprechen.</p>`;
+      <p style="color:#1c1c1c;">Sobald deine Zahlung bei uns ist, drucken wir deine Teile und machen das Paket bereit.</p>`;
+}
 
-  const zahlungText = zahlung
-    ? `So kannst du bezahlen – ${zahlung.mitQrPdf ? 'am einfachsten mit der beigelegten QR-Rechnung (PDF) in deiner Banking-App scannen. Oder von Hand:' : 'per Banküberweisung mit den folgenden Angaben:'}
+function zahlungBlockText(b: MailBestellung, zahlung: ZahlungAngaben): string {
+  const betrag = formatPreis(b.totalRappen);
+  return `So kannst du bezahlen – ${zahlung.mitQrPdf ? 'am einfachsten mit der beigelegten QR-Rechnung (PDF) in deiner Banking-App scannen. Oder von Hand:' : 'per Banküberweisung mit den folgenden Angaben:'}
   Empfänger: ${EMPFAENGER_ZEILE}
   IBAN: ${formatIban(zahlung.iban)}
   Betrag: ${betrag}
   Mitteilung: Bestellung ${b.orderNumber}${zahlung.twintTel ? `\n  Oder TWINT an ${zahlung.twintTel} – Betrag ${betrag}, Mitteilung «Bestellung ${b.orderNumber}».` : ''}
 
-Sobald deine Zahlung bei uns ist, drucken wir deine Teile und machen das Paket bereit.`
-    : `Wir melden uns in den nächsten Tagen persönlich bei dir, um die Zahlung zu besprechen.`;
+Sobald deine Zahlung bei uns ist, drucken wir deine Teile und machen das Paket bereit.`;
+}
+
+const WUNSCH_PRUEF_HTML = `<p style="color:#1c1c1c;"><strong>Zuerst prüfen wir dein Wunsch-Sujet.</strong> In der Regel hörst du innert 1–2 Tagen von uns, ob dein Motiv umsetzbar ist. Erst nach der Freigabe schicken wir dir die Rechnung mit den Zahlungsangaben — ist das Motiv nicht umsetzbar, stornieren wir kostenlos.</p>`;
+const WUNSCH_PRUEF_TEXT = `Zuerst prüfen wir dein Wunsch-Sujet. In der Regel hörst du innert 1–2 Tagen von uns, ob dein Motiv umsetzbar ist. Erst nach der Freigabe schicken wir dir die Rechnung mit den Zahlungsangaben — ist das Motiv nicht umsetzbar, stornieren wir kostenlos.`;
+
+export function mailAnfrageKunde(b: MailBestellung, zahlung?: ZahlungAngaben): MailInhalt {
+  const abholung = b.versandart === 'abholung';
+
+  const zahlungHtml = zahlung
+    ? zahlungBlockHtml(b, zahlung)
+    : b.wunschPruefung
+      ? WUNSCH_PRUEF_HTML
+      : `<p style="color:#1c1c1c;"><strong>Wir melden uns in den nächsten Tagen persönlich bei dir</strong>, um die Zahlung zu besprechen.</p>`;
+
+  const zahlungText = zahlung
+    ? zahlungBlockText(b, zahlung)
+    : b.wunschPruefung
+      ? WUNSCH_PRUEF_TEXT
+      : `Wir melden uns in den nächsten Tagen persönlich bei dir, um die Zahlung zu besprechen.`;
 
   return {
     an: b.email,
@@ -131,6 +153,48 @@ Sobald deine Zahlung bei uns ist, drucken wir deine Teile und machen das Paket b
 Danke für deine Bestellung (${b.orderNumber}). Sie ist bei uns angekommen.
 
 ${zahlungText}
+
+${positionenText(b)}
+
+${abholung ? `Abholung in ${SHOP.ort} nach Absprache.` : `Lieferadresse: ${b.strasse}, ${b.plz} ${b.ort} (${b.land})`}
+
+${VAT_HINWEIS}
+${SHOP.name}, ${SHOP.ort}`,
+  };
+}
+
+/**
+ * Zweite Mail nach der Machbarkeits-Prüfung eines Wunsch-Sujets: das Motiv
+ * ist umsetzbar, jetzt kommt die Rechnung (QR-PDF im Anhang, wie bei der
+ * normalen Bestätigung).
+ */
+export function mailWunschFreigabe(b: MailBestellung, zahlung: ZahlungAngaben, mitBild = false): MailInhalt {
+  const abholung = b.versandart === 'abholung';
+  // Produktbild als Inline-Anhang (cid) — der Aufrufer haengt die Bilddatei
+  // mit contentId 'produktbild' an. Nicht als Daten-URI: Gmail blockt die.
+  const bildHtml = mitBild
+    ? `
+      <p style="color:#1c1c1c;"><strong>So sieht deine Kappe aus:</strong></p>
+      <img src="cid:produktbild" alt="Produktbild deiner Wunsch-Ventilkappe"
+           width="504" style="width:100%;max-width:504px;border-radius:6px;display:block;margin:4px 0 16px;" />`
+    : '';
+  return {
+    an: b.email,
+    betreff: `Dein Wunsch-Sujet ist machbar – Rechnung zu Bestellung ${b.orderNumber}`,
+    html: rahmen(`
+      <p style="color:#1c1c1c;">Hallo ${esc(b.name)}</p>
+      <p style="color:#1c1c1c;"><strong>Gute Nachricht:</strong> Wir haben dein Wunsch-Sujet geprüft — es ist umsetzbar und geht nach Zahlungseingang in den Druck.</p>
+      ${bildHtml}
+      ${zahlungBlockHtml(b, zahlung)}
+      ${positionenHtml(b)}
+      <p style="color:#666;font-size:14px;">Bestellnummer: ${esc(b.orderNumber)}<br>
+      ${abholung ? `Abholung in ${SHOP.ort} nach Absprache.` : `Lieferadresse: ${esc(b.strasse)}, ${esc(b.plz)} ${esc(b.ort)} (${esc(b.land)})`}</p>
+    `),
+    text: `Hallo ${b.name}
+
+Gute Nachricht: Wir haben dein Wunsch-Sujet geprüft — es ist umsetzbar und geht nach Zahlungseingang in den Druck.
+
+${zahlungBlockText(b, zahlung)}
 
 ${positionenText(b)}
 

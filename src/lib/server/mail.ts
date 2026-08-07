@@ -11,6 +11,11 @@ export interface MailAnhang {
   filename: string;
   /** Dateiinhalt als Base64. */
   inhaltBase64: string;
+  /**
+   * Gesetzt = Inline-Bild: im HTML per <img src="cid:…"> referenzierbar,
+   * statt als Datei-Anhang aufzutauchen (Resend: content_id).
+   */
+  contentId?: string;
 }
 
 export interface MailInhalt {
@@ -58,6 +63,7 @@ export async function sendeMail(mail: MailInhalt): Promise<boolean> {
               attachments: mail.anhaenge.map((a) => ({
                 filename: a.filename,
                 content: a.inhaltBase64,
+                ...(a.contentId ? { content_id: a.contentId } : {}),
               })),
             }
           : {}),

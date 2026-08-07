@@ -26,12 +26,15 @@ export class ManualProvider implements PaymentProvider {
 
     // Ist eine IBAN hinterlegt, bekommt die Kundschaft Zahlungsangaben +
     // QR-Rechnung. Ohne IBAN bleibt es beim Hinweis, dass wir uns melden.
+    // AUSNAHME Wunsch-Sujet: erst Machbarkeit prüfen, dann Rechnung —
+    // die Zahlungsangaben kommen nach der Freigabe (/api/wunsch-freigabe).
+    const zahlungAufschieben = !!b.wunschPruefung;
     const datum = new Date().toLocaleDateString('de-CH', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
     });
-    const pdf = iban
+    const pdf = iban && !zahlungAufschieben
       ? await baueQrRechnungPdf(
           {
             orderNumber: b.orderNumber,
@@ -52,7 +55,7 @@ export class ManualProvider implements PaymentProvider {
         )
       : null;
 
-    const zahlung: ZahlungAngaben | undefined = iban
+    const zahlung: ZahlungAngaben | undefined = iban && !zahlungAufschieben
       ? { iban, ...(twintTel ? { twintTel } : {}), mitQrPdf: pdf !== null }
       : undefined;
 
