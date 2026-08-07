@@ -186,6 +186,13 @@ const PREIS = {
   modul: 5,            // CHF je ZUSATZ-Modul
   text: 3,             // CHF pauschal bei Beschriftung
   min: 15,             // Mindestpreis
+  // Spezial-Einsätze: das Gewicht-Zeit-Modell (25 g/h) versagt bei
+  // Feindruck — der Lydie-Garneinsatz brauchte real 13.9 g/h statt 25.
+  // Darum wird die ZUSATZ-Zeit der Einsätze separat gerechnet und mit dem
+  // Feindruck-Satz bepreist (langsam + Fehldruck-Risiko + Maschine blockiert).
+  feinSatz: 2.5,       // CHF je Feindruck-Stunde
+  garnMinuten: 7,      // min je Garn-Zapfen (kalibriert: +6.1 h / ~50 Zapfen)
+  einsatzMinuten: 25,  // min pauschal je Fach mit anderem Spezial-Einsatz
 };
 
 const P = {
@@ -255,6 +262,7 @@ function einsatzDaten(lf, plan){
   const typ=lf.n.einsatz, r=lf.r;
   if(!typ || !EINSAETZE[typ]) return null;
   const W=r.x1-r.x0, D=r.y1-r.y0, m=2;
+  let zapfen=0;                                        // nur Garn: Anzahl Zapfen (Preis)
   const xs=[], ys=[], b=P.boden;
   const cap=h=>Math.min(h, P.eh-2);
   const reich=DOVE.kd+DOVE.fit, tHalb=DOVE.wt/2+DOVE.fit;
@@ -441,6 +449,7 @@ function einsatzDaten(lf, plan){
       xs.push(px-halb, px-oct, px+oct, px+halb);
       ys.push(py-halb, py-oct, py+oct, py+halb);
     }
+    zapfen=zentren.length;
     const H=cap(b+(cfg.hoehe||42));                  // Zapfenhöhe (kappt auf Fachhöhe-2)
     fn=(cx,cy)=>{
       for(const [px,py] of zentren){
@@ -451,7 +460,7 @@ function einsatzDaten(lf, plan){
     };
   }
   if(!fn) return null;
-  return { xs, ys, zhi:fn };
+  return { xs, ys, zhi:fn, zapfen };
 }
 
 // ---------- Fach-Beschriftung (bündig, farbig, auf der Grundplatte) ----------
@@ -792,22 +801,29 @@ function organizerGeometrien(){
     module.push(g);
   }
 
-  return { module, plan, L, volMm3 };
+  // Feindruck-Zählung für den Preis: Garn je Zapfen, andere Einsätze je Fach
+  const zapfen=einsaetze.reduce((s,x)=>s+(x.e.zapfen||0),0);
+  const spezialFaecher=einsaetze.filter(x=>x.lf.n.einsatz!=='garn').length;
+  return { module, plan, L, volMm3, zapfen, spezialFaecher };
 }
 
 // ---------- Live-Preis ----------
 function preisInfo(){
   const a=aktuelle;
   const g=a.volMm3/1000*PREIS.dichte;
-  const stunden=g/PREIS.durchsatz;
   const material=g*PREIS.filamentKg/1000;
-  const maschine=stunden*PREIS.stundensatz;
+  // Feindruck: Zusatzzeit der Spezial-Einsätze — sie bringen kaum Gewicht,
+  // kosten aber massiv Druckzeit (dünne Türme, Leerfahrten, Risiko).
+  const feinStunden=(a.zapfen*PREIS.garnMinuten + a.spezialFaecher*PREIS.einsatzMinuten)/60;
+  const fein=feinStunden*PREIS.feinSatz;
+  const stunden=g/PREIS.durchsatz + feinStunden;
+  const maschine=(g/PREIS.durchsatz)*PREIS.stundensatz;
   const zModule=(a.module.length-1)*PREIS.modul;
   const hatText=layout().leaves.some(l=>l.n.label && (l.n.label.txt||'').trim());
   const zText=hatText?PREIS.text:0;
-  const roh=PREIS.grund+material+maschine+zModule+zText;
+  const roh=PREIS.grund+material+maschine+fein+zModule+zText;
   const total=Math.max(PREIS.min, Math.ceil(roh*2)/2);
-  return { g, stunden, material, maschine, zModule, zText, total };
+  return { g, stunden, material, maschine, fein, feinStunden, zModule, zText, total };
 }
 function preisAnzeigen(){
   const pi=preisInfo();
@@ -815,6 +831,7 @@ function preisAnzeigen(){
   document.getElementById('preisBox').innerHTML =
     `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h<br>`+
     `Grund 9.00 · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
+    (pi.fein?` · Spezial-Einsätze +${f(pi.fein)} <span style="opacity:.75">(≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+
     (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Text +${f(pi.zText)}`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
 }
@@ -1530,7 +1547,8 @@ async function inWarenkorb(){
   await cart.add({
     typ:'organizer', titel:`Schubladen-Organizer · ${P.sb}×${P.st}×${P.eh} mm · ${n} Teil${n>1?'e':''}`,
     menge:1, gesamtRappen:rappen, stueckRappen:rappen,
-    konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length },
+    konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length,
+             zapfen:a.zapfen, spezialFaecher:a.spezialFaecher },
     dateien,
   });
   (window.top||window).location.href='/warenkorb';

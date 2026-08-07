@@ -120,10 +120,12 @@ export const POST: APIRoute = async ({ request }) => {
         const module = Math.max(1, bufs.filter((d) => d.name.includes('modul')).length || 1);
         const hatText = !!konfig.hatText;
         const gramm = grammAus(bufs.map((d) => d.buf));
-        const preis = organizerPreisRappen({ gramm, module, hatText });
+        const zapfen = Number(konfig.zapfen) || 0;
+        const spezialFaecher = Number(konfig.spezialFaecher) || 0;
+        const preis = organizerPreisRappen({ gramm, module, hatText, zapfen, spezialFaecher });
         const masse = konfig.masse ? `${konfig.masse}` : '';
         const titel = `Schubladen-Organizer${masse ? ` · ${masse} mm` : ''} · ${module} Teil${module > 1 ? 'e' : ''}`;
-        positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText }, menge: 1, preis, titel, dateien: bufs });
+        positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText, zapfen, spezialFaecher }, menge: 1, preis, titel, dateien: bufs });
       } else {
         fehler.push(`Position ${nr}: unbekannter Typ.`);
       }
