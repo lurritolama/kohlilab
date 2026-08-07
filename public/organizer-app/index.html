@@ -163,6 +163,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ---------- Konstanten ----------
 const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];   // 6 Farben
 const FACH_MIN = 25;
+// Wand-Ziehen war stufenlos — zwei Wände können ein paar Zehntel auseinander
+// liegen, obwohl beide Labels denselben mm zeigen. Innerhalb dieser Toleranz
+// gelten Kanten als deckungsgleich und werden beim Verschmelzen exakt
+// ausgerichtet. Echte, verschiedene Wände liegen durch FACH_MIN immer
+// mindestens 25 mm auseinander — die Toleranz kann nichts Falsches einfangen.
+const FANG_MM = 1.5;
 // H2D: im 2-Düsen-Betrieb sind nur 300×320 mm nutzbar -> mit Sicherheitsmarge:
 const BETT = { x:290, y:310 };
 // Schwalbenschwanz-Verbindung: vertikale, angeformte Leisten IN den Wänden
@@ -1015,7 +1021,18 @@ renderer.domElement.addEventListener('pointerdown', ev=>{
   const p=pick(ev); if(!p){ downAt=null; return; }
   downAt={x:ev.clientX, y:ev.clientY};
   const w=wandAn(p);
-  if(w){ snapshot(); drag={w}; controls.enabled=false; }
+  if(w){
+    snapshot();
+    // Flucht-Ziele einmal beim Anfassen einsammeln: die Mitten aller
+    // parallelen Wände. Die eigene Wand ausschliessen (sonst klebte sie an
+    // ihrer alten Position) — Wände näher als 0.75 mm sind praktisch sicher
+    // Segmente derselben Wandlinie.
+    const ziele=[...new Set(layout().walls
+      .filter(x=>x.dir===w.dir && Math.abs(x.c-w.c)>0.75)
+      .map(x=>Math.round(x.c*100)/100))];
+    drag={w, ziele};
+    controls.enabled=false;
+  }
 });
 let lastBuild=0;
 renderer.domElement.addEventListener('pointermove', ev=>{
@@ -1025,7 +1042,15 @@ renderer.domElement.addEventListener('pointermove', ev=>{
   const span = w.dir==='v' ? r.x1-r.x0 : r.y1-r.y0;
   const min=(FACH_MIN+P.wand/2)/span, max=1-min;
   const roh = w.dir==='v' ? (p.x-r.x0)/span : (p.y-r.y0)/span;
-  w.n.pos=Math.max(min, Math.min(max, roh));
+  // Einrasten: zuerst auf die Flucht paralleler Wände (±1.2 mm), sonst auf
+  // ganze Millimeter des linken/vorderen Fachmasses — so stimmt die
+  // mm-Anzeige exakt mit der Geometrie überein und Wände, die gleich
+  // aussehen, SIND gleich.
+  const r0 = w.dir==='v' ? r.x0 : r.y0;
+  let c = r0 + roh*span;
+  const flucht = drag.ziele.find(z=>Math.abs(z-c)<1.2);
+  c = flucht!==undefined ? flucht : r0 + Math.round(roh*span - P.wand/2) + P.wand/2;
+  w.n.pos=Math.max(min, Math.min(max, (c-r0)/span));
   const a=(w.n.pos*span-P.wand/2).toFixed(0), b=((1-w.n.pos)*span-P.wand/2).toFixed(0);
   hudLive(`Wand: ${w.dir==='v'?'links':'vorne'} ${a} mm · ${w.dir==='v'?'rechts':'hinten'} ${b} mm`);
   const now=performance.now();
@@ -1192,9 +1217,18 @@ function verschmelzeFaecher(lf, nb){
   const uebernimm=(n)=>({ t:'leaf', ...(n.einsatz?{einsatz:n.einsatz}:{}), ...(n.garnCfg?{garnCfg:n.garnCfg}:{}), ...(n.label?{label:n.label}:{}) });
   const aHat=!!(A.n.einsatz||A.n.label), bHat=!!(B.n.einsatz||B.n.label);
   const nNeu = bHat&&!aHat ? uebernimm(B.n) : aHat&&!bHat ? uebernimm(A.n) : {t:'leaf'};
-  const rects=L.leaves.filter(x=>x.pfad!==A.pfad && x.pfad!==B.pfad).map(x=>({ r:{...x.r}, n:x.n }));
-  rects.push({ r:{ x0:Math.min(A.r.x0,B.r.x0), x1:Math.max(A.r.x1,B.r.x1),
-                   y0:Math.min(A.r.y0,B.r.y0), y1:Math.max(A.r.y1,B.r.y1) }, n:nNeu });
+  // Fast gleiche Wände exakt ausrichten, A ist die Referenz: alle Kanten im
+  // FANG_MM-Bereich um A's Querkanten (und die Gegenseiten derselben Wand)
+  // schnappen auf — so lässt ein Zehntel-Versatz aus dem stufenlosen Ziehen
+  // den Wiederaufbau nicht mehr scheitern, die Wände kommen in eine Flucht.
+  const seitlich = B.r.x0 > A.r.x1-0.01 || B.r.x1 < A.r.x0+0.01;   // B links/rechts von A?
+  const q0=seitlich?'y0':'x0', q1=seitlich?'y1':'x1';
+  const ziel=[A.r[q0]-w, A.r[q0], A.r[q1], A.r[q1]+w];
+  const schnapp=r=>{ for(const k of [q0,q1]) for(const z of ziel) if(Math.abs(r[k]-z)<FANG_MM){ r[k]=z; break; } };
+  const Bs={...B.r}; schnapp(Bs);
+  const rects=L.leaves.filter(x=>x.pfad!==A.pfad && x.pfad!==B.pfad).map(x=>{ const r={...x.r}; schnapp(r); return { r, n:x.n }; });
+  rects.push({ r:{ x0:Math.min(A.r.x0,Bs.x0), x1:Math.max(A.r.x1,Bs.x1),
+                   y0:Math.min(A.r.y0,Bs.y0), y1:Math.max(A.r.y1,Bs.y1) }, n:nNeu });
   const eps=0.05;
   const bau=(reg, list)=>{
     if(list.length===1) return JSON.parse(JSON.stringify(list[0].n));
@@ -1235,17 +1269,33 @@ function wandKandidaten(lf){
       out.push({ label:`${name} entfernen`, aktion:()=>{ snapshot(); entferneLeaf(lf.pfad); rebuild(); } });
       continue;
     }
-    // Nachbar-Blatt mit exakt gleicher Spannweite auf der anderen Seite?
+    // Nachbar-Blatt mit (fast) gleicher Spannweite auf der anderen Seite?
+    // Spannweiten mit FANG_MM vergleichen (Ziehen ist stufenlos, Labels
+    // runden); die Kante selbst ist dieselbe Wand und darum exakt.
+    // Blätter über den PFAD vergleichen — lf stammt aus einem früheren
+    // layout()-Aufruf, Objekt-Identität griffe nie.
     const nb=L.leaves.find(x=>{
-      if(x===lf) return false;
-      if(kante==='links')  return Math.abs(x.r.x1+w-lf.r.x0)<0.05 && Math.abs(x.r.y0-lf.r.y0)<0.05 && Math.abs(x.r.y1-lf.r.y1)<0.05;
-      if(kante==='rechts') return Math.abs(x.r.x0-w-lf.r.x1)<0.05 && Math.abs(x.r.y0-lf.r.y0)<0.05 && Math.abs(x.r.y1-lf.r.y1)<0.05;
-      if(kante==='vorne')  return Math.abs(x.r.y1+w-lf.r.y0)<0.05 && Math.abs(x.r.x0-lf.r.x0)<0.05 && Math.abs(x.r.x1-lf.r.x1)<0.05;
-      return                      Math.abs(x.r.y0-w-lf.r.y1)<0.05 && Math.abs(x.r.x0-lf.r.x0)<0.05 && Math.abs(x.r.x1-lf.r.x1)<0.05;
+      if(x.pfad===lf.pfad) return false;
+      if(kante==='links')  return Math.abs(x.r.x1+w-lf.r.x0)<0.05 && Math.abs(x.r.y0-lf.r.y0)<FANG_MM && Math.abs(x.r.y1-lf.r.y1)<FANG_MM;
+      if(kante==='rechts') return Math.abs(x.r.x0-w-lf.r.x1)<0.05 && Math.abs(x.r.y0-lf.r.y0)<FANG_MM && Math.abs(x.r.y1-lf.r.y1)<FANG_MM;
+      if(kante==='vorne')  return Math.abs(x.r.y1+w-lf.r.y0)<0.05 && Math.abs(x.r.x0-lf.r.x0)<FANG_MM && Math.abs(x.r.x1-lf.r.x1)<FANG_MM;
+      return                      Math.abs(x.r.y0-w-lf.r.y1)<0.05 && Math.abs(x.r.x0-lf.r.x0)<FANG_MM && Math.abs(x.r.x1-lf.r.x1)<FANG_MM;
     });
-    if(nb) out.push({ label:`${name} entfernen`, aktion:()=>verschmelzeFaecher(lf, nb) });
-    else   out.push({ label:`${name} entfernen`, aktion:null,
-                      grund:'Das Nachbarfach dahinter ist nicht gleich gross — Wände lassen sich nur zwischen deckungsgleichen Fächern entfernen.' });
+    if(nb){ out.push({ label:`${name} entfernen`, aktion:()=>verschmelzeFaecher(lf, nb) }); continue; }
+    // Kein deckungsgleicher Nachbar: sagen, was drüben liegt und warum es
+    // nicht geht — statt einer generischen Meldung.
+    const drueben=L.leaves.filter(x=>{
+      if(x.pfad===lf.pfad) return false;
+      if(kante==='links')  return Math.abs(x.r.x1+w-lf.r.x0)<0.05 && x.r.y0<lf.r.y1 && x.r.y1>lf.r.y0;
+      if(kante==='rechts') return Math.abs(x.r.x0-w-lf.r.x1)<0.05 && x.r.y0<lf.r.y1 && x.r.y1>lf.r.y0;
+      if(kante==='vorne')  return Math.abs(x.r.y1+w-lf.r.y0)<0.05 && x.r.x0<lf.r.x1 && x.r.x1>lf.r.x0;
+      return                      Math.abs(x.r.y0-w-lf.r.y1)<0.05 && x.r.x0<lf.r.x1 && x.r.x1>lf.r.x0;
+    });
+    const mm=r=>`${Math.round(r.x1-r.x0)}×${Math.round(r.y1-r.y0)} mm`;
+    const grund = drueben.length===1
+      ? `Das Fach auf der anderen Seite ist ${mm(drueben[0].r)}, deins ${mm(lf.r)} — Entfernen ergäbe ein L-förmiges Fach.`
+      : `Auf der anderen Seite liegen ${drueben.length} Fächer — Entfernen ergäbe kein rechteckiges Fach. Erst die Fächer drüben zusammenführen.`;
+    out.push({ label:`${name} entfernen`, aktion:null, grund });
   }
   return out;
 }
