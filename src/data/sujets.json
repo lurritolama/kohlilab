@@ -1,5 +1,14 @@
 [
   {
+    "slug": "heidelbeeren",
+    "name": "Heidelbeeri",
+    "beschreibung": "Beerensaison fürs Ventil — Heidelbeeren im Holzkörbchen. Cremeweisser Korbreif, dunkelblaue Beeren, Gewinde direkt im Korbboden.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/heidelbeeren.png",
+    "bildTyp": "render"
+  },
+  {
     "slug": "totenkopf",
     "name": "Totenkopf",
     "beschreibung": "Ride or die — Schädel mit Halstuch, Gewinde direkt im Fuss.",
