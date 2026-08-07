@@ -1,5 +1,9 @@
 ---
-import { sujets, preisFormat } from '../data/sujets.js';
+import { sujets as sujetsStatisch, preisFormat } from '../data/sujets.js';
+
+// Sujets kommen bevorzugt von der Seite (serverseitig aus der gemeinsamen
+// Supabase geladen); ohne Prop greift das eingebettete sujets.json.
+const { sujets = sujetsStatisch } = Astro.props;
 
 // Inline-Platzhalter-Grafiken bis echte Render-/Produktfotos da sind.
 const icons: Record<string, string> = {

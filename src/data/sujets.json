@@ -1,5 +1,14 @@
 [
   {
+    "slug": "muni",
+    "name": "Muni",
+    "beschreibung": "Der Chef vom Sagemehl-Ring — Munikopf mit cremeweissen Hörnern fürs Ventil. Frisch zum ESAF, Gewinde direkt im Sockel.",
+    "preisRappen": 1200,
+    "neu": true,
+    "bild": "/sujets/muni.png",
+    "bildTyp": "render"
+  },
+  {
     "slug": "heidelbeeren",
     "name": "Heidelbeeri",
     "beschreibung": "Beerensaison fürs Ventil — Heidelbeeren im Holzkörbchen. Cremeweisser Korbreif, dunkelblaue Beeren, Gewinde direkt im Korbboden.",

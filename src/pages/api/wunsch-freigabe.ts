@@ -63,12 +63,15 @@ export const POST: APIRoute = async ({ request }) => {
   if (!iban) return json({ ok: false, fehler: 'Keine IBAN hinterlegt.' }, 500);
   const twintTel = env.ZAHLUNG_TWINT_TEL?.trim();
 
+  const wunschPos = positionen.find((p) => p?.typ === 'ventilkappe' && p?.konfig?.sujet === 'wunsch');
+  const wunschMotiv = typeof wunschPos?.konfig?.wunsch === 'string' ? wunschPos.konfig.wunsch.slice(0, 60) : undefined;
   const b: MailBestellung = {
     orderNumber: order.order_number, email: order.email, name: order.shipping_name,
     strasse: order.shipping_street, plz: order.shipping_zip, ort: order.shipping_city, land: order.shipping_country,
     versandart: order.shipping_method as VersandartId, versandRappen: order.shipping_cost_rappen,
     subtotalRappen: order.subtotal_rappen, totalRappen: order.total_rappen,
     positionen: positionen.map((p) => ({ titel: p.titel, qty: p.menge ?? 1, preisRappen: p.preisRappen })),
+    ...(wunschMotiv ? { wunschMotiv } : {}),
   };
 
   const datum = new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric' });

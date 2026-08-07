@@ -1,9 +1,16 @@
 ---
+// SSR statt statisch: die Sujets kommen pro Aufruf aus der gemeinsamen
+// Supabase — neue Sujets sind damit ohne Git-Push und Build sofort live.
+export const prerender = false;
+
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
 import FabrikBand from '../components/FabrikBand.astro';
 import SujetGrid from '../components/SujetGrid.astro';
 import Entstehung from '../components/Entstehung.astro';
+import { ladeSujets } from '../lib/server/sujets';
+
+const sujets = await ladeSujets();
 ---
 <BaseLayout
   title="Ventilkappen — KohliLab"
@@ -11,6 +18,6 @@ import Entstehung from '../components/Entstehung.astro';
 >
   <Hero />
   <FabrikBand />
-  <SujetGrid />
+  <SujetGrid sujets={sujets} />
   <Entstehung />
 </BaseLayout>
