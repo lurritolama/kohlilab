@@ -24,7 +24,7 @@ const icons: Record<string, string> = {
             ? <img src={s.bild} alt={s.name} loading="lazy" />
             : <Fragment set:html={icons[s.slug] ?? ''} />}
           {s.bild && s.bildTyp !== 'foto' && (
-            <span class="bildhinweis" title="Bild aus dem 3D-Modell gerendert — sobald das Sujet gedruckt ist, ersetzen wir es durch ein Foto.">Renderbild · Foto folgt</span>
+            <span class="bildhinweis" title="Bild aus dem 3D-Modell gerendert — Farben und Oberfläche können vom gedruckten Teil abweichen.">Renderbild</span>
           )}
         </div>
         <div class="meta">
@@ -34,6 +34,11 @@ const icons: Record<string, string> = {
           </div>
           <div class="pr">{preisFormat(s.preisRappen)}<span class="pr-set">4er-Set</span></div>
         </div>
+        {/* Der Hinweis steht als sichtbarer Satz da, nicht nur als title-Tooltip:
+            auf dem Handy gibt es kein Hover, und genau dort wird bestellt. */}
+        {s.bild && s.bildTyp !== 'foto' && (
+          <p class="bildnote">Bild aus dem 3D-Modell gerendert — <b>Farben und Oberfläche können vom gedruckten Teil abweichen.</b> Sobald das Sujet gedruckt ist, ersetzen wir es durch ein Foto.</p>
+        )}
         {s.bild ? (
           <div class="order" data-sujet={s.slug} data-name={s.name} data-rappen={s.preisRappen}>
             <div class="gw" role="group" aria-label="Gewinde wählen">
@@ -78,6 +83,9 @@ const icons: Record<string, string> = {
   .pr { display:flex; flex-direction:column; align-items:flex-end; line-height:1.12; }
   .pr-set { font-size:0.7rem; font-weight:400; letter-spacing:0.02em; color:var(--mut,#9a9a93); text-transform:uppercase; }
   .setnote { margin:1.2rem 0 0; font-size:0.8rem; color:var(--mut,#9a9a93); }
+
+  .bildnote { margin:-0.35rem 16px 0; font-size:0.72rem; line-height:1.45; color:var(--mut,#9a9a93); }
+  .bildnote b { color:var(--ink,#e8e6e1); font-weight:600; }
 
   .order { margin-top:0.9rem; display:flex; flex-direction:column; gap:0.55rem; }
   .order--bald { align-items:flex-start; }

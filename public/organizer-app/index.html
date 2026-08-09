@@ -163,6 +163,17 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ---------- Konstanten ----------
 const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];   // 6 Farben
 const FACH_MIN = 25;
+// Garn-Zapfen sind seit 09.08.2026 STECKBAR (Manolos Entscheid nach der
+// Kalibrier-Testreihe v1-v4): angegossene Zapfen brachen an der Bodenfuge,
+// weil die Druckschichten quer zur Belastung liegen. Neu bekommt die Wanne
+// gestufte Kuppel-Aufnahmen mit DURCHGANGSLOCH, die Stifte werden separat
+// LIEGEND gedruckt (Fasern laengs = um ein Mehrfaches bruchfester) und vom
+// Kunden eingesteckt. Bricht einer doch: Rest von unten rausdruecken,
+// Ersatzstift rein — 10 % Ersatz (aufgerundet) liegen jeder Lieferung bei.
+const GARN_MIN_DICKE = 4;        // liegend gedruckt darf duenner sein als 5
+const GARN_SPIEL   = 0.25;       // Loch-Aufmass, kalibriert (Testreihe v4)
+const GARN_KUPPEL_H = 5;         // Kuppelhoehe ueber dem Boden
+const GARN_ERSATZ = n => Math.ceil(n * 0.10);   // Ersatzstifte je Bestellung
 // Wand-Ziehen war stufenlos — zwei Wände können ein paar Zehntel auseinander
 // liegen, obwohl beide Labels denselben mm zeigen. Innerhalb dieser Toleranz
 // gelten Kanten als deckungsgleich und werden beim Verschmelzen exakt
@@ -191,9 +202,10 @@ const PREIS = {
   // Darum wird die ZUSATZ-Zeit der Einsätze separat gerechnet und mit dem
   // Feindruck-Satz bepreist (langsam + Fehldruck-Risiko + Maschine blockiert).
   feinSatz: 2.5,       // CHF je Feindruck-Stunde
-  // Kalibrierung: +6.1 h real / ~50 Zapfen ≈ 7 min — gemessen aber mit der
-  // EXPERIMENTELLEN 0.2er-Düse. Produziert wird mit 0.4 (≈ halbe Zeit) -> 4.
-  garnMinuten: 4,      // min je Garn-Zapfen (0.4er-Düse, Standard)
+  // Steckstifte (seit 09.08.2026): liegend gedruckt statt als stehende
+  // Tuerme — die 4 min/Zapfen Feindruck entfallen fast ganz. Bleibt: etwas
+  // Bett-Belegung, Aufnahme-Kuppeln, Beutel + Ersatzstifte.
+  garnMinuten: 1,      // min je Steck-Zapfen (liegend, inkl. Ersatz-Anteil)
   einsatzMinuten: 25,  // min pauschal je Fach mit anderem Spezial-Einsatz
 };
 
@@ -264,7 +276,7 @@ function einsatzDaten(lf, plan){
   const typ=lf.n.einsatz, r=lf.r;
   if(!typ || !EINSAETZE[typ]) return null;
   const W=r.x1-r.x0, D=r.y1-r.y0, m=2;
-  let zapfen=0;                                        // nur Garn: Anzahl Zapfen (Preis)
+  let zapfen=0, stift=null;                            // nur Garn: Anzahl + Stift-Bauplan
   const xs=[], ys=[], b=P.boden;
   const cap=h=>Math.min(h, P.eh-2);
   const reich=DOVE.kd+DOVE.fit, tHalb=DOVE.wt/2+DOVE.fit;
@@ -432,13 +444,22 @@ function einsatzDaten(lf, plan){
     };
   }
   else if(typ==='garn'){
-    // Aufrechte Zapfen im Raster – Garnrollen/Schnüre werden aufgesteckt.
-    // Achteckiger Querschnitt (rundlicher, passt besser ins runde Spulenloch).
-    // Dicke, Abstand und Höhe pro Fach konfigurierbar (Regler im Menü).
+    // STECKBARE Garn-Zapfen: die Wanne bekommt nur die AUFNAHMEN — gestufte
+    // Kuppeln (die Zellen-Engine kennt keine Rundungen) mit Durchgangsloch
+    // bis z=0. Die Stifte selbst sind separate, liegend gedruckte Teile
+    // (baueStifte) und stecken beim Kunden. Kalibriert: Spiel 0.25,
+    // Steckteil endet 1 mm ueber der Unterseite (Testreihe v1-v4).
     const cfg=lf.n.garnCfg||{};
     const pitch=cfg.abstand||34;                     // Rastermass
-    const halb=(cfg.dicke||6)/2;                     // halbe Zapfendicke
-    const oct=halb*0.41;                             // Achteck-Fase
+    const dicke=Math.max(GARN_MIN_DICKE, cfg.dicke||6);
+    const halb=dicke/2;
+    const steckD=Math.max(2.8, dicke-1.2);           // Steckteil, Schulter 0.6 rundum
+    const lochR=(steckD+GARN_SPIEL)/2;
+    const wandR=lochR+1.2;                           // Kuppelspitze: Wand ums Loch
+    const kupR=Math.min((pitch-1)/2, Math.max(4.5, halb+3.5));
+    const kupH=Math.min(GARN_KUPPEL_H, Math.max(3, P.eh*0.12+2));
+    // Kuppel als 3 Stufen von aussen-flach nach innen-hoch (Dome-Profil)
+    const ringe=[ {r:wandR, h:kupH}, {r:(wandR+kupR)/2, h:kupH*0.72}, {r:kupR, h:kupH*0.4} ];
     const nx=Math.max(1, Math.floor((W-2*m)/pitch)); // mind. 1 Zapfen (zentriert)
     const ny=Math.max(1, Math.floor((D-2*m)/pitch));
     const spanX=nx*pitch, spanY=ny*pitch;
@@ -446,23 +467,32 @@ function einsatzDaten(lf, plan){
     const zentren=[];
     for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
       const px=cx0+i*pitch, py=cy0+j*pitch;
-      if(stoert(px,py,halb)) continue;               // nie halbe Zapfen am Modulrand
+      // Kuppelradius pruefen: Modulfugen duerfen die Aufnahme nicht anschneiden
+      if(stoert(px,py,kupR)) continue;
       zentren.push([px,py]);
-      xs.push(px-halb, px-oct, px+oct, px+halb);
-      ys.push(py-halb, py-oct, py+oct, py+halb);
+      for(const rr of [lochR, wandR, ringe[1].r, kupR]){
+        xs.push(px-rr, px-rr*0.41, px+rr*0.41, px+rr);
+        ys.push(py-rr, py-rr*0.41, py+rr*0.41, py+rr);
+      }
     }
     zapfen=zentren.length;
-    const H=cap(b+(cfg.hoehe||42));                  // Zapfenhöhe (kappt auf Fachhöhe-2)
+    const H=cap(b+(cfg.hoehe||42));                  // sichtbare Stifthoehe (fuer Stift-Bau)
+    stift={ dicke, steckD, lochD:steckD+GARN_SPIEL,
+            schaftL:Math.max(8,(H-b)-kupH),          // Schaft ab Kuppelspitze
+            steckL:kupH+b-1.0,                       // endet 1 mm ueber der Unterseite
+            zentren, kupH };
     fn=(cx,cy)=>{
       for(const [px,py] of zentren){
         const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
-        if(dx<=halb && dy<=halb && dx+dy<=halb*1.31) return H;
+        const okt=(rr)=> dx<=rr && dy<=rr && dx+dy<=rr*1.31;
+        if(okt(lochR)) return 0;                     // DURCHGANGSLOCH (bis z=0)
+        for(const st of ringe) if(okt(st.r)) return b+st.h;   // gestufte Kuppel
       }
-      return b;                                      // fester Boden zwischen den Zapfen
+      return b;                                      // fester Boden dazwischen
     };
   }
   if(!fn) return null;
-  return { xs, ys, zhi:fn, zapfen };
+  return { xs, ys, zhi:fn, zapfen, stift };
 }
 
 // ---------- Fach-Beschriftung (bündig, farbig, auf der Grundplatte) ----------
@@ -624,6 +654,74 @@ function doveStufen(){
 }
 function doveHwInner(d){ const st=doveStufen().find(s=>d>=s.d0&&d<s.d1); return st?st.hw:DOVE.wt/2; }
 
+// ---------- Steckstifte (separat gedruckte Teile) ----------
+// Liegender Stift als Querschnitts-Loft entlang Y: Fase -> Steckteil (D-
+// Profil) -> Schulterkegel -> Achteck-Schaft. Alle Punkte unterhalb der
+// Druckebene werden auf z=0 geklemmt -> durchgehend flache Unterseite,
+// 0 mm2 Ueberhang steiler 45 Grad (kalibrierte v4-Geometrie).
+function stiftMesh(sp){
+  const N=16, steckR=sp.steckD/2, halb=sp.dicke/2;
+  const A=Math.max(steckR-0.75, steckR*0.55);        // Achshoehe = Abflachung 0.75
+  const L=sp.steckL+sp.schaftL;
+  const rOct=(th)=>{ const a=((th/Math.PI*180)+11.25)%45-22.5; return halb/Math.cos(a*Math.PI/180); };
+  const ringe=[
+    {y:0,              r:()=>Math.max(1,steckR-0.4)},
+    {y:0.5,            r:()=>steckR},
+    {y:sp.steckL,      r:()=>steckR},
+    {y:sp.steckL+1.2,  r:rOct},
+    {y:L,              r:rOct},
+  ];
+  const pkt=(ring)=>{ const out=[];
+    for(let k=0;k<N;k++){ const th=(k+0.5)/N*2*Math.PI;
+      const r=ring.r(th);
+      out.push([r*Math.sin(th), ring.y, Math.max(0, A - r*Math.cos(th))]);
+    } return out; };
+  const P0=ringe.map(pkt), tri=[];
+  const quad=(a,b,c,d)=>{ tri.push(a,b,c, a,c,d); };
+  for(let i=0;i<ringe.length-1;i++)
+    for(let k=0;k<N;k++) quad(P0[i][k], P0[i][(k+1)%N], P0[i+1][(k+1)%N], P0[i+1][k]);
+  // Deckel vorne/hinten (Faecher um den Mittelpunkt)
+  const capV=(ring,vorn)=>{ const c=[0,ring[0][1],A>0?A:0]; // Mittelpunkt auf Achse
+    for(let k=0;k<N;k++){ const a=ring[k], b=ring[(k+1)%N];
+      if(vorn) tri.push(c,b,a); else tri.push(c,a,b); } };
+  capV(P0[0], true); capV(P0[P0.length-1], false);
+  return tri;
+}
+// Alle Stifte einer Bestellung (inkl. 10 % Ersatz, aufgerundet) liegend im
+// Raster — als EIN Druckteil. Rueckgabe: BufferGeometry + Stueckzahlen.
+function baueStifte(specs){
+  const tris=[]; let gesamt=0, ersatz=0, zeileY=0;
+  for(const sp of specs){
+    const n=sp.anzahl + GARN_ERSATZ(sp.anzahl);
+    gesamt+=n; ersatz+=GARN_ERSATZ(sp.anzahl);
+    const grund=stiftMesh(sp);
+    const L=sp.steckL+sp.schaftL, dx=sp.dicke+2.5;
+    const proZeile=Math.max(4, Math.floor(200/dx));
+    for(let i=0;i<n;i++){
+      const cx=(i%proZeile)*dx - Math.min(n,proZeile)*dx/2;
+      const cy=zeileY + Math.floor(i/proZeile)*(L+4);
+      for(const p of grund) tris.push([p[0]+cx, p[1]+cy, p[2]]);
+    }
+    zeileY += (Math.ceil(n/proZeile))*(L+4) + 6;
+  }
+  const pos=new Float32Array(tris.length*3);
+  tris.forEach((p,i)=>{ pos[i*3]=p[0]; pos[i*3+1]=p[1]; pos[i*3+2]=p[2]; });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  // gleiche Einfaerbung wie die Wanne (einfarbiger Druck)
+  const c=new THREE.Color(P.farbe), col=new Float32Array(tris.length*3);
+  for(let i=0;i<tris.length;i++){ col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  g.computeVertexNormals();
+  // Volumen (Divergenzsatz) fuer die Preisrechnung
+  let vol=0;
+  for(let i=0;i<tris.length;i+=3){
+    const a=tris[i], b=tris[i+1], q=tris[i+2];
+    vol += (a[0]*(b[1]*q[2]-b[2]*q[1]) - a[1]*(b[0]*q[2]-b[2]*q[0]) + a[2]*(b[0]*q[1]-b[1]*q[0]))/6;
+  }
+  return { geo:g, volMm3:Math.abs(vol), gesamt, ersatz };
+}
+
 // ---------- Geometrie: Zellen-Engine mit Höhen-Intervallen ----------
 // Jede Zelle ist solid von zlo..zhi. Nachbar-Differenzen ergeben die
 // Seitenflächen -> wasserdicht per Konstruktion, keine Triangulation nötig.
@@ -699,13 +797,18 @@ function organizerGeometrien(){
     let typ='t', fach=null;
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
     else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
-    const mod=modIdx(cx,cy);
+    let mod=modIdx(cx,cy);
     // Puzzle-Verzahnung liegt flach im Boden (Zapfen = umgehängte Zellen,
     // Nut = Spielspalt) — KEINE Pfosten/Bosse, nichts ragt über den Boden.
     let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
     if(typ==='k' && fach){
       const ee=einsaetze.find(x=>x.lf===fach);
-      if(ee){ const h=ee.e.zhi(cx,cy); if(h!==null) zhi=h; }
+      if(ee){ const h=ee.e.zhi(cx,cy);
+        // h===0 heisst DURCHGANGSLOCH: Zelle komplett leer — wie der
+        // Spielspalt der Schwalbenschwaenze (mod=-1), NICHT zhi=0, sonst
+        // entstehen degenerierte Null-Hoehen-Zellen (offene Kanten).
+        if(h===0) mod=-1;
+        else if(h!==null) zhi=h; }
     }
     let lbl=-1;
     if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
@@ -806,7 +909,18 @@ function organizerGeometrien(){
   // Feindruck-Zählung für den Preis: Garn je Zapfen, andere Einsätze je Fach
   const zapfen=einsaetze.reduce((s,x)=>s+(x.e.zapfen||0),0);
   const spezialFaecher=einsaetze.filter(x=>x.lf.n.einsatz!=='garn').length;
-  return { module, plan, L, volMm3, zapfen, spezialFaecher };
+  // Steckstifte als eigenes Druckteil (inkl. Ersatz); Gewicht zaehlt mit
+  const stiftSpecs=einsaetze.filter(x=>x.e.stift&&x.e.zapfen>0)
+    .map(x=>({ ...x.e.stift, anzahl:x.e.zapfen }));
+  let stifte=null, stifteVorschau=[];
+  if(stiftSpecs.length){
+    stifte=baueStifte(stiftSpecs); volMm3+=stifte.volMm3;
+    for(const sp of stiftSpecs)
+      for(const [zx,zy] of sp.zentren)
+        stifteVorschau.push({ x:zx, y:zy, dicke:sp.dicke,
+                              z0:P.boden+sp.kupH-0.5, hoehe:sp.schaftL+0.5 });
+  }
+  return { module, plan, L, volMm3, zapfen, spezialFaecher, stifte, stifteVorschau };
 }
 
 // ---------- Live-Preis ----------
@@ -880,6 +994,26 @@ function rebuild(){
     }
     grp.add(mm);
   });
+  // Steckstifte: zusammengebaut = eingesteckt in den Aufnahmen; in der
+  // Trenn-Ansicht als das, was sie sind — ein eigenes, flach liegendes
+  // Druckteil vor der Wanne (so kommt es auch beim Kunden an).
+  if(aktuelle.stifte){
+    if(explode){
+      const sm=new THREE.Mesh(aktuelle.stifte.geo, mat);
+      aktuelle.stifte.geo.computeBoundingBox();
+      const bb=aktuelle.stifte.geo.boundingBox;
+      sm.position.set(-(bb.max.x+bb.min.x)/2, aktuelle.L.y0-(bb.max.y-bb.min.y)-26, 0);
+      grp.add(sm);
+    } else {
+      const stMat=new THREE.MeshStandardMaterial({color:new THREE.Color(P.farbe).multiplyScalar(0.9), roughness:0.65});
+      for(const v of aktuelle.stifteVorschau||[]){
+        const zyl=new THREE.Mesh(new THREE.CylinderGeometry(v.dicke/2/Math.cos(Math.PI/8), v.dicke/2/Math.cos(Math.PI/8), v.hoehe, 8), stMat);
+        zyl.rotation.x=Math.PI/2; zyl.rotation.y=Math.PI/8;
+        zyl.position.set(v.x, v.y, v.z0+v.hoehe/2);
+        grp.add(zyl);
+      }
+    }
+  }
   scene.add(grp);
   baueLade();
   baueLabels();
@@ -1138,6 +1272,8 @@ function zeigeGarnMenu(lf, cx, cy){
   snapshot();
   lf.n.einsatz='garn'; delete lf.n.label;
   const cfg = lf.n.garnCfg = Object.assign({dicke:6, abstand:34, hoehe:42}, lf.n.garnCfg);
+  delete cfg.fuss;                                   // alt (angegossener Kegelfuss)
+  cfg.dicke = Math.max(GARN_MIN_DICKE, cfg.dicke);   // aeltere Entwuerfe nachziehen
   menu.innerHTML=`<div class="mtitle">GARN-/SPULENZAPFEN</div>`;
   let lb=0;
   const rb=()=>{ const now=performance.now(); if(now-lb>90){ lb=now; rebuild(); } };
@@ -1151,12 +1287,12 @@ function zeigeGarnMenu(lf, cx, cy){
     row.appendChild(inp); row.appendChild(val);
     menu.appendChild(row);
   };
-  slider('Dicke','dicke',3,12,0.5);      // Spulenloch meist 6–8 mm
+  slider('Dicke','dicke',GARN_MIN_DICKE,12,0.5);   // Spulenloch meist 6–8 mm
   slider('Abstand','abstand',15,80,1);
   slider('Höhe','hoehe',8,60,1);
   const hint=document.createElement('div');
-  hint.style.cssText='font-size:10.5px;color:var(--mut);padding:3px 10px 7px;max-width:220px';
-  hint.textContent='Höhe wird auf Einsatzhöhe − 2 mm begrenzt. Abstand = Rastermass der Zapfen.';
+  hint.style.cssText='font-size:10.5px;color:var(--mut);padding:3px 10px 7px;max-width:230px;line-height:1.45';
+  hint.innerHTML='<b style="color:var(--ink)">Die Stifte sind steckbar:</b> Sie kommen als separate, liegend gedruckte Teile — so verläuft die Faserrichtung längs und sie sind um ein Mehrfaches bruchfester als angegossene. Bricht doch mal einer, drückst du den Rest durchs offene Loch von unten raus und steckst einen neuen — <b style="color:var(--ink)">10&nbsp;% Ersatzstifte liegen bei</b>. Höhe wird auf Einsatzhöhe − 2 mm begrenzt, Abstand = Rastermass.';
   menu.appendChild(hint);
   const b=(txt,fn)=>{ const el=document.createElement('button'); el.textContent=txt;
     el.addEventListener('click',()=>{ menu.style.display='none'; fn&&fn(); }); menu.appendChild(el); return el; };
@@ -1454,7 +1590,8 @@ function bboxOffset(g){
 }
 async function exportTeile(art){
   const a=aktuelle;
-  if(a.module.length===1){
+  // Ohne Steckstifte und mit nur einem Modul: eine einzelne Datei wie bisher
+  if(a.module.length===1 && !a.stifte){
     const e=[{geo:a.module[0], name:'Organizer', tx:0, ty:0}];
     if(art==='3mf') download(await make3mfMulti(e),'kohlilab_organizer.3mf');
     else download(new Blob([stlString(e)],{type:'model/stl'}),'kohlilab_organizer.stl');
@@ -1467,6 +1604,14 @@ async function exportTeile(art){
     if(art==='3mf') zip.file(`modul_${k+1}.3mf`, await make3mfMulti(e));
     else zip.file(`modul_${k+1}.stl`, stlString(e));
   }
+  if(a.stifte){
+    // Steckstifte als EIGENES Druckteil — liegen schon druckfertig flach,
+    // inkl. Ersatzstiften. NICHT aufstellen, so ist die Faserrichtung laengs.
+    const off=bboxOffset(a.stifte.geo);
+    const e=[{geo:a.stifte.geo, name:`Steckstifte (${a.stifte.gesamt} Stk, davon ${a.stifte.ersatz} Ersatz)`, ...off}];
+    if(art==='3mf') zip.file('steckstifte.3mf', await make3mfMulti(e));
+    else zip.file('steckstifte.stl', stlString(e));
+  }
   download(await zip.generateAsync({type:'blob'}), `kohlilab_organizer_teile_${art}.zip`);
 }
 // ---------- Lieferung: kommunizieren, dass es Module sein können ----------
@@ -1474,10 +1619,13 @@ function anzahlModule(){ return aktuelle ? aktuelle.module.length : 1; }
 function lieferAnzeigen(){
   const box=$('lieferBox'); if(!box) return;
   const n=anzahlModule();
-  box.innerHTML = n<=1
-    ? `<span class="lief-badge lief-1">📦 1 Teil · kommt am Stück</span>`
-    : `<span class="lief-badge lief-n">📦 ${n} Teile · zum Zusammenstecken</span>`
-      + `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Deine Schublade ist grösser als unser Druckbereich — der Einsatz kommt in ${n} passgenauen Teilen, die du in der Schublade zusammensteckst.</div>`;
+  const st=aktuelle&&aktuelle.stifte;
+  const stZeile=st?`<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">🧵 Dazu <b style="color:var(--ink)">${st.gesamt} Steckstifte</b> (davon ${st.ersatz} Ersatz) — liegend gedruckt für maximale Bruchfestigkeit, zum Selbereinstecken. Ersatz einfach von unten durchs offene Loch nachrüsten.</div>`:'';
+  box.innerHTML = (n<=1
+    ? `<span class="lief-badge lief-1">📦 1 Teil${st?' + Stiftebeutel':''} · kommt am Stück</span>`
+    : `<span class="lief-badge lief-n">📦 ${n} Teile${st?' + Stiftebeutel':''} · zum Zusammenstecken</span>`
+      + `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Deine Schublade ist grösser als unser Druckbereich — der Einsatz kommt in ${n} passgenauen Teilen, die du in der Schublade zusammensteckst.</div>`)
+    + stZeile;
 }
 function snapSVG(){
   return `<svg width="300" height="90" viewBox="0 0 300 90" xmlns="http://www.w3.org/2000/svg">
@@ -1490,6 +1638,36 @@ function snapSVG(){
     <text x="193" y="16" text-anchor="middle" fill="#9a9a93" font-size="10" font-family="monospace">Teil 2</text>
   </svg>`;
 }
+// Echter Schnappschuss der getrennten Teile fürs Liefer-Modal: die Kundschaft
+// soll VOR der Zahlung die effektiven Teile sehen, wie sie ankommen — die
+// gleiche Ansicht wie der „Module trennen"-Schalter, nicht bloss eine
+// Symbolgrafik. Rendert einmal in die bestehende Leinwand, liest das Bild
+// aus und stellt danach alles zurück.
+function schnappschussTeile(){
+  if(renderer.domElement.width<50 || renderer.domElement.height<50) return null;
+  const exAlt=explode;
+  const camPos=camera.position.clone(), tgt=controls.target.clone();
+  explode=true; rebuild();
+  // Kamera von schräg oben auf die getrennten Teile einpassen
+  const box=new THREE.Box3().setFromObject(grp);
+  const c=box.getCenter(new THREE.Vector3()), sz=box.getSize(new THREE.Vector3());
+  const r=Math.max(sz.x,sz.y)*0.62+sz.z;
+  camera.position.set(c.x, c.y-r*1.15, c.z+r*0.85);
+  camera.lookAt(c);
+  renderer.render(scene,camera);
+  let url=null;
+  try{ url=renderer.domElement.toDataURL('image/png'); }catch(e){}
+  // Teil-Nummern: Modul-Oberkanten in Bildkoordinaten projizieren
+  const labels=[];
+  grp.children.forEach((mm,k)=>{
+    const b2=new THREE.Box3().setFromObject(mm);
+    const p=b2.getCenter(new THREE.Vector3()); p.z=b2.max.z+3;
+    p.project(camera);
+    labels.push({n:k+1, x:(p.x+1)/2*100, y:(1-p.y)/2*100});
+  });
+  explode=exAlt; camera.position.copy(camPos); controls.target.copy(tgt); rebuild();
+  return url?{url,labels}:null;
+}
 function schliesseModal(){ $('modal-bg').classList.remove('on'); }
 // modus 'info' = optional aus dem Panel; 'confirm' = verpflichtend vor Abschluss
 function zeigeLieferModal(modus, onOk){
@@ -1498,16 +1676,28 @@ function zeigeLieferModal(modus, onOk){
   if(n<=1){
     inhalt.innerHTML=`<h3>So wird geliefert</h3><div class="msub">Dein Organizer</div>
       <span class="lief-badge lief-1">📦 1 Teil · kommt am Stück</span>
-      <p style="font-size:13px;color:var(--mut);margin-top:14px;line-height:1.6">Dein Einsatz passt komplett auf unser Druckbett und kommt als ein einziges, fertiges Teil — einfach in die Schublade legen.</p>`;
+      <p style="font-size:13px;color:var(--mut);margin-top:14px;line-height:1.6">Dein Einsatz passt komplett auf unser Druckbett und kommt als ein fertiges Teil — einfach in die Schublade legen.</p>
+      ${aktuelle&&aktuelle.stifte?`<p style="font-size:13px;color:var(--mut);line-height:1.6">🧵 Dazu ein Beutel mit <b style="color:var(--ink)">${aktuelle.stifte.gesamt} Steckstiften</b> (davon ${aktuelle.stifte.ersatz} Ersatz): Sie werden liegend gedruckt — die Faserrichtung verläuft längs, das macht sie um ein Mehrfaches bruchfester als angegossene Zapfen. Einstecken bis zum Anschlag, fertig. Bricht doch mal einer: von unten durchs offene Loch rausdrücken, Ersatzstift rein.</p>`:''}`;
   } else {
+    // Die effektiven Teile zeigen (gleiche Ansicht wie „Module trennen") —
+    // die Symbolgrafik ist nur noch Notlösung, falls kein Bild lesbar ist.
+    const snap=schnappschussTeile();
+    const bild = snap
+      ? `<div style="position:relative;margin:6px 0 2px">
+           <img src="${snap.url}" alt="Deine ${n} Teile, getrennt dargestellt" style="width:100%;border-radius:8px;border:1px solid #3a3e44;display:block">
+           ${snap.labels.map(l=>`<span style="position:absolute;left:${l.x}%;top:${l.y}%;transform:translate(-50%,-100%);background:rgba(20,21,23,.82);color:#ffb347;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap">Teil ${l.n}</span>`).join('')}
+         </div>
+         <div style="font-size:11px;color:var(--mut);margin-bottom:4px">So kommen die ${n} Teile bei dir an.</div>`
+      : snapSVG();
     inhalt.innerHTML=`<h3>Dein Einsatz kommt in ${n} Teilen</h3>
       <div class="msub">Kein Mangel — so passt er in jede Schublade</div>
-      ${snapSVG()}
+      ${bild}
       <p style="font-size:13px;color:var(--mut);margin-top:6px;line-height:1.6">Deine Schublade ist grösser als unser Druckbereich (2-Düsen-Betrieb: ~290×310 mm). Darum drucken wir den Einsatz in <b style="color:var(--ink)">${n} passgenauen Teilen</b> — geschnitten bevorzugt entlang der Trennwände, damit die Fugen kaum auffallen.</p>
       <ul>
         <li>Die Teile stecken mit angeformten Schwalbenschwanz-Leisten zusammen — von oben in der Schublade, ganz ohne Kleber und ohne lose Kleinteile.</li>
         <li>Zusammengesteckt ergibt sich exakt dein konfigurierter Einsatz.</li>
         <li>Jedes Teil ist einzeln entnehmbar und passt sauber in deine Schublade.</li>
+        ${aktuelle&&aktuelle.stifte?`<li>🧵 Dazu ein Beutel mit <b style="color:var(--ink)">${aktuelle.stifte.gesamt} Steckstiften</b> (davon ${aktuelle.stifte.ersatz} Ersatz) — liegend gedruckt und dadurch um ein Mehrfaches bruchfester; abgebrochene Stifte lassen sich von unten rausdrücken und ersetzen.</li>`:''}
       </ul>`;
   }
   btns.innerHTML='';
@@ -1531,7 +1721,7 @@ $('modal-bg').addEventListener('click',e=>{ if(e.target===$('modal-bg')) schlies
 // bei mehrteiligen Einsätzen ist die Modul-Info PFLICHT und muss bestätigt
 // werden, bevor die Datei kommt.
 function mitLieferGate(fn){
-  if(anzahlModule()>1) zeigeLieferModal('confirm', fn);
+  if(anzahlModule()>1 || (aktuelle&&aktuelle.stifte)) zeigeLieferModal('confirm', fn);
   else fn();
 }
 $('ex3mf').addEventListener('click',()=>mitLieferGate(()=>busy($('ex3mf'),()=>exportTeile('3mf'))));
@@ -1541,6 +1731,9 @@ function blobB64(blob){ return new Promise(res=>{ const r=new FileReader(); r.on
 async function inWarenkorb(){
   const a=aktuelle, dateien={};
   for(let k=0;k<a.module.length;k++){ const off=bboxOffset(a.module[k]); const b=await make3mfMulti([{geo:a.module[k],name:`Modul ${k+1}`,...off}]); dateien[`modul_${k+1}`]=await blobB64(b); }
+  if(a.stifte){ const off=bboxOffset(a.stifte.geo);
+    const b=await make3mfMulti([{geo:a.stifte.geo,name:`Steckstifte (${a.stifte.gesamt} Stk)`,...off}]);
+    dateien['steckstifte']=await blobB64(b); }
   const pi=preisInfo();
   const rappen=Math.round(pi.total*100);                 // Konfigurator rechnet in CHF
   const L=layout(), hatText=L.leaves.some(l=>l.n.label&&(l.n.label.txt||'').trim());
@@ -1550,7 +1743,8 @@ async function inWarenkorb(){
     typ:'organizer', titel:`Schubladen-Organizer · ${P.sb}×${P.st}×${P.eh} mm · ${n} Teil${n>1?'e':''}`,
     menge:1, gesamtRappen:rappen, stueckRappen:rappen,
     konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length,
-             zapfen:a.zapfen, spezialFaecher:a.spezialFaecher },
+             zapfen:a.zapfen, spezialFaecher:a.spezialFaecher,
+             ...(a.stifte?{ steckstifte:a.stifte.gesamt, ersatzstifte:a.stifte.ersatz }:{}) },
     dateien,
   });
   (window.top||window).location.href='/warenkorb';

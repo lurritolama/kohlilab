@@ -12,9 +12,10 @@ const MASCHINE_RP_H = 50;       // 0.50 CHF/h
 // Zusatzzeit wird separat gerechnet und höher bepreist (langsam, Fehldruck-
 // Risiko, Maschine überproportional blockiert).
 const FEIN_RP_H = 250;          // 2.50 CHF je Feindruck-Stunde
-// Kalibrierung: +6.1 h real / ~50 Zapfen ≈ 7 min — gemessen aber mit der
-// experimentellen 0.2er-Düse. Produktion läuft mit 0.4 (≈ halbe Zeit) -> 4.
-const GARN_MIN_JE_ZAPFEN = 4;   // min je Garn-Zapfen (0.4er-Düse, Standard)
+// Steckstifte (09.08.2026): Zapfen werden separat LIEGEND gedruckt statt als
+// stehende Türme — der Feindruck-Aufwand entfällt fast ganz. Bleibt: etwas
+// Bett-Belegung, Aufnahme-Kuppeln, Beutel + 10 % Ersatzstifte.
+const GARN_MIN_JE_ZAPFEN = 1;   // min je Steck-Zapfen (liegend, inkl. Ersatz)
 const MIN_JE_SPEZIALFACH = 25;  // pauschal je Fach mit anderem Spezial-Einsatz
 
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
