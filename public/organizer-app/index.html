@@ -76,21 +76,29 @@
   .lbl .mz{pointer-events:auto;cursor:text;text-decoration:underline dotted rgba(255,107,26,.75);text-underline-offset:2px}
   .lbl .mz:hover{color:var(--acc)}
   .lbl input{pointer-events:auto;width:4ch;background:#17181b;border:1px solid var(--acc);color:var(--acc2);border-radius:3px;font-family:var(--mono);font-size:inherit;padding:0 2px;text-align:center;outline:none}
-/* ---------- Mobil-Modus (Stufe B): Vollbild-3D + schlanke Leiste ---------- */
-.mobil #panel{ display:none; }
-.mobil #view{ position:fixed; inset:0 0 148px 0; width:100%; }
+/* ---------- Mobil-Modus (Stufe A): Vollbild-3D, alles bedienbar ---------- */
+.mobil #view{ position:fixed; inset:0 0 112px 0; width:100%; }
 .mobil #topbar button{ font-size:11px; padding:5px 7px; }
+.mobil #panel{ display:none; }
+/* Bedienfeld als Bottom-Sheet ueber der Leiste — kompletter Funktionsumfang
+   inkl. «In den Warenkorb»; schliesst per ⚙️ oder Tipp ins 3D. */
+.mobil.panel-offen #panel{ display:block; position:fixed; left:0; right:0;
+  bottom:112px; top:auto; width:auto; max-height:64vh; overflow-y:auto;
+  z-index:28; border-top:2px solid var(--acc); box-shadow:0 -12px 30px rgba(0,0,0,.5); }
 #mobilbar{ position:fixed; left:0; right:0; bottom:0; background:#1b1d20;
-  border-top:1px solid #33363b; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-  display:flex; flex-direction:column; gap:7px; z-index:30; }
-#mobilbar .mb-hinweis{ font-size:11px; color:var(--mut); line-height:1.45; }
-#mobilbar .mb-vorlagen{ display:flex; gap:6px; overflow-x:auto; }
-#mobilbar .mb-vorlagen button{ background:#26282c; color:var(--ink); border:1px solid #3a3e44;
-  border-radius:6px; padding:6px 11px; font-size:12px; white-space:nowrap; }
-#mobilbar .mb-unten{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-#mobilbar .mb-preis{ font-family:var(--mono); color:var(--acc2); font-weight:700; font-size:15px; }
-#mobilbar .mb-teilen{ background:var(--acc); color:#141517; border:0; border-radius:7px;
-  padding:8px 13px; font-weight:700; font-size:13px; }
+  border-top:1px solid #33363b; padding:7px 10px calc(7px + env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:6px; z-index:30; }
+#mobilbar .mb-hinweis{ font-size:11px; color:var(--mut); line-height:1.4; }
+#mobilbar .mb-unten{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#mobilbar .mb-modus{ display:flex; border:1px solid #3a3e44; border-radius:8px; overflow:hidden; }
+#mobilbar .mb-modus button{ background:#26282c; color:var(--mut); border:0;
+  padding:8px 10px; font-size:12.5px; white-space:nowrap; }
+#mobilbar .mb-modus button.aktiv{ background:var(--acc); color:#141517; font-weight:700; }
+#mobilbar .mb-rechts{ display:flex; align-items:center; gap:8px; }
+#mobilbar .mb-preis{ font-family:var(--mono); color:var(--acc2); font-weight:700; font-size:13.5px; }
+#mobilbar .mb-knopf{ background:#26282c; color:var(--ink); border:1px solid #3a3e44;
+  border-radius:8px; padding:8px 10px; font-size:13px; white-space:nowrap; }
+#mobilbar .mb-knopf.aktiv{ background:var(--acc); color:#141517; border-color:var(--acc); font-weight:700; }
 </style>
 </head>
 <body>
@@ -1247,7 +1255,7 @@ function fachAn(p){
 window.__dbgKlick=(x,y)=>{ const p=pick({clientX:x,clientY:y}); return { p, wand: !!(p&&wandAn(p)), fach: p?(fachAn(p)?.pfad||null):null }; };
 renderer.domElement.addEventListener('pointerdown', ev=>{
   menu.style.display='none';
-  if(MOBIL){ downAt=null; return; }      // Stufe B: am Handy nur ansehen/drehen
+  if(MOBIL && !mobilBearbeiten){ downAt=null; return; }   // Dreh-Modus: 1 Finger = Kamera
   if(explode){ downAt=null; return; }
   const p=pick(ev); if(!p){ downAt=null; return; }
   downAt={x:ev.clientX, y:ev.clientY};
@@ -1881,33 +1889,53 @@ async function linkTeilen(){
   catch(e){ prompt('Link zu deiner Konfiguration:', url); }
 }
 
-// ---------- Mobil-Modus (Stufe B: ansehen, drehen, Vorlagen, Preis) --------
-// Bearbeiten (Wände ziehen, Fach-Menüs) braucht Präzision und Übersicht —
-// das bleibt dem Rechner vorbehalten; der Stand wandert per Link mit.
+// ---------- Mobil-Modus (Stufe A: ALLES geht — auch bestellen) -------------
+// Manolos Vorgabe (10.08.): was am Rechner geht, geht auch am Smartphone.
+// Loesung fuer den Finger-Konflikt: Modus-Schalter. «Drehen» = 1 Finger
+// Kamera; «Bearbeiten» = 1 Finger tippt Faecher/zieht Waende (2 Finger
+// zoomen weiterhin). Das komplette Bedienfeld (inkl. «In den Warenkorb»)
+// oeffnet als Bottom-Sheet ueber ⚙️. Der Rechner-Hinweis bleibt praesent.
+let mobilBearbeiten=false;
 if(MOBIL){
   document.body.classList.add('mobil');
   const bar=document.createElement('div'); bar.id='mobilbar';
-  bar.innerHTML=`<div class="mb-hinweis">📱 Ansehen, drehen, Vorlage wählen — fürs übersichtliche Bearbeiten empfehlen wir den Rechner. Dein Stand wandert per Link mit.</div>`;
-  const reihe=document.createElement('div'); reihe.className='mb-vorlagen';
-  Object.keys(VORLAGEN).forEach(name=>{
-    const b=document.createElement('button'); b.textContent=name;
-    b.addEventListener('click',()=>{ snapshot(); tree=VORLAGEN[name](); rebuild(); });
-    reihe.appendChild(b);
-  });
-  bar.appendChild(reihe);
+  bar.innerHTML=`<div class="mb-hinweis">💡 Hier geht alles — am Rechner ist es einfach übersichtlicher. Dein Stand wandert per 🔗-Link mit.</div>`;
   const unten=document.createElement('div'); unten.className='mb-unten';
-  unten.innerHTML=`<span id="mbPreis" class="mb-preis"></span>`;
-  const teilen=document.createElement('button'); teilen.className='mb-teilen';
-  teilen.textContent='🔗 An mich senden';
+  const modus=document.createElement('div'); modus.className='mb-modus';
+  const bDreh=document.createElement('button'); bDreh.textContent='🔄 Drehen'; bDreh.classList.add('aktiv');
+  const bEdit=document.createElement('button'); bEdit.textContent='✏️ Bearbeiten';
+  const setzeModus=(edit)=>{ mobilBearbeiten=edit;
+    controls.enableRotate=!edit;                    // 1 Finger: Kamera ODER Bearbeiten
+    bDreh.classList.toggle('aktiv',!edit); bEdit.classList.toggle('aktiv',edit);
+    hudLive(edit?'✏️ Fach antippen = Menü · Wand ziehen = verschieben · 2 Finger = zoomen'
+               :'🔄 1 Finger drehen · 2 Finger zoomen'); };
+  bDreh.addEventListener('click',()=>setzeModus(false));
+  bEdit.addEventListener('click',()=>setzeModus(true));
+  modus.append(bDreh,bEdit);
+  const rechts=document.createElement('div'); rechts.className='mb-rechts';
+  rechts.innerHTML=`<span id="mbPreis" class="mb-preis"></span>`;
+  const teilen=document.createElement('button'); teilen.className='mb-knopf';
+  teilen.textContent='🔗'; teilen.title='Konfiguration an mich senden';
   teilen.addEventListener('click',linkTeilen);
-  unten.appendChild(teilen);
+  const einst=document.createElement('button'); einst.className='mb-knopf mb-einst';
+  einst.textContent='⚙️ Menü';
+  einst.addEventListener('click',()=>{
+    document.body.classList.toggle('panel-offen');
+    einst.classList.toggle('aktiv', document.body.classList.contains('panel-offen'));
+  });
+  rechts.append(teilen,einst);
+  unten.append(modus,rechts);
   bar.appendChild(unten);
   document.body.appendChild(bar);
+  // Sheet schliesst, wenn man ins 3D tippt
+  view.addEventListener('pointerdown',()=>{ document.body.classList.remove('panel-offen'); einst.classList.remove('aktiv'); });
 }
 
 hashLesen().then(ok=>{
   if(!ok) tree=VORLAGEN['Bürotisch']();
   rebuild();
+  resize();          // Mobil-Layout ist erst JETZT fertig — sonst startet die
+                     // Leinwand mit falscher Groesse (schwarzes Bild).
 });
 (function loop(){ requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x+80, camera.position.y+120, Math.abs(camera.position.z)+260); updateLabels(); renderer.render(scene,camera); })();
 
