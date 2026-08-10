@@ -5,7 +5,7 @@
  */
 import { unzipSync, strFromU8 } from 'fflate';
 
-const DICHTE = 1.24; // g/cm³ (PLA)
+const DICHTE = 1.27; // g/cm³ (PETG — wir drucken PETG, nicht PLA)
 
 function modelXml(buf: Buffer): string {
   const files = unzipSync(new Uint8Array(buf));

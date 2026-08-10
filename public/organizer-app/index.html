@@ -135,7 +135,7 @@
 
   <div class="grp"><h2>6 · Preis</h2>
     <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
-    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.– + Zuschläge. Versand separat.</div>
+    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.50 + Zuschläge + 8 % Ausfallrisiko. Versand separat.</div>
   </div>
 
   <div class="grp" id="lieferGrp"><h2>Lieferung</h2>
@@ -213,24 +213,31 @@ const BETT = { x:290, y:310 };
 const DOVE = { kd:5, wn:4.5, wt:10, stufen:4, fit:0.20, bw:7, bh:13, hLow:16 };
 // Preisrechnung (individuell, live): Manolos Sätze
 const PREIS = {
-  grund: 9,            // CHF je Auftrag (Handling, Kontrolle, Verpackung)
+  grund: 9.5,          // CHF je Auftrag (Handling, Kontrolle, Verpackung)
   filamentKg: 30,      // CHF je kg Filament
   stundensatz: 0.5,    // CHF je Druckstunde (Maschine)
   durchsatz: 25,       // g je Stunde (H2D, Schätzung)
-  dichte: 1.24,        // g/cm³ (PLA)
+  dichte: 1.27,        // g/cm³ (PETG — wir drucken PETG, nicht PLA)
   modul: 5,            // CHF je ZUSATZ-Modul
   text: 3,             // CHF pauschal bei Beschriftung
-  min: 15,             // Mindestpreis
+  min: 16,             // Mindestpreis
+  // Ausfallrisiko (Manolo 10.08.): misslungene Drucke kosten Material,
+  // Maschinenzeit und Nacharbeit. Wird offen auf die DRUCKKOSTEN
+  // (Material + Maschine + Feindruck) geschlagen, nicht auf Grundpreis
+  // und Modulzuschlag — die fallen bei einem Fehldruck nicht doppelt an.
+  ausfall: 0.08,       // 8 % Aufschlag auf die Druckkosten
   // Spezial-Einsätze: das Gewicht-Zeit-Modell (25 g/h) versagt bei
   // Feindruck — der Lydie-Garneinsatz brauchte real 13.9 g/h statt 25.
   // Darum wird die ZUSATZ-Zeit der Einsätze separat gerechnet und mit dem
   // Feindruck-Satz bepreist (langsam + Fehldruck-Risiko + Maschine blockiert).
-  feinSatz: 2.5,       // CHF je Feindruck-Stunde
+  // Spezial-Einsaetze sind anspruchsvoll und langwierig: langsam, fehler-
+  // anfaellig, blockieren die Maschine ueberproportional (Manolo 10.08.).
+  feinSatz: 4.5,       // CHF je Feindruck-Stunde
   // Steckstifte (seit 09.08.2026): liegend gedruckt statt als stehende
   // Tuerme — die 4 min/Zapfen Feindruck entfallen fast ganz. Bleibt: etwas
   // Bett-Belegung, Aufnahme-Kuppeln, Beutel + Ersatzstifte.
-  garnMinuten: 1,      // min je Steck-Zapfen (liegend, inkl. Ersatz-Anteil)
-  einsatzMinuten: 25,  // min pauschal je Fach mit anderem Spezial-Einsatz
+  garnMinuten: 1.5,    // min je Steck-Zapfen (liegend, inkl. Ersatz-Anteil)
+  einsatzMinuten: 45,  // min pauschal je Fach mit anderem Spezial-Einsatz
 };
 
 const P = {
@@ -1019,17 +1026,19 @@ function preisInfo(){
   const zModule=(a.module.length-1)*PREIS.modul;
   const hatText=layout().leaves.some(l=>l.n.label && (l.n.label.txt||'').trim());
   const zText=hatText?PREIS.text:0;
-  const roh=PREIS.grund+material+maschine+fein+zModule+zText;
+  const risiko=(material+maschine+fein)*PREIS.ausfall;   // Ausfallquote
+  const roh=PREIS.grund+material+maschine+fein+risiko+zModule+zText;
   const total=Math.max(PREIS.min, Math.ceil(roh*2)/2);
-  return { g, stunden, material, maschine, fein, feinStunden, zModule, zText, total };
+  return { g, stunden, material, maschine, fein, feinStunden, risiko, zModule, zText, total };
 }
 function preisAnzeigen(){
   const pi=preisInfo();
   const f=v=>v.toFixed(2);
   document.getElementById('preisBox').innerHTML =
     `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h<br>`+
-    `Grund 9.00 · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
+    `Grund ${f(PREIS.grund)} · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
     (pi.fein?` · Spezial-Einsätze +${f(pi.fein)} <span style="opacity:.75">(≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+
+    ` · <span title="Deckt misslungene Drucke: Material, Maschinenzeit und Nacharbeit">Ausfallrisiko ${f(pi.risiko)}</span>`+
     (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Text +${f(pi.zText)}`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
   const mb=document.getElementById('mbPreis');
@@ -1929,6 +1938,30 @@ if(MOBIL){
   document.body.appendChild(bar);
   // Sheet schliesst, wenn man ins 3D tippt
   view.addEventListener('pointerdown',()=>{ document.body.classList.remove('panel-offen'); einst.classList.remove('aktiv'); });
+
+  // Deutliche Start-Meldung (Manolo 10.08.): am Handy geht zwar alles,
+  // aber es ist Gefummel — der Rechner-Tipp soll GROSS kommen, wie die
+  // fruehere Karte, nicht nur als Kleingedrucktes in der Leiste.
+  const inhalt=$('modal-inhalt'), btns=$('modal-btns');
+  inhalt.innerHTML=`<h3>🖥️ Tipp: Am Rechner geht's leichter</h3>
+    <div class="msub">Hier funktioniert zwar alles — auch bestellen</div>
+    <p style="font-size:13.5px;color:var(--mut);margin-top:12px;line-height:1.6">Auf dem kleinen Bildschirm ist das Konfigurieren aber ein ziemliches Gefummel. <b style="color:var(--ink)">Am Rechner hast du mehr Übersicht und Präzision.</b> Dein Stand wandert per Link einfach mit — jetzt senden, später am Rechner weitermachen.</p>
+    <div style="font-size:12.5px;color:var(--ink);font-weight:700;margin:14px 0 6px">So funktioniert's</div>
+    <ul style="font-size:12.5px;color:var(--mut);line-height:1.55;margin:0;padding-left:18px">
+      <li><b style="color:var(--ink)">🔄 Drehen</b> — 1 Finger dreht die Schublade, 2 Finger zoomen.</li>
+      <li><b style="color:var(--ink)">✏️ Bearbeiten</b> — Fach antippen öffnet das Menü: teilen, Wand entfernen, Spezial-Einsatz (Garn, Bits, Batterien …), beschriften. Wände lassen sich direkt ziehen.</li>
+      <li><b style="color:var(--ink)">⚙️ Menü</b> — Schubladenmasse, Vorlagen, Farbe, Preis und <b style="color:var(--ink)">In den Warenkorb</b>.</li>
+      <li><b style="color:var(--ink)">🔗</b> — Konfiguration an dich selbst senden und am Rechner weitermachen.</li>
+    </ul>`;
+  btns.innerHTML='';
+  const send=document.createElement('button'); send.className='m-primary';
+  send.textContent='🔗 Link an mich senden';
+  send.onclick=()=>{ schliesseModal(); linkTeilen(); };
+  const weiter=document.createElement('button'); weiter.className='m-ghost';
+  weiter.textContent='Hier weitermachen';
+  weiter.onclick=schliesseModal;
+  btns.append(send, weiter);
+  $('modal-bg').classList.add('on');
 }
 
 hashLesen().then(ok=>{

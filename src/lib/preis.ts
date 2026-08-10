@@ -11,12 +11,18 @@ const MASCHINE_RP_H = 50;       // 0.50 CHF/h
 // Türmen — der Lydie-Garneinsatz lief real mit 13.9 g/h statt 25. Die
 // Zusatzzeit wird separat gerechnet und höher bepreist (langsam, Fehldruck-
 // Risiko, Maschine überproportional blockiert).
-const FEIN_RP_H = 250;          // 2.50 CHF je Feindruck-Stunde
+// Spezial-Einsätze sind anspruchsvoll und langwierig (Manolo 10.08.2026):
+// langsam, fehleranfällig, blockieren die Maschine überproportional.
+const FEIN_RP_H = 450;          // 4.50 CHF je Feindruck-Stunde
 // Steckstifte (09.08.2026): Zapfen werden separat LIEGEND gedruckt statt als
 // stehende Türme — der Feindruck-Aufwand entfällt fast ganz. Bleibt: etwas
 // Bett-Belegung, Aufnahme-Kuppeln, Beutel + 10 % Ersatzstifte.
-const GARN_MIN_JE_ZAPFEN = 1;   // min je Steck-Zapfen (liegend, inkl. Ersatz)
-const MIN_JE_SPEZIALFACH = 25;  // pauschal je Fach mit anderem Spezial-Einsatz
+const GARN_MIN_JE_ZAPFEN = 1.5; // min je Steck-Zapfen (liegend, inkl. Ersatz)
+const MIN_JE_SPEZIALFACH = 45;  // pauschal je Fach mit anderem Spezial-Einsatz
+// Ausfallquote: misslungene Drucke kosten Material, Maschinenzeit und
+// Nacharbeit. Aufschlag NUR auf die Druckkosten — Grundpreis und
+// Modulzuschlag fallen bei einem Fehldruck nicht doppelt an.
+const AUSFALL = 0.08;           // 8 %
 
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
 export function organizerPreisRappen(o: {
@@ -31,8 +37,10 @@ export function organizerPreisRappen(o: {
   const material = o.gramm * FILAMENT_RP_G;
   const maschine = (o.gramm / 25) * MASCHINE_RP_H;              // ~25 g/h
   const fein = ((zapfen * GARN_MIN_JE_ZAPFEN + spezialFaecher * MIN_JE_SPEZIALFACH) / 60) * FEIN_RP_H;
-  const roh = 900 + material + maschine + fein + Math.max(0, o.module - 1) * 500 + (o.hatText ? 300 : 0);
-  return Math.max(1500, Math.ceil(roh / 50) * 50);             // min 15.–, Rundung 0.50
+  const risiko = (material + maschine + fein) * AUSFALL;
+  const roh = 950 + material + maschine + fein + risiko
+            + Math.max(0, o.module - 1) * 500 + (o.hatText ? 300 : 0);
+  return Math.max(1600, Math.ceil(roh / 50) * 50);             // min 16.–, Rundung 0.50
 }
 
 /** Schild-Rohpreis PRO STÜCK (ohne Grundpreis, ohne Staffel). */
