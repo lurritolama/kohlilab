@@ -210,7 +210,14 @@ const BETT = { x:290, y:310 };
 // an der Modul-Fuge — von oben einschieben, keine losen Teile.
 // kd = Tiefe der Leiste, wn = Halsbreite, wt = Endbreite (Hinterschnitt),
 // fit = Spiel je Seite. Über die volle Bauteilhöhe extrudiert.
-const DOVE = { kd:5, wn:4.5, wt:10, stufen:4, fit:0.20, bw:7, bh:13, hLow:16 };
+// stufen: Die Zellen-Engine kann keine Schraegen — die Schwalbenschwanz-
+// Flanke entsteht aus Stufen. Mit 8 statt 4 ist eine Stufe 0.34 mm breit,
+// also SCHMALER als eine Extrusionsbahn (0.42 mm bei 0.4er Duese): der
+// Slicer legt dort keine eigene Bahn mehr, die Flanke druckt als gerade
+// Linie (Manolo 10.08.2026). Mehr Stufen kosten unverhaeltnismaessig viel —
+// jede Stufe verdichtet das GLOBALE Raster: 16 Stufen ergaben im Extremfall
+// (520x400, 4 Module) 564k statt 149k Dreiecke und 1.6 s Rebuild.
+const DOVE = { kd:5, wn:4.5, wt:10, stufen:8, fit:0.20, bw:7, bh:13, hLow:16 };
 // Preisrechnung (individuell, live): Manolos Sätze
 const PREIS = {
   grund: 9.5,          // CHF je Auftrag (Handling, Kontrolle, Verpackung)
@@ -308,6 +315,9 @@ function einsatzDaten(lf, plan){
   if(!typ || !EINSAETZE[typ]) return null;
   const W=r.x1-r.x0, D=r.y1-r.y0, m=2;
   let zapfen=0, stift=null;                            // nur Garn: Anzahl + Stift-Bauplan
+  // Glatte Zusatzkoerper (Drehkoerper), die ueber den Zellen liegen —
+  // damit runde Einsatzformen rund BLEIBEN statt in Stufen zu zerfallen.
+  const schalen=[];
   const xs=[], ys=[], b=P.boden;
   const cap=h=>Math.min(h, P.eh-2);
   const reich=DOVE.kd+DOVE.fit, tHalb=DOVE.wt/2+DOVE.fit;
@@ -346,7 +356,11 @@ function einsatzDaten(lf, plan){
     const bhh=ny*(rw+wall)+wall;
     const by0=r.y0+(D-bhh)/2, bx0=r.x0+m, bx1=r.x1-m;
     xs.push(bx0,bx1); ys.push(by0, by0+bhh);
-    const stufen=[[0.16,1],[0.30,0.82],[0.42,0.55],[0.50,0.22]];
+    // Halbrund-Profil in feinen Stufen (12 statt 4): die Rinne wirkt rund,
+    // die Reststufen liegen unter 0.5 mm und verschwinden im Druck.
+    const NS=12, stufen=[];
+    for(let i=NS;i>=1;i--){ const f=0.5*i/NS;           // Anteil der Rinnenbreite
+      stufen.push([f, Math.sqrt(Math.max(0,1-(f/0.5)*(f/0.5)))]); }
     const zentren=[];
     for(let j=0;j<ny;j++){
       const c=by0+wall+j*(rw+wall)+rw/2;
@@ -379,7 +393,7 @@ function einsatzDaten(lf, plan){
     // Fachtiefe und Einsatzhöhe (max 25 mm), in 8 Stufen (druckbar, dicht).
     const R=Math.min(P.eh-b-2, D*0.5, 25);
     if(R>=5){
-      const N=8, seg=[];
+      const N=16, seg=[];
       for(let i=0;i<N;i++){
         const d1=R*(i+1)/N, dm=R*(i+0.5)/N;
         const h=R-Math.sqrt(Math.max(0, R*R-(R-dm)*(R-dm)));
@@ -417,37 +431,36 @@ function einsatzDaten(lf, plan){
     }
   }
   else if(typ==='ringk'){
-    // Gestufte Kegel: Ringe aufstecken — sortieren sich nach Grösse von selbst.
-    const pitch=30, N=5, hwB=9, hwT=3.5;             // Basis ⌀18, Spitze ⌀7
+    // Runde Kegel: Ringe aufstecken — sortieren sich nach Groesse von selbst.
+    // Als glatter Drehkoerper eingelegt statt in Zellen-Stufen; der Zellen-
+    // Boden bleibt darunter voll, die Koerper ueberlappen (Slicer vereinigt).
+    const pitch=30, rB=9, rT=3.5;                    // Basis 18 mm, Spitze 7 mm
     const nx=Math.max(1, Math.floor((W-2*m)/pitch)), ny=Math.max(1, Math.floor((D-2*m)/pitch));
     const cx0=r.x0+(W-nx*pitch)/2+pitch/2, cy0=r.y0+(D-ny*pitch)/2+pitch/2;
     const Hk=cap(b+30)-b;
-    const lvl=[];                                    // [Halbweite, Oberkante] breit→schmal
-    for(let i=0;i<N;i++) lvl.push([hwB-(hwB-hwT)*i/(N-1), b+Hk*(i+1)/N]);
     const zentren=[];
     for(let i=0;i<nx;i++) for(let j=0;j<ny;j++){
       const px=cx0+i*pitch, py=cy0+j*pitch;
-      if(stoert(px,py,hwB)) continue;                // nie halbe Kegel am Modulrand
+      if(stoert(px,py,rB)) continue;                 // nie halbe Kegel am Modulrand
       zentren.push([px,py]);
-      for(const [hw] of lvl){ xs.push(px-hw,px-hw*0.41,px+hw*0.41,px+hw); ys.push(py-hw,py-hw*0.41,py+hw*0.41,py+hw); }
+      xs.push(px-rB,px+rB); ys.push(py-rB,py+rB);    // grobe Standflaeche ins Raster
     }
-    fn=(cx,cy)=>{
-      for(const [px,py] of zentren){
-        const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
-        if(dx>hwB||dy>hwB) continue;
-        let z=null;                                  // schmalste passende Stufe = höchste
-        for(const [hw,zo] of lvl) if(dx<=hw&&dy<=hw&&dx+dy<=hw*1.31) z=zo;
-        if(z!==null) return z;
-      }
-      return b;
-    };
+    // Profil (r,z): Achse unten -> Fussrand -> Mantel -> gerundete Kuppe
+    const kup=rT*0.8, prof=[[0,0],[rB,0],[rT,b+Hk-kup]];
+    for(let s=1;s<=6;s++){ const w=s/6*Math.PI/2;
+      prof.push([rT*Math.cos(w), b+Hk-kup+Math.sin(w)*kup]); }
+    schalen.push({ prof, zentren });
+    fn=(cx,cy)=>b;                                   // Boden bleibt eben
   }
   else if(typ==='uhr'){
     // Breiter Quersteg mit gerundeter Schulter — Uhr/Armband drüberlegen,
     // die Bänder hängen beidseitig in den Freiraum.
     const wb=26, mitte=(r.y0+r.y1)/2;
     const H=cap(b+32);
-    const prof=[[0.28,0],[0.36,3],[0.43,7],[0.50,12]];   // [Anteil Breite, Absenkung]
+    // Gerundete Schulter in 12 Stufen statt 4 (Kreisbogen, Absenkung bis 12 mm)
+    const NP=12, prof=[];
+    for(let i=1;i<=NP;i++){ const f=0.28+(0.50-0.28)*i/NP, u=(f-0.28)/(0.50-0.28);
+      prof.push([f, 12*(1-Math.sqrt(Math.max(0,1-u*u)))]); }
     const bx0=r.x0+m, bx1=r.x1-m;
     xs.push(bx0,bx1);
     for(const [f] of prof){ ys.push(mitte-f*wb, mitte+f*wb); }
@@ -529,7 +542,7 @@ function einsatzDaten(lf, plan){
     };
   }
   if(!fn) return null;
-  return { xs, ys, zhi:fn, zapfen, stift };
+  return { xs, ys, zhi:fn, zapfen, stift, schalen };
 }
 
 // ---------- Fach-Beschriftung (bündig, farbig, auf der Grundplatte) ----------
@@ -594,7 +607,7 @@ function labelPlan(L, plan){
 // ---------- Modul-Schnitte + Schwalbenschwanz-Taschen ----------
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
-  if(passtDirekt) return { xs:[], ys:[], tenons:[] };
+  if(passtDirekt) return { xs:[], ys:[], tenons:[], getroffen:[] };
   const reich=DOVE.kd+DOVE.fit;                      // Zapfen-Reichweite über die Fuge (+Seite)
   // Schnitte MEIDEN Wände (Manolo-Regel): eine Fuge in einer parallelen Wand
   // halbiert sie längs (2×0.9mm-Reste = zu dünn), eine Fuge knapp daneben
@@ -602,6 +615,12 @@ function schnittPlan(L){
   // an der Wandkante (w.c+wand/2): Wand bleibt ganz auf der −Seite, Zapfen
   // zeigen in +Richtung ins offene Fach. Sonst: möglichst nahe an der
   // gleichmässigen Teilung, im wandfreien Bereich.
+  // Faecher mit Spezial-Einsatz sind SPERRZONEN (Manolo 10.08.2026): eine
+  // Fuge mitten durch ein Einsatzfeld liess frueher Features am Rand einfach
+  // weg (Loecher im Raster). Die Fuge weicht ihnen jetzt aus; nur wenn das
+  // geometrisch nicht mehr aufgeht, faellt sie doch hinein — dann warnt die
+  // App den Kunden (statt still Features zu schlucken).
+  const einsatzFaecher=L.leaves.filter(lf=>lf.n.einsatz);
   const schneide=(von,len,bett,dir)=>{
     const n=Math.ceil(len/bett);
     if(n<2) return [];
@@ -609,19 +628,33 @@ function schnittPlan(L){
     for(const w of L.walls){ if(w.dir!==dir) continue;
       zonen.push([w.c-P.wand/2-reich-1, w.c+P.wand/2-0.01]);
     }
+    // Sperrzonen der Einsatzfaecher (inkl. Zapfen-Reichweite auf beiden Seiten)
+    const weich=[];
+    for(const lf of einsatzFaecher){
+      const [q0,q1] = dir==='v' ? [lf.r.x0,lf.r.x1] : [lf.r.y0,lf.r.y1];
+      weich.push([q0-reich-1, q1+reich+1]);
+    }
     const erlaubt=c=>!zonen.some(([z0,z1])=>c>z0&&c<z1);
+    const frei=c=>!weich.some(([z0,z1])=>c>z0&&c<z1);
     const ende=von+len, cuts=[];
     let prev=von;
     for(let i=1;i<n;i++){
       const ideal=von+len*i/n;
       const lo=Math.max(prev+60, ende-(n-i)*bett);   // Rest muss noch aufs Bett passen
       const hi=Math.min(prev+bett, ende-(n-i)*60);   // Modul <= Bett, Rest nicht zu schmal
-      let best=null, bestD=1e9;
-      const probier=(cc,bonus)=>{ if(cc<lo-1e-6||cc>hi+1e-6||!erlaubt(cc)) return;
-        const dd=Math.abs(cc-ideal)-(bonus||0); if(dd<bestD){ bestD=dd; best=cc; } };
-      for(let cc=lo; cc<=hi; cc+=0.5) probier(cc, 0);
-      // Wandkanten als saubere Kandidaten (Fuge exakt an der Kante, leicht bevorzugt)
-      for(const w of L.walls) if(w.dir===dir) probier(w.c+P.wand/2, 0.4);
+      // Zwei Durchgaenge: erst nur Stellen, die KEIN Einsatzfach schneiden;
+      // findet sich keine, dieselbe Suche ohne diese Bedingung.
+      let best=null;
+      for(const meideEinsatz of [true,false]){
+        let bestD=1e9; best=null;
+        const probier=(cc,bonus)=>{ if(cc<lo-1e-6||cc>hi+1e-6||!erlaubt(cc)) return;
+          if(meideEinsatz && !frei(cc)) return;
+          const dd=Math.abs(cc-ideal)-(bonus||0); if(dd<bestD){ bestD=dd; best=cc; } };
+        for(let cc=lo; cc<=hi; cc+=0.5) probier(cc, 0);
+        // Wandkanten als saubere Kandidaten (Fuge exakt an der Kante, leicht bevorzugt)
+        for(const w of L.walls) if(w.dir===dir) probier(w.c+P.wand/2, 0.4);
+        if(best!==null) break;
+      }
       cuts.push(best!==null ? best : Math.max(lo, Math.min(hi, ideal)));
       prev=cuts[cuts.length-1];
     }
@@ -629,6 +662,11 @@ function schnittPlan(L){
   };
   const xs=schneide(L.x0,L.W,BETT.x,'v');
   const ys=schneide(L.y0,L.D,BETT.y,'h');
+  // Trotz Ausweichen getroffene Einsatzfaecher merken — die App warnt damit
+  // ehrlich, statt am Rand still Features wegzulassen.
+  const getroffen=einsatzFaecher.filter(lf=>
+    xs.some(c=>c>lf.r.x0-reich-1 && c<lf.r.x1+reich+1) ||
+    ys.some(c=>c>lf.r.y0-reich-1 && c<lf.r.y1+reich+1));
   // Schwalbenschwanz-Paare NUR im offenen Fachboden — nie in oder an Wänden
   // (kein Ankerben kreuzender Wände, keine Schlitze in der Gegenwand).
   // Bevorzugt in Fächern ohne Spezial-Einsatz; nie weniger als 2 pro Fuge
@@ -678,14 +716,14 @@ function schnittPlan(L){
   };
   lege(xs,'x', L.y0+P.wand, L.y0+L.D-P.wand, ys);
   lege(ys,'y', L.x0+P.wand, L.x0+L.W-P.wand, xs);
-  return { xs, ys, tenons };
+  return { xs, ys, tenons, getroffen };
 }
 // gestufte Halbbreiten der Schwalbenschwanz-Leiste (am Ende am breitesten)
 function doveStufen(){
-  const s=[];
-  for(let i=0;i<DOVE.stufen;i++){
-    s.push({ d0:i*DOVE.kd/DOVE.stufen, d1:(i+1)*DOVE.kd/DOVE.stufen,
-             hw: DOVE.wn/2 + (i+1)/DOVE.stufen*(DOVE.wt-DOVE.wn)/2 });
+  const s=[]; const NS=DOVE.stufen;
+  for(let i=0;i<NS;i++){
+    s.push({ d0:i*DOVE.kd/NS, d1:(i+1)*DOVE.kd/NS,
+             hw: DOVE.wn/2 + (i+1)/NS*(DOVE.wt-DOVE.wn)/2 });
   }
   return s;
 }
@@ -757,6 +795,43 @@ function baueStifte(specs){
     vol += (a[0]*(b[1]*q[2]-b[2]*q[1]) - a[1]*(b[0]*q[2]-b[2]*q[0]) + a[2]*(b[0]*q[1]-b[1]*q[0]))/6;
   }
   return { geo:g, volMm3:Math.abs(vol), gesamt, ersatz };
+}
+
+// Allgemeiner Drehkoerper: Profil [[r,z],...] als GESCHLOSSENER Ring um die
+// z-Achse revolviert (N Segmente). Damit werden runde Einsatz-Formen glatt,
+// statt in Zellen-Stufen zu zerfallen — die Engine kann nur Treppchen, ein
+// eingelegter Drehkoerper kann alles. Gibt Dreiecke + Volumen zurueck
+// (Divergenzsatz; falsche Orientierung wird geflippt).
+function drehMesh(prof, N=36){
+  const tris=[];
+  for(let i=0;i<prof.length;i++){
+    const [r1,z1]=prof[i], [r2,z2]=prof[(i+1)%prof.length];
+    for(let j=0;j<N;j++){
+      const a1=j/N*2*Math.PI, a2=(j+1)/N*2*Math.PI;
+      const p11=[r1*Math.cos(a1),r1*Math.sin(a1),z1], p12=[r1*Math.cos(a2),r1*Math.sin(a2),z1];
+      const p21=[r2*Math.cos(a1),r2*Math.sin(a1),z2], p22=[r2*Math.cos(a2),r2*Math.sin(a2),z2];
+      // Auf der Achse (r=0) faellt das Quad zu EINEM Faecher-Dreieck zusammen —
+      // sonst entstehen entartete Dreiecke mit doppelten Punkten und damit
+      // unpaarige Kanten (Kegel-Spitze, Boden-Mitte).
+      if(r1<=1e-9 && r2<=1e-9) continue;
+      else if(r1<=1e-9) tris.push(p11,p21,p22);
+      else if(r2<=1e-9) tris.push(p11,p21,p12);
+      else { tris.push(p11,p21,p22); tris.push(p11,p22,p12); }
+    }
+  }
+  let vol=0;
+  for(let i=0;i<tris.length;i+=3){
+    const a=tris[i], c=tris[i+1], d=tris[i+2];
+    vol += (a[0]*(c[1]*d[2]-c[2]*d[1]) - a[1]*(c[0]*d[2]-c[2]*d[0]) + a[2]*(c[0]*d[1]-c[1]*d[0]))/6;
+  }
+  if(vol<0){ for(let i=0;i<tris.length;i+=3){ const s=tris[i+1]; tris[i+1]=tris[i+2]; tris[i+2]=s; } vol=-vol; }
+  return { tris, vol };
+}
+
+// Schalen-Mesh einmal je Konfiguration bauen und am Objekt merken.
+function schalenMesh(sch){
+  if(!sch._mesh) sch._mesh=drehMesh(sch.prof, sch.N||36);
+  return sch._mesh;
 }
 
 // Glatte Garn-Kuppel als geschlossener Drehkoerper (Profil um z revolviert,
@@ -972,14 +1047,23 @@ function organizerGeometrien(){
       zip(gY.map(v=>[b.x0,v]), FY.map(v=>[ix0,v]), 1);
       zip(gY.map(v=>[b.x1,v]), FY.map(v=>[ix1,v]), 1);
     }
-    // Runde Garn-Kuppeln als zweite geschlossene Schale in dieses Modul
-    // einlegen (glatter Drehkoerper ueber dem groben Bodenloch).
+    // Glatte Zusatzkoerper in dieses Modul einlegen: Garn-Kuppeln und
+    // die runden Einsatz-Formen (Ring-Kegel & Co). Sie ueberlappen die
+    // Zellen-Geometrie; Slicer vereinigen ueberlappende Koerper.
     for(const {e} of einsaetze){
-      if(!e.stift || !e.stift.kuppel) continue;
-      const km=kuppelMesh(e.stift.kuppel);
-      for(const [px,py] of e.stift.zentren){
-        if(modIdx(px,py)!==m) continue;
-        for(const t of km.tris) push(t[0]+px, t[1]+py, t[2], cK);
+      if(e.stift && e.stift.kuppel){
+        const km=kuppelMesh(e.stift.kuppel);
+        for(const [px,py] of e.stift.zentren){
+          if(modIdx(px,py)!==m) continue;
+          for(const t of km.tris) push(t[0]+px, t[1]+py, t[2], cK);
+        }
+      }
+      for(const sch of (e.schalen||[])){
+        const dm=schalenMesh(sch);
+        for(const [px,py] of sch.zentren){
+          if(modIdx(px,py)!==m) continue;
+          for(const t of dm.tris) push(t[0]+px, t[1]+py, t[2], cK);
+        }
       }
     }
     const g=new THREE.BufferGeometry();
@@ -992,6 +1076,15 @@ function organizerGeometrien(){
   // Feindruck-Zählung für den Preis: Garn je Zapfen, andere Einsätze je Fach
   const zapfen=einsaetze.reduce((s,x)=>s+(x.e.zapfen||0),0);
   const spezialFaecher=einsaetze.filter(x=>x.lf.n.einsatz!=='garn').length;
+  // Volumen der runden Einsatz-Schalen (Kegel & Co) fuers Gewicht. Sie sitzen
+  // AUF dem Boden, ihr Profil startet bei z=0 -> Ueberlappung = Grundflaeche
+  // mal Bodenstaerke, die schon in volMm3 steckt.
+  for(const x of einsaetze) for(const sch of (x.e.schalen||[])){
+    const dm=schalenMesh(sch);
+    const rMax=Math.max(...sch.prof.map(q=>q[0]));
+    const ueberlapp=Math.PI*rMax*rMax*P.boden;
+    volMm3 += Math.max(0, dm.vol-ueberlapp) * sch.zentren.length;
+  }
   // Kuppel-Volumen (abzueglich Ueberlappung mit dem Bodenring) fuers Gewicht
   for(const x of einsaetze) if(x.e.stift&&x.e.stift.kuppel&&x.e.stift.zentren.length){
     const k=x.e.stift.kuppel, km=kuppelMesh(k);
@@ -1117,9 +1210,14 @@ function rebuild(){
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
   let modTxt = nMod>1 ? ` · ${nMod} Module (Schwalbenschwanz)` : '';
+  const getr = aktuelle.plan.getroffen || [];
+  const einsatzWarn = getr.length
+    ? `<br><span class="warn">⚠ ${getr.length===1?'Ein Fach mit Spezial-Einsatz liegt':`${getr.length} Fächer mit Spezial-Einsatz liegen`} auf einer Trennstelle — dort fallen einzelne Elemente weg. Verschieb die Wände etwas oder setz den Einsatz in ein anderes Fach.</span>`
+    : '';
   document.getElementById('hud').innerHTML =
     `Einsatz ${aktuelle.L.W.toFixed(0)}×${aktuelle.L.D.toFixed(0)}×${P.eh} mm · ${layout().leaves.length} Fächer${modTxt} · ${(tris/1000).toFixed(1)}k Dreiecke`+
-    (nMod>1?`<br><span class="warn">Grösser als H2D-Druckraum (2 Düsen: ~${BETT.x}×${BETT.y} nutzbar) — automatisch geteilt. Module von oben mit den Schwalbenschwanz-Leisten zusammenschieben.</span>`:'');
+    (nMod>1?`<br><span class="warn">Grösser als H2D-Druckraum (2 Düsen: ~${BETT.x}×${BETT.y} nutzbar) — automatisch geteilt. Module von oben mit den Schwalbenschwanz-Leisten zusammenschieben.</span>`:'')
+    + einsatzWarn;
 }
 
 // ---------- Live-Bemassung ----------
