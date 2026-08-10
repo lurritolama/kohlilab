@@ -8,14 +8,19 @@
  * zeigen, blenden wir unter 900 px einen deutlichen Hinweis ein. Wer trotzdem
  * will, kann den Konfigurator per Knopf öffnen (niemandem etwas wegnehmen).
  *
- * Der ?v=-Stempel ist der Cache-Buster pro Deploy; der Export-Schlüssel wird
- * clientseitig angehängt, damit die Seite statisch bleiben kann.
+ * Der ?v=-Stempel ist der Cache-Buster pro Deploy; Export-Schlüssel und
+ * #k=-Konfigurations-Fragment werden clientseitig angehängt, damit die Seite
+ * statisch bleiben kann.
+ *
+ * mobil="ansehen" (Organizer): unter 900 px wird das 3D trotzdem gezeigt —
+ * die App schaltet intern in den Ansichts-Modus (drehen, Vorlagen, Preis,
+ * Link an sich selbst senden); bearbeitet wird am Rechner weiter.
  */
-interface Props { app: string; titel: string }
-const { app, titel } = Astro.props;
+interface Props { app: string; titel: string; mobil?: 'hinweis' | 'ansehen' }
+const { app, titel, mobil = 'hinweis' } = Astro.props;
 const v = Date.now();
 ---
-<div class="konfig-frame">
+<div class={`konfig-frame konfig-frame--${mobil}`}>
   <div class="mobil-hinweis" data-mobil-hinweis>
     <div class="mh-karte">
       <span class="mh-icon" aria-hidden="true">🖥️</span>
@@ -32,7 +37,7 @@ const v = Date.now();
       </div>
     </div>
   </div>
-  <iframe src={`/${app}/index.html?v=${v}`} title={titel} data-konfig-frame></iframe>
+  <iframe src={`/${app}/index.html?v=${v}`} title={titel} data-konfig-frame allow="web-share"></iframe>
 </div>
 
 <script is:inline>
@@ -40,7 +45,12 @@ const v = Date.now();
     // Export-Schluessel durchreichen: /seite?export=... -> iframe?export=...
     var s = new URLSearchParams(location.search).get('export');
     var f = document.querySelector('[data-konfig-frame]');
-    if (s && f) f.src = f.getAttribute('src') + '&export=' + encodeURIComponent(s);
+    var src = f ? f.getAttribute('src') : '';
+    if (s) src += '&export=' + encodeURIComponent(s);
+    // gespeicherte Konfiguration (#k=...) ans iframe weiterreichen —
+    // so laesst sich ein am Handy begonnener Stand am Rechner fortsetzen
+    if (location.hash.indexOf('#k=') === 0) src += location.hash;
+    if (f && src !== f.getAttribute('src')) f.src = src;
 
     // "Trotzdem öffnen" hebt die Sperre für diese Seite auf
     var box = document.querySelector('.konfig-frame');
@@ -72,6 +82,11 @@ const v = Date.now();
     .mobil-hinweis { display: block; }
     .konfig-frame.zeig-trotzdem iframe { display: block; }
     .konfig-frame.zeig-trotzdem .mobil-hinweis { display: none; }
+    /* Modus "ansehen": 3D zeigen — die App schaltet selbst in den
+       Ansichts-Modus mit eigener Bedienleiste (Stufe B). */
+    .konfig-frame--ansehen { padding: 0 10px 30px; }
+    .konfig-frame--ansehen iframe { display: block; height: 82vh; min-height: 480px; }
+    .konfig-frame--ansehen .mobil-hinweis { display: none; }
   }
 
   .mh-karte {

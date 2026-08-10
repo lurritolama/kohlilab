@@ -76,6 +76,21 @@
   .lbl .mz{pointer-events:auto;cursor:text;text-decoration:underline dotted rgba(255,107,26,.75);text-underline-offset:2px}
   .lbl .mz:hover{color:var(--acc)}
   .lbl input{pointer-events:auto;width:4ch;background:#17181b;border:1px solid var(--acc);color:var(--acc2);border-radius:3px;font-family:var(--mono);font-size:inherit;padding:0 2px;text-align:center;outline:none}
+/* ---------- Mobil-Modus (Stufe B): Vollbild-3D + schlanke Leiste ---------- */
+.mobil #panel{ display:none; }
+.mobil #view{ position:fixed; inset:0 0 148px 0; width:100%; }
+.mobil #topbar button{ font-size:11px; padding:5px 7px; }
+#mobilbar{ position:fixed; left:0; right:0; bottom:0; background:#1b1d20;
+  border-top:1px solid #33363b; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:7px; z-index:30; }
+#mobilbar .mb-hinweis{ font-size:11px; color:var(--mut); line-height:1.45; }
+#mobilbar .mb-vorlagen{ display:flex; gap:6px; overflow-x:auto; }
+#mobilbar .mb-vorlagen button{ background:#26282c; color:var(--ink); border:1px solid #3a3e44;
+  border-radius:6px; padding:6px 11px; font-size:12px; white-space:nowrap; }
+#mobilbar .mb-unten{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+#mobilbar .mb-preis{ font-family:var(--mono); color:var(--acc2); font-weight:700; font-size:15px; }
+#mobilbar .mb-teilen{ background:var(--acc); color:#141517; border:0; border-radius:7px;
+  padding:8px 13px; font-weight:700; font-size:13px; }
 </style>
 </head>
 <body>
@@ -138,6 +153,7 @@
     <button id="btnExplode" style="display:none">⇤⇥ Module trennen</button>
     <button id="btnUndo" disabled>↶ Rückgängig</button>
     <button id="btnRedo" disabled>↷ Wiederholen</button>
+    <button id="btnTeilen" title="Aktuelle Konfiguration als Link kopieren — am anderen Gerät weitermachen">🔗 Teilen</button>
   </div>
   <div id="labels"></div>
   <div id="hud"></div>
@@ -455,11 +471,18 @@ function einsatzDaten(lf, plan){
     const halb=dicke/2;
     const steckD=Math.max(2.8, dicke-1.2);           // Steckteil, Schulter 0.6 rundum
     const lochR=(steckD+GARN_SPIEL)/2;
-    const wandR=lochR+1.2;                           // Kuppelspitze: Wand ums Loch
+    const wandR=lochR+1.2;                           // abgeflachte Kuppelspitze: Wand ums Loch
     const kupR=Math.min((pitch-1)/2, Math.max(4.5, halb+3.5));
     const kupH=Math.min(GARN_KUPPEL_H, Math.max(3, P.eh*0.12+2));
-    // Kuppel als 3 Stufen von aussen-flach nach innen-hoch (Dome-Profil)
-    const ringe=[ {r:wandR, h:kupH}, {r:(wandR+kupR)/2, h:kupH*0.72}, {r:kupR, h:kupH*0.4} ];
+    // RUNDE Kugelkuppel wie auf der Kalibrierplatte (Manolo, 09.08.):
+    // Die Zellen-Engine liefert hier nur noch den Boden mit einem GROBEN
+    // Durchgangsloch. Die glatte Kuppel selbst (Drehkoerper, 40 Segmente)
+    // wird bei der Emission als zweite geschlossene Schale ins Modul-Mesh
+    // gelegt — sie ueberdeckt das grobe Loch vollstaendig; Slicer vereinigen
+    // ueberlappende Koerper zuverlaessig. Druckglatte Zellen-Stufen haetten
+    // die Dreieckszahl explodieren lassen (gemessen: 690k statt 65k).
+    const RK=(kupR*kupR + kupH*kupH)/(2*kupH);       // Kugelradius aus Fuss+Hoehe
+    const roughR=lochR+0.8;                          // grobes Bodenloch, von der Kuppel verdeckt
     const nx=Math.max(1, Math.floor((W-2*m)/pitch)); // mind. 1 Zapfen (zentriert)
     const ny=Math.max(1, Math.floor((D-2*m)/pitch));
     const spanX=nx*pitch, spanY=ny*pitch;
@@ -470,9 +493,9 @@ function einsatzDaten(lf, plan){
       // Kuppelradius pruefen: Modulfugen duerfen die Aufnahme nicht anschneiden
       if(stoert(px,py,kupR)) continue;
       zentren.push([px,py]);
-      for(const rr of [lochR, wandR, ringe[1].r, kupR]){
-        xs.push(px-rr, px-rr*0.41, px+rr*0.41, px+rr);
-        ys.push(py-rr, py-rr*0.41, py+rr*0.41, py+rr);
+      for(const o of [1, 0.7071, 0]){
+        xs.push(px-roughR*o, px+roughR*o);
+        ys.push(py-roughR*o, py+roughR*o);
       }
     }
     zapfen=zentren.length;
@@ -480,13 +503,12 @@ function einsatzDaten(lf, plan){
     stift={ dicke, steckD, lochD:steckD+GARN_SPIEL,
             schaftL:Math.max(8,(H-b)-kupH),          // Schaft ab Kuppelspitze
             steckL:kupH+b-1.0,                       // endet 1 mm ueber der Unterseite
-            zentren, kupH };
+            zentren, kupH,
+            kuppel:{ lochR, wandR, kupR, kupH, RK, roughR } };
     fn=(cx,cy)=>{
       for(const [px,py] of zentren){
-        const dx=Math.abs(cx-px), dy=Math.abs(cy-py);
-        const okt=(rr)=> dx<=rr && dy<=rr && dx+dy<=rr*1.31;
-        if(okt(lochR)) return 0;                     // DURCHGANGSLOCH (bis z=0)
-        for(const st of ringe) if(okt(st.r)) return b+st.h;   // gestufte Kuppel
+        const dx=cx-px, dy=cy-py;
+        if(dx*dx+dy*dy<=roughR*roughR) return 0;     // grobes DURCHGANGSLOCH
       }
       return b;                                      // fester Boden dazwischen
     };
@@ -722,6 +744,42 @@ function baueStifte(specs){
   return { geo:g, volMm3:Math.abs(vol), gesamt, ersatz };
 }
 
+// Glatte Garn-Kuppel als geschlossener Drehkoerper (Profil um z revolviert,
+// 40 Segmente): Bodenring ab z=0, Aussenwand, Kugelbogen, Planflaeche am
+// Loch, Lochwand. Wird EINMAL pro Konfiguration gebaut (zentriert) und bei
+// der Emission je Aufnahme verschoben eingelegt. Liefert auch das Volumen
+// (Divergenzsatz) fuer die Preisrechnung; negative Orientierung wird geflippt.
+function kuppelMesh(k){
+  if(k._mesh) return k._mesh;
+  const N=40, b=P.boden;
+  const prof=[[k.lochR,0],[k.kupR,0],[k.kupR,b]];
+  for(let s=1;s<=6;s++){
+    const d=k.kupR+(k.wandR-k.kupR)*s/6;
+    prof.push([d, b+Math.sqrt(Math.max(0,k.RK*k.RK-d*d))-(k.RK-k.kupH)]);
+  }
+  prof[prof.length-1][1]=b+k.kupH;                   // exakt auf Planhoehe
+  prof.push([k.lochR, b+k.kupH]);
+  const tris=[];
+  for(let i=0;i<prof.length;i++){
+    const [r1,z1]=prof[i], [r2,z2]=prof[(i+1)%prof.length];
+    for(let j2=0;j2<N;j2++){
+      const a1=j2/N*2*Math.PI, a2=(j2+1)/N*2*Math.PI;
+      const p11=[r1*Math.cos(a1),r1*Math.sin(a1),z1], p12=[r1*Math.cos(a2),r1*Math.sin(a2),z1];
+      const p21=[r2*Math.cos(a1),r2*Math.sin(a1),z2], p22=[r2*Math.cos(a2),r2*Math.sin(a2),z2];
+      if(r1>1e-9){ tris.push(p11,p21,p22); }
+      if(r2>1e-9 || true){ tris.push(p11,p22,p12); }
+    }
+  }
+  let vol=0;
+  for(let i=0;i<tris.length;i+=3){
+    const a=tris[i], c=tris[i+1], d=tris[i+2];
+    vol += (a[0]*(c[1]*d[2]-c[2]*d[1]) - a[1]*(c[0]*d[2]-c[2]*d[0]) + a[2]*(c[0]*d[1]-c[1]*d[0]))/6;
+  }
+  if(vol<0){ for(let i=0;i<tris.length;i+=3){ const t2=tris[i+1]; tris[i+1]=tris[i+2]; tris[i+2]=t2; } vol=-vol; }
+  k._mesh={ tris, vol };
+  return k._mesh;
+}
+
 // ---------- Geometrie: Zellen-Engine mit Höhen-Intervallen ----------
 // Jede Zelle ist solid von zlo..zhi. Nachbar-Differenzen ergeben die
 // Seitenflächen -> wasserdicht per Konstruktion, keine Triangulation nötig.
@@ -899,6 +957,16 @@ function organizerGeometrien(){
       zip(gY.map(v=>[b.x0,v]), FY.map(v=>[ix0,v]), 1);
       zip(gY.map(v=>[b.x1,v]), FY.map(v=>[ix1,v]), 1);
     }
+    // Runde Garn-Kuppeln als zweite geschlossene Schale in dieses Modul
+    // einlegen (glatter Drehkoerper ueber dem groben Bodenloch).
+    for(const {e} of einsaetze){
+      if(!e.stift || !e.stift.kuppel) continue;
+      const km=kuppelMesh(e.stift.kuppel);
+      for(const [px,py] of e.stift.zentren){
+        if(modIdx(px,py)!==m) continue;
+        for(const t of km.tris) push(t[0]+px, t[1]+py, t[2], cK);
+      }
+    }
     const g=new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
@@ -909,6 +977,12 @@ function organizerGeometrien(){
   // Feindruck-Zählung für den Preis: Garn je Zapfen, andere Einsätze je Fach
   const zapfen=einsaetze.reduce((s,x)=>s+(x.e.zapfen||0),0);
   const spezialFaecher=einsaetze.filter(x=>x.lf.n.einsatz!=='garn').length;
+  // Kuppel-Volumen (abzueglich Ueberlappung mit dem Bodenring) fuers Gewicht
+  for(const x of einsaetze) if(x.e.stift&&x.e.stift.kuppel&&x.e.stift.zentren.length){
+    const k=x.e.stift.kuppel, km=kuppelMesh(k);
+    const ueberlapp=Math.PI*P.boden*(k.kupR*k.kupR - k.roughR*k.roughR);
+    volMm3 += (km.vol - Math.max(0,ueberlapp)) * x.e.stift.zentren.length;
+  }
   // Steckstifte als eigenes Druckteil (inkl. Ersatz); Gewicht zaehlt mit
   const stiftSpecs=einsaetze.filter(x=>x.e.stift&&x.e.zapfen>0)
     .map(x=>({ ...x.e.stift, anzahl:x.e.zapfen }));
@@ -950,6 +1024,8 @@ function preisAnzeigen(){
     (pi.fein?` · Spezial-Einsätze +${f(pi.fein)} <span style="opacity:.75">(≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+
     (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Text +${f(pi.zText)}`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
+  const mb=document.getElementById('mbPreis');
+  if(mb) mb.textContent=`Total CHF ${f(pi.total)}`;
 }
 
 // ---------- Szene ----------
@@ -1019,6 +1095,7 @@ function rebuild(){
   baueLabels();
   preisAnzeigen();
   lieferAnzeigen();
+  hashSchreiben();                       // Link-Stand aktuell halten (Geraetewechsel)
   const tris=aktuelle.module.reduce((s,g)=>s+g.attributes.position.count/3,0);
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
@@ -1170,6 +1247,7 @@ function fachAn(p){
 window.__dbgKlick=(x,y)=>{ const p=pick({clientX:x,clientY:y}); return { p, wand: !!(p&&wandAn(p)), fach: p?(fachAn(p)?.pfad||null):null }; };
 renderer.domElement.addEventListener('pointerdown', ev=>{
   menu.style.display='none';
+  if(MOBIL){ downAt=null; return; }      // Stufe B: am Handy nur ansehen/drehen
   if(explode){ downAt=null; return; }
   const p=pick(ev); if(!p){ downAt=null; return; }
   downAt={x:ev.clientX, y:ev.clientY};
@@ -1473,6 +1551,7 @@ document.getElementById('btnPlan').addEventListener('click',()=>{
 });
 const btnUndo=document.getElementById('btnUndo'), btnRedo=document.getElementById('btnRedo');
 btnUndo.addEventListener('click',undo); btnRedo.addEventListener('click',redo);
+document.getElementById('btnTeilen').addEventListener('click',linkTeilen);
 addEventListener('keydown',ev=>{ if(ev.ctrlKey&&ev.key==='z'){ev.preventDefault();undo();} if(ev.ctrlKey&&(ev.key==='y'||ev.key==='Z')){ev.preventDefault();redo();} });
 
 // ---------- Vorlagen ----------
@@ -1755,8 +1834,81 @@ window.__geos=()=>aktuelle.module.map(g=>geomPos(g));
 window.__plan=()=>({ xs:aktuelle.plan.xs, ys:aktuelle.plan.ys, tenons:aktuelle.plan.tenons.length, tenonDetail:aktuelle.plan.tenons.slice(0,3) });
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 addEventListener('resize',resize); resize();
-tree=VORLAGEN['Bürotisch']();
-rebuild();
+// ---------- Konfiguration als Link (Handy anfangen, Rechner abschliessen) ----
+// Der komplette Stand (Masse + Fächerbaum) steckt komprimiert im #k=-Fragment
+// der SEITEN-URL. Jede Änderung schreibt ihn nach (replaceState) — damit ist
+// der Link immer aktuell: an sich selbst senden, am anderen Gerät öffnen,
+// nahtlos weitermachen. Auch ein Browser-Reload verliert nichts mehr.
+const MOBIL = matchMedia('(max-width: 899px)').matches;
+const b64u = (bytes)=>{ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const b64uLesen = (s)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
+function konfigObjekt(){ return { v:1, P:{sb:P.sb,st:P.st,sh:P.sh,spiel:P.spiel,eh:P.eh,wand:P.wand,boden:P.boden,farbe:P.farbe}, tree }; }
+let hashTimer=null;
+function hashSchreiben(){
+  clearTimeout(hashTimer);
+  hashTimer=setTimeout(async ()=>{
+    try{
+      const json=JSON.stringify(konfigObjekt());
+      let s;
+      if(window.CompressionStream){
+        const buf=await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+        s='z'+b64u(new Uint8Array(buf));
+      } else s='j'+b64u(new TextEncoder().encode(json));
+      (window.top||window).history.replaceState(null,'','#k='+s);
+    }catch(e){}
+  }, 250);
+}
+async function hashLesen(){
+  try{
+    const m2=((window.top||window).location.hash||location.hash).match(/#k=(.+)/);
+    if(!m2) return false;
+    const art=m2[1][0], bytes=b64uLesen(m2[1].slice(1));
+    const json = art==='z'
+      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()
+      : new TextDecoder().decode(bytes);
+    const o=JSON.parse(json);
+    if(o.v!==1 || !o.tree) return false;
+    Object.assign(P, o.P||{});
+    tree=o.tree;
+    return true;
+  }catch(e){ return false; }
+}
+async function linkTeilen(){
+  const url=(window.top||window).location.href;
+  if(navigator.share){ try{ await navigator.share({title:'Mein Schubladen-Organizer — KohliLab', url}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  try{ await navigator.clipboard.writeText(url); hudLive('🔗 Link kopiert — z. B. an dich selbst mailen und am anderen Gerät weitermachen.'); }
+  catch(e){ prompt('Link zu deiner Konfiguration:', url); }
+}
+
+// ---------- Mobil-Modus (Stufe B: ansehen, drehen, Vorlagen, Preis) --------
+// Bearbeiten (Wände ziehen, Fach-Menüs) braucht Präzision und Übersicht —
+// das bleibt dem Rechner vorbehalten; der Stand wandert per Link mit.
+if(MOBIL){
+  document.body.classList.add('mobil');
+  const bar=document.createElement('div'); bar.id='mobilbar';
+  bar.innerHTML=`<div class="mb-hinweis">📱 Ansehen, drehen, Vorlage wählen — fürs übersichtliche Bearbeiten empfehlen wir den Rechner. Dein Stand wandert per Link mit.</div>`;
+  const reihe=document.createElement('div'); reihe.className='mb-vorlagen';
+  Object.keys(VORLAGEN).forEach(name=>{
+    const b=document.createElement('button'); b.textContent=name;
+    b.addEventListener('click',()=>{ snapshot(); tree=VORLAGEN[name](); rebuild(); });
+    reihe.appendChild(b);
+  });
+  bar.appendChild(reihe);
+  const unten=document.createElement('div'); unten.className='mb-unten';
+  unten.innerHTML=`<span id="mbPreis" class="mb-preis"></span>`;
+  const teilen=document.createElement('button'); teilen.className='mb-teilen';
+  teilen.textContent='🔗 An mich senden';
+  teilen.addEventListener('click',linkTeilen);
+  unten.appendChild(teilen);
+  bar.appendChild(unten);
+  document.body.appendChild(bar);
+}
+
+hashLesen().then(ok=>{
+  if(!ok) tree=VORLAGEN['Bürotisch']();
+  rebuild();
+});
 (function loop(){ requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x+80, camera.position.y+120, Math.abs(camera.position.z)+260); updateLabels(); renderer.render(scene,camera); })();
 
 // ---------- Export-Sperre ----------
