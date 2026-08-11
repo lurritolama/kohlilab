@@ -226,7 +226,11 @@ const PREIS = {
   durchsatz: 25,       // g je Stunde (H2D, Schätzung)
   dichte: 1.27,        // g/cm³ (PETG — wir drucken PETG, nicht PLA)
   modul: 5,            // CHF je ZUSATZ-Modul
-  text: 3,             // CHF pauschal bei Beschriftung
+  // Beschriftung: groessere Schrift = mehr Flaeche, mehr Farbwechsel und
+  // laengere Druckzeit (Manolo 10.08.2026). Grundbetrag je beschriftetem
+  // Fach + Zuschlag je mm ueber der kleinsten Schrift (4 mm).
+  text: 2,             // CHF Grundbetrag je beschriftetem Fach
+  textJeMm: 0.4,       // CHF je mm Schrifthoehe ueber 4 mm (je Fach)
   min: 16,             // Mindestpreis
   // Ausfallrisiko (Manolo 10.08.): misslungene Drucke kosten Material,
   // Maschinenzeit und Nacharbeit. Wird offen auf die DRUCKKOSTEN
@@ -1117,8 +1121,11 @@ function preisInfo(){
   const stunden=g/PREIS.durchsatz + feinStunden;
   const maschine=(g/PREIS.durchsatz)*PREIS.stundensatz;
   const zModule=(a.module.length-1)*PREIS.modul;
-  const hatText=layout().leaves.some(l=>l.n.label && (l.n.label.txt||'').trim());
-  const zText=hatText?PREIS.text:0;
+  // Textzuschlag je beschriftetem Fach, mit der Schriftgroesse steigend.
+  const labels=layout().leaves.filter(l=>l.n.label && (l.n.label.txt||'').trim());
+  const hatText=labels.length>0;
+  const zText=labels.reduce((s,l)=>
+    s + PREIS.text + Math.max(0,(l.n.label.gr||7)-4)*PREIS.textJeMm, 0);
   const risiko=(material+maschine+fein)*PREIS.ausfall;   // Ausfallquote
   const roh=PREIS.grund+material+maschine+fein+risiko+zModule+zText;
   const total=Math.max(PREIS.min, Math.ceil(roh*2)/2);
@@ -1132,7 +1139,7 @@ function preisAnzeigen(){
     `Grund ${f(PREIS.grund)} · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
     (pi.fein?` · Spezial-Einsätze +${f(pi.fein)} <span style="opacity:.75">(≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+
     ` · <span title="Deckt misslungene Drucke: Material, Maschinenzeit und Nacharbeit">Ausfallrisiko ${f(pi.risiko)}</span>`+
-    (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Text +${f(pi.zText)}`:'')+
+    (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Beschriftung +${f(pi.zText)}`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
   const mb=document.getElementById('mbPreis');
   if(mb) mb.textContent=`Total CHF ${f(pi.total)}`;
@@ -1494,6 +1501,15 @@ function zeigeGarnMenu(lf, cx, cy){
   rebuild();
   platziereMenu(cx, cy);
 }
+// Eine Schriftfarbe pro Schublade: erste vorhandene Beschriftung gibt sie vor.
+function textFarbe(){
+  const l=layout().leaves.find(x=>x.n.label && (x.n.label.txt||'').trim());
+  return l ? l.n.label.farbe : '#1c1c1c';
+}
+function setzeTextFarbe(hex){
+  for(const l of layout().leaves) if(l.n.label) l.n.label.farbe=hex;
+}
+
 function zeigeLabelMenu(lf, cx, cy){
   menu.innerHTML=`<div class="mtitle">FACH BESCHRIFTEN (bündig auf der Grundplatte)</div>`;
   const inp=document.createElement('input');
@@ -1509,16 +1525,25 @@ function zeigeLabelMenu(lf, cx, cy){
   grInp.addEventListener('input',()=>{ gr=parseFloat(grInp.value); grVal.textContent=gr+' mm'; });
   grRow.appendChild(grInp); grRow.appendChild(grVal);
   menu.appendChild(grRow);
-  let farbe=lf.n.label?.farbe||'#1c1c1c';
-  const sw=document.createElement('div'); sw.className='sw'; sw.style.padding='0 4px 8px';
+  // EINE Schriftfarbe pro Schublade (Manolo 10.08.2026): mehrere Textfarben
+  // hiessen mehrere Farbwechsel im selben Druck — teuer und fehleranfaellig.
+  // Die erste gewaehlte Farbe gilt fuer alle Faecher; eine Aenderung faerbt
+  // die bestehenden Beschriftungen mit um.
+  let farbe=lf.n.label?.farbe || textFarbe();
+  const sw=document.createElement('div'); sw.className='sw'; sw.style.padding='0 4px 4px';
   PALETTE.forEach(hex=>{ const bt=document.createElement('button'); bt.style.background=hex;
     if(farbe===hex) bt.classList.add('active');
     bt.addEventListener('click',()=>{ farbe=hex; sw.querySelectorAll('button').forEach(x=>x.classList.remove('active')); bt.classList.add('active'); });
     sw.appendChild(bt); });
   menu.appendChild(sw);
+  const fhint=document.createElement('div');
+  fhint.style.cssText='font-size:10.5px;color:var(--mut);padding:0 6px 8px;max-width:230px;line-height:1.45';
+  fhint.textContent='Eine Schriftfarbe pro Schublade — die Wahl gilt für alle beschrifteten Fächer.';
+  menu.appendChild(fhint);
   const ok=document.createElement('button'); ok.textContent='✓  Übernehmen';
   ok.addEventListener('click',()=>{ menu.style.display='none'; snapshot();
     if(inp.value.trim()) lf.n.label={ txt:inp.value.trim(), farbe, gr }; else delete lf.n.label;
+    setzeTextFarbe(farbe);            // eine Schriftfarbe fuer die ganze Schublade
     rebuild(); });
   menu.appendChild(ok);
   if(lf.n.label){ const del=document.createElement('button'); del.textContent='✕  Beschriftung entfernen';
@@ -1930,7 +1955,12 @@ async function inWarenkorb(){
     dateien['steckstifte']=await blobB64(b); }
   const pi=preisInfo();
   const rappen=Math.round(pi.total*100);                 // Konfigurator rechnet in CHF
-  const L=layout(), hatText=L.leaves.some(l=>l.n.label&&(l.n.label.txt||'').trim());
+  const L=layout(), lbl=L.leaves.filter(l=>l.n.label&&(l.n.label.txt||'').trim());
+  const hatText=lbl.length>0;
+  // Kennzahlen fuer die serverseitige Preispruefung: Anzahl beschrifteter
+  // Faecher und die Summe der Millimeter ueber der kleinsten Schrift (4 mm).
+  const textFaecher=lbl.length;
+  const textMmUeber4=lbl.reduce((s,l)=>s+Math.max(0,(l.n.label.gr||7)-4),0);
   const n=a.module.length;
   const cart=(window.top&&window.top.KCart)||window.KCart;
   await cart.add({
@@ -1938,6 +1968,7 @@ async function inWarenkorb(){
     menge:1, gesamtRappen:rappen, stueckRappen:rappen,
     konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length,
              zapfen:a.zapfen, spezialFaecher:a.spezialFaecher,
+             textFaecher, textMmUeber4:+textMmUeber4.toFixed(1),
              ...(a.stifte?{ steckstifte:a.stifte.gesamt, ersatzstifte:a.stifte.ersatz }:{}) },
     dateien,
   });

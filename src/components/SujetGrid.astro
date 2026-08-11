@@ -62,9 +62,9 @@ const icons: Record<string, string> = {
           <div class="nm">Dein Wunsch-Sujet</div>
           <div class="ds">Beschreib dein Motiv — die Mikrofabrik entwirft es als Ventilkappe. Wir prüfen zuerst, ob es druckbar ist.</div>
         </div>
-        <div class="pr">{preisFormat(1700)}<span class="pr-set">4er-Set</span></div>
+        <div class="pr">{preisFormat(2000)}<span class="pr-set">4er-Set</span></div>
       </div>
-      <div class="order order--wunsch" data-wunsch data-rappen="1700">
+      <div class="order order--wunsch" data-wunsch data-rappen="2000">
         <textarea data-wunsch-text maxlength="200" rows="2"
           placeholder="z. B. «kleiner Fliegenpilz» oder «Berggipfel mit Kreuz» — kompakte Motive funktionieren am besten"></textarea>
         <div class="gw" role="group" aria-label="Gewinde wählen">
@@ -72,7 +72,7 @@ const icons: Record<string, string> = {
           <button type="button" class="gw-opt" data-gw="presta">Presta<small>Rennvelo</small></button>
         </div>
         <button type="button" class="btn-cart" data-add>In den Warenkorb</button>
-        <p class="wunsch-note">CHF 12.— + 5.— Wunsch-Aufpreis. <b>Wir prüfen die Machbarkeit nach der Bestellung</b> — feine Details, dünne Anbauten und geschützte Motive gehen nicht. Falls dein Motiv nicht umsetzbar ist, stornieren wir kostenlos und du zahlst nichts.</p>
+        <p class="wunsch-note">CHF 20.— je 4er-Set (CHF 12.— + 8.— Wunsch-Aufpreis). <b>Wir prüfen die Machbarkeit nach der Bestellung</b> — feine Details, dünne Anbauten und geschützte Motive gehen nicht. Falls dein Motiv nicht umsetzbar ist, stornieren wir kostenlos und du zahlst nichts.</p>
       </div>
     </div>
   </div>
@@ -189,7 +189,7 @@ const icons: Record<string, string> = {
         setTimeout(() => { ta.style.borderColor = ''; }, 1600);
         return;
       }
-      const rappen = Number(wbox.getAttribute('data-rappen')) || 1700;
+      const rappen = Number(wbox.getAttribute('data-rappen')) || 2000;
       const kurz = wunsch.length > 32 ? wunsch.slice(0, 32) + '…' : wunsch;
       await window.KCart.add({
         typ: 'ventilkappe',

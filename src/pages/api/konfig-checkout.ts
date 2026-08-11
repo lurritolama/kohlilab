@@ -26,7 +26,7 @@ const ANKER: Record<string, string> = {
   ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
 };
 const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
-const WUNSCH_AUFPREIS_RAPPEN = 500;                  // Wunsch-Sujet: +CHF 5.— (Machbarkeit wird geprüft)
+const WUNSCH_AUFPREIS_RAPPEN = 800;                  // Wunsch-Sujet: +CHF 8.— -> 20.— je Set (Machbarkeit wird geprüft)
 const GEWINDE_LABEL: Record<string, string> = { schrader: 'Schrader', presta: 'Presta' };
 const BUCKET = 'konfigurator';
 const MAX_POSITIONEN = 12;
@@ -122,10 +122,12 @@ export const POST: APIRoute = async ({ request }) => {
         const gramm = grammAus(bufs.map((d) => d.buf));
         const zapfen = Number(konfig.zapfen) || 0;
         const spezialFaecher = Number(konfig.spezialFaecher) || 0;
-        const preis = organizerPreisRappen({ gramm, module, hatText, zapfen, spezialFaecher });
+        const textFaecher = Number(konfig.textFaecher) || 0;
+        const textMmUeber4 = Number(konfig.textMmUeber4) || 0;
+        const preis = organizerPreisRappen({ gramm, module, hatText, zapfen, spezialFaecher, textFaecher, textMmUeber4 });
         const masse = konfig.masse ? `${konfig.masse}` : '';
         const titel = `Schubladen-Organizer${masse ? ` · ${masse} mm` : ''} · ${module} Teil${module > 1 ? 'e' : ''}`;
-        positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText, zapfen, spezialFaecher }, menge: 1, preis, titel, dateien: bufs });
+        positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText, zapfen, spezialFaecher, textFaecher, textMmUeber4 }, menge: 1, preis, titel, dateien: bufs });
       } else {
         fehler.push(`Position ${nr}: unbekannter Typ.`);
       }
