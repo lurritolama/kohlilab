@@ -1,0 +1,134 @@
+---
+// Spezialanfertigung — bewusst die einfachste Fassung (Manolo, 11.08.2026):
+// eine Seite, drei Beispiele, ein Mail-Knopf. Kein Formular, kein Backend.
+// Anfragen laufen per Mail; Machbarkeit wird von Hand geprueft.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const MAIL = 'manuel_looser@bluewin.ch';
+const betreff = encodeURIComponent('Anfrage Spezialanfertigung');
+const rumpf = encodeURIComponent(
+  [
+    'Hallo KohliLab',
+    '',
+    'Was ich brauche:',
+    '',
+    '',
+    'Masse (falls bekannt):',
+    'Stückzahl:',
+    '',
+    'Fotos oder 3D-Datei (3MF/STL/STEP) hänge ich dieser Mail gleich an.',
+    '',
+    'Gruss',
+  ].join('\n'),
+);
+const mailtoHref = `mailto:${MAIL}?subject=${betreff}&body=${rumpf}`;
+
+const beispiele = [
+  {
+    bild: '/bilder/spezial-zitrone.jpg',
+    alt: 'Ventilkappe als halbe Zitrone, gedruckt nach einem Kundenfoto',
+    titel: 'Vom Foto zum Teil',
+    text: 'Aus einem Foto wurde ein 3D-Modell, aus dem Modell eine Ventilkappe — Farben wie in der Vorlage.',
+  },
+  {
+    bild: '/bilder/organizer-titel.jpg',
+    alt: 'Schubladen-Organizer nach Mass auf dem Druckbett',
+    titel: 'Teile nach Mass',
+    text: 'Halterungen, Einsätze, Gehäuse, Ersatzteile: du bringst Masse oder das defekte Teil, wir konstruieren und drucken.',
+  },
+  {
+    bild: '/bilder/spezial-melone.jpg',
+    alt: 'Ventilkappe als halbe Wassermelone mit vier Farben',
+    titel: 'Dein Modell, gedruckt',
+    text: 'Du hast schon eine 3MF-, STL- oder STEP-Datei? Wir prüfen sie und drucken in deinen Wunschfarben.',
+  },
+];
+---
+<BaseLayout
+  title="Spezialanfertigung — KohliLab"
+  description="3D-Druck nach deiner Vorgabe: Ersatzteile, Halterungen, Gehäuse, persönliche Einzelstücke oder dein fertiges 3D-Modell. Kostenlose Machbarkeitsprüfung, gedruckt in Bühler AR."
+>
+  <section class="block">
+    <h1>Spezialanfertigung</h1>
+    <p class="lead">
+      Wir bauen und drucken Einzelstücke nach deiner Vorgabe — Ersatzteil,
+      Halterung, Gehäuse, persönliches Stück oder dein fertiges 3D-Modell.
+      Schick uns deine Anfrage, wir prüfen kostenlos, ob es machbar ist.
+      Du zahlst erst, wenn wir Ja sagen und du die Offerte annimmst.
+    </p>
+    <a class="btn primary" href={mailtoHref}>Anfrage per Mail senden</a>
+    <p class="mailhinweis">
+      Der Knopf öffnet dein Mailprogramm mit einer kurzen Vorlage —
+      Fotos oder 3D-Dateien einfach anhängen. Oder direkt an
+      <a href={`mailto:${MAIL}`}>{MAIL}</a>.
+    </p>
+  </section>
+
+  <section class="block">
+    <h2>Beispiele</h2>
+    <div class="cards">
+      {beispiele.map((b) => (
+        <div class="card linie">
+          <div class="thumb linie-thumb">
+            <img src={b.bild} alt={b.alt} loading="lazy" width="900" height="563" />
+          </div>
+          <div class="meta">
+            <div>
+              <div class="nm">{b.titel}</div>
+              <div class="ds">{b.text}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>So läuft's</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">SCHRITT 1</div>
+        <h3>Anfragen</h3>
+        <p>
+          Mail mit Beschreibung, Massen und Stückzahl — Fotos oder
+          3D-Datei anhängen. Je konkreter, desto schneller die Antwort.
+        </p>
+      </div>
+      <div class="step">
+        <div class="num">SCHRITT 2</div>
+        <h3>Wir prüfen</h3>
+        <p>
+          Kostenlos und ehrlich: machbar, machbar mit Anpassung oder nicht
+          machbar — zusammen mit einer Offerte.
+        </p>
+      </div>
+      <div class="step">
+        <div class="num">SCHRITT 3</div>
+        <h3>Drucken &amp; liefern</h3>
+        <p>
+          Nach deinem Ja drucken wir in Bühler AR und schicken dir dein
+          Teil. Nicht machbar heisst: du zahlst nichts.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <h2>Gut zu wissen</h2>
+    <div class="prose grenzen">
+      <ul>
+        <li>FDM-Kunststoffdruck (PLA u.&nbsp;a.) — robuste Alltagsteile, keine Sicherheits- oder Lebensmittelteile.</li>
+        <li>Feine Details unter ~0.8&nbsp;mm und frei hängende dünne Teile drucken nicht sauber.</li>
+        <li>Geschützte Logos und Marken drucken wir nur für den Privatgebrauch, nicht für den Verkauf.</li>
+        <li>Im Zweifel: einfach fragen — die Prüfung kostet nichts.</li>
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .block h1 { font-size: 40px; margin-bottom: 14px; }
+  .mailhinweis { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .mailhinweis a { color: var(--acc2); }
+  .grenzen { padding: 0; max-width: 62ch; }
+</style>
