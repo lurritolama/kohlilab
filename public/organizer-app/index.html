@@ -76,6 +76,21 @@
   .lbl .mz{pointer-events:auto;cursor:text;text-decoration:underline dotted rgba(255,107,26,.75);text-underline-offset:2px}
   .lbl .mz:hover{color:var(--acc)}
   .lbl input{pointer-events:auto;width:4ch;background:#17181b;border:1px solid var(--acc);color:var(--acc2);border-radius:3px;font-family:var(--mono);font-size:inherit;padding:0 2px;text-align:center;outline:none}
+/* Sperrmeldung: Trennstelle laeuft durch einen Spezial-Einsatz. Muss auffallen
+   — das Ergebnis waere sonst unbrauchbar (halbierte Mulden/Kegel). */
+#sperrbanner{ position:absolute; left:12px; right:12px; top:56px; z-index:22;
+  background:#3a1416; border:1px solid #e24b4a; border-radius:10px;
+  padding:14px 16px; max-height:60%; overflow-y:auto; }
+#sperrbanner h4{ margin:0 0 7px; font-size:15px; font-weight:700; color:#f7c1c1; }
+#sperrbanner p{ margin:0 0 9px; font-size:12.5px; line-height:1.55; color:#f0999a; }
+#sperrbanner b{ color:#fceceb; font-weight:600; }
+#sperrbanner ul{ margin:0; padding-left:17px; font-size:12px; line-height:1.6; color:#f0999a; }
+#sperrbanner .sb-faecher{ display:flex; flex-wrap:wrap; gap:5px; margin:0 0 9px; }
+#sperrbanner .sb-fach{ font-family:var(--mono); font-size:11px; background:#501313;
+  color:#f7c1c1; border-radius:5px; padding:2px 8px; }
+#sperrbanner .sb-titel{ font-size:12px; font-weight:700; color:#fceceb; margin:2px 0 4px; }
+.mobil #sperrbanner{ top:auto; bottom:8px; left:8px; right:8px; max-height:52%; }
+
 /* ---------- Mobil-Modus (Stufe A): Vollbild-3D, alles bedienbar ---------- */
 .mobil #view{ position:fixed; inset:0 0 112px 0; width:100%; }
 .mobil #topbar button{ font-size:11px; padding:5px 7px; }
@@ -155,6 +170,7 @@
 </div>
 
 <div id="view">
+  <div id="sperrbanner" hidden></div>
   <div id="topbar">
     <button id="btnPlan">◱ Draufsicht</button>
     <button id="btnMass" class="active">⌀ Masse</button>
@@ -311,6 +327,13 @@ const EINSAETZE = {
   garn:   { name:'Garn-/Spulenzapfen',minW:25, minD:25, kat:'Nähen' },
   scoop:  { name:'Scoop-Mulde',       minW:30, minD:34, kat:'Allgemein' },
 };
+// Trennstellen-Vertraeglichkeit (Manolo 10.08.2026): Raster- und Rillen-
+// Einsaetze zerfallen an einer Modulfuge — halbierte Mulden, Kegel und Stege
+// treffen sich beim Zusammenstecken nie sauber. Solche Konfigurationen werden
+// GESPERRT. Garn-Aufnahmen und die Scoop-Mulde vertragen eine Fuge (die
+// Kuppeln weichen aus, die Hohlkehle laeuft durch) — die werden nur GEWARNT.
+const EINSATZ_FUGE_OK = new Set(['garn', 'scoop']);
+
 // Liefert pro Fach: zusätzliche Rasterkoordinaten + Höhenfunktion zhi(cx,cy)
 // plan (optional): Modul-Schnittplan — Einzel-Features (Zapfen/Kegel) meiden
 // Fugen und Schwalbenschwänze, sonst stünden halbierte Pins am Modulrand.
@@ -611,7 +634,7 @@ function labelPlan(L, plan){
 // ---------- Modul-Schnitte + Schwalbenschwanz-Taschen ----------
 function schnittPlan(L){
   const passtDirekt=(L.W<=BETT.x&&L.D<=BETT.y)||(L.W<=BETT.y&&L.D<=BETT.x);
-  if(passtDirekt) return { xs:[], ys:[], tenons:[], getroffen:[] };
+  if(passtDirekt) return { xs:[], ys:[], tenons:[], getroffen:[], gesperrt:[], gewarnt:[] };
   const reich=DOVE.kd+DOVE.fit;                      // Zapfen-Reichweite über die Fuge (+Seite)
   // Schnitte MEIDEN Wände (Manolo-Regel): eine Fuge in einer parallelen Wand
   // halbiert sie längs (2×0.9mm-Reste = zu dünn), eine Fuge knapp daneben
@@ -720,7 +743,10 @@ function schnittPlan(L){
   };
   lege(xs,'x', L.y0+P.wand, L.y0+L.D-P.wand, ys);
   lege(ys,'y', L.x0+P.wand, L.x0+L.W-P.wand, xs);
-  return { xs, ys, tenons, getroffen };
+  // gesperrt = Einsatz zerfaellt an der Fuge; gewarnt = vertraegt sie
+  const gesperrt=getroffen.filter(lf=>!EINSATZ_FUGE_OK.has(lf.n.einsatz));
+  const gewarnt =getroffen.filter(lf=> EINSATZ_FUGE_OK.has(lf.n.einsatz));
+  return { xs, ys, tenons, getroffen, gesperrt, gewarnt };
 }
 // gestufte Halbbreiten der Schwalbenschwanz-Leiste (am Ende am breitesten)
 function doveStufen(){
@@ -880,7 +906,12 @@ function kuppelMesh(k){
 function organizerGeometrien(){
   const L=layout();
   const plan=schnittPlan(L);
+  const sperrPfade=new Set((plan.gesperrt||[]).map(lf=>lf.pfad));
   const cK=new THREE.Color(P.farbe);
+  // Faecher, deren Einsatz von einer Fuge zerschnitten wuerde, werden ROT
+  // dargestellt — der Text nennt sie zwar, aber bei vielen Faechern sucht
+  // man sonst lange.
+  const cSperr=new THREE.Color(0xe24b4a);
   const labels=labelPlan(L, plan);
   const xs=new Set([L.x0, L.x0+L.W]), ys=new Set([L.y0, L.y0+L.D]);
   for(const lb of labels){ xs.add(lb.box.x0); xs.add(lb.box.x1); ys.add(lb.box.y0); ys.add(lb.box.y1); }
@@ -950,6 +981,7 @@ function organizerGeometrien(){
     if(cx<innen.x0||cx>innen.x1||cy<innen.y0||cy>innen.y1) typ='a';
     else { for(const lf of L.leaves){ if(cx>lf.r.x0&&cx<lf.r.x1&&cy>lf.r.y0&&cy<lf.r.y1){ typ='k'; fach=lf; break; } } }
     let mod=modIdx(cx,cy);
+    const gesperrtFach = !!(fach && sperrPfade.has(fach.pfad));
     // Puzzle-Verzahnung liegt flach im Boden (Zapfen = umgehängte Zellen,
     // Nut = Spielspalt) — KEINE Pfosten/Bosse, nichts ragt über den Boden.
     let zlo=0, zhi= typ==='k' ? P.boden : P.eh;
@@ -965,9 +997,9 @@ function organizerGeometrien(){
     let lbl=-1;
     if(typ==='k') for(let li=0;li<labels.length;li++){ const b=labels[li].box;
       if(cx>b.x0&&cx<b.x1&&cy>b.y0&&cy<b.y1){ lbl=li; break; } }
-    info[j*nx+i]={ typ, zlo, zhi, lbl, mod };
+    info[j*nx+i]={ typ, zlo, zhi, lbl, mod, sperr:gesperrtFach };
   }
-  const farbe=()=>cK;
+  const farbe=(z)=>z&&z.sperr?cSperr:cK;
   // globale Höhenstufen (inkl. Einsatz-Höhen) für den Lagen-Schnitt
   // Druckvolumen exakt aus den Zellen (für die Live-Preisrechnung)
   let volMm3=0;
@@ -990,7 +1022,7 @@ function organizerGeometrien(){
     const zelle=(j,i)=>{ if(i<0||j<0||i>=nx||j>=ny) return null; const z=info[j*nx+i]; return z.mod===m?z:null; };
     for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
       const z=zelle(j,i); if(!z) continue;
-      const c=farbe(z.typ);
+      const c=farbe(z);
       const xa=X[i],xb=X[i+1],ya=Y[j],yb=Y[j+1];
       quad([xa,ya,z.zlo],[xa,yb,z.zlo],[xb,yb,z.zlo],[xb,ya,z.zlo], cK);   // Unterseite (evtl. Taschendecke)
       if(z.lbl<0)                                                          // Beschriftungs-Boxen: Deckel separat
@@ -1212,14 +1244,17 @@ function rebuild(){
   baueLabels();
   preisAnzeigen();
   lieferAnzeigen();
+  sperrAnzeigen(); sperreKnoepfe();
   hashSchreiben();                       // Link-Stand aktuell halten (Geraetewechsel)
   const tris=aktuelle.module.reduce((s,g)=>s+g.attributes.position.count/3,0);
   const nMod=aktuelle.module.length;
   document.getElementById('btnExplode').style.display = nMod>1 ? 'block' : 'none';
   let modTxt = nMod>1 ? ` · ${nMod} Module (Schwalbenschwanz)` : '';
-  const getr = aktuelle.plan.getroffen || [];
-  const einsatzWarn = getr.length
-    ? `<br><span class="warn">⚠ ${getr.length===1?'Ein Fach mit Spezial-Einsatz liegt':`${getr.length} Fächer mit Spezial-Einsatz liegen`} auf einer Trennstelle — dort fallen einzelne Elemente weg. Verschieb die Wände etwas oder setz den Einsatz in ein anderes Fach.</span>`
+  // Milde Faelle (Garn, Scoop) bleiben eine Warnung; harte Faelle erklaert
+  // das Sperrbanner ueber der 3D-Ansicht.
+  const gew = aktuelle.plan.gewarnt || [];
+  const einsatzWarn = gew.length
+    ? `<br><span class="warn">⚠ ${gew.length===1?'Ein Fach liegt':`${gew.length} Fächer liegen`} auf einer Trennstelle — dort fallen einzelne Elemente weg (z. B. eine Reihe Stifte). Verschieb die Wände etwas, wenn du es lückenlos willst.</span>`
     : '';
   document.getElementById('hud').innerHTML =
     `Einsatz ${aktuelle.L.W.toFixed(0)}×${aktuelle.L.D.toFixed(0)}×${P.eh} mm · ${layout().leaves.length} Fächer${modTxt} · ${(tris/1000).toFixed(1)}k Dreiecke`+
@@ -1833,6 +1868,41 @@ async function exportTeile(art){
   }
   download(await zip.generateAsync({type:'blob'}), `kohlilab_organizer_teile_${art}.zip`);
 }
+// ---------- Sperre: Trennstelle durch einen Spezial-Einsatz --------------
+// Solche Einsaetze zerfallen an der Fuge (halbierte Mulden/Kegel/Stege, die
+// sich beim Zusammenstecken nie treffen). Statt still Elemente wegzulassen
+// wird die Bestellung blockiert und der Grund erklaert.
+function sperrGrund(){ return (aktuelle && aktuelle.plan.gesperrt) || []; }
+function sperrAnzeigen(){
+  const box=document.getElementById('sperrbanner'); if(!box) return;
+  const g=sperrGrund();
+  const n=anzahlModule();
+  if(!g.length){ box.hidden=true; return; }
+  const namen=g.map(lf=>`<span class="sb-fach">${(lf.r.x1-lf.r.x0).toFixed(0)} × ${(lf.r.y1-lf.r.y0).toFixed(0)} mm · ${EINSAETZE[lf.n.einsatz]?.name||lf.n.einsatz}</span>`).join('');
+  box.innerHTML=`<h4>⚠ So lässt sich das nicht drucken</h4>
+    <p>Deine Schublade ist grösser als unser Druckbereich, darum kommt der Einsatz in <b>${n} Teilen</b>. Eine Trennstelle läuft aber mitten durch ${g.length===1?'dieses Fach':'diese Fächer'} (im Bild rot):</p>
+    <div class="sb-faecher">${namen}</div>
+    <p>Bei feinen Einsätzen geht das nicht: Mulden, Kegel und Stege würden an der Fuge halbiert — die Hälften stünden lose in zwei Teilen und träfen sich beim Zusammenstecken nie sauber.</p>
+    <div class="sb-titel">So löst du es</div>
+    <ul>
+      <li>Wände verschieben, bis das Fach <b>ganz in einem Teil</b> liegt — höchstens ${BETT.x} × ${BETT.y} mm</li>
+      <li>Den Einsatz in ein kleineres Fach setzen</li>
+      <li>Das Fach teilen und beiden Hälften einen eigenen Einsatz geben</li>
+    </ul>`;
+  box.hidden=false;
+}
+// Bestellen/Export sperren, solange das Problem besteht
+function sperreKnoepfe(){
+  const gesperrt=sperrGrund().length>0;
+  const titel=gesperrt?'Eine Trennstelle läuft durch ein Fach mit Spezial-Einsatz — bitte zuerst anpassen.':'';
+  for(const id of ['cart','ex3mf','exstl']){
+    const b=document.getElementById(id); if(!b) continue;
+    b.disabled=gesperrt; b.title=titel;
+    b.style.opacity=gesperrt?0.45:'';
+    b.style.cursor=gesperrt?'not-allowed':'';
+  }
+}
+
 // ---------- Lieferung: kommunizieren, dass es Module sein können ----------
 function anzahlModule(){ return aktuelle ? aktuelle.module.length : 1; }
 function lieferAnzeigen(){
@@ -1940,6 +2010,7 @@ $('modal-bg').addEventListener('click',e=>{ if(e.target===$('modal-bg')) schlies
 // bei mehrteiligen Einsätzen ist die Modul-Info PFLICHT und muss bestätigt
 // werden, bevor die Datei kommt.
 function mitLieferGate(fn){
+  if(sperrGrund().length){ sperrAnzeigen(); hudLive('⚠ Bitte zuerst die rot markierten Fächer anpassen — so lässt sich der Einsatz nicht drucken.'); return; }
   if(anzahlModule()>1 || (aktuelle&&aktuelle.stifte)) zeigeLieferModal('confirm', fn);
   else fn();
 }

@@ -97,8 +97,10 @@
   </div>
 
   <div class="grp" id="farbenGrp"><h2>Farben</h2>
-    <div class="feld"><label>Grundplatte (hell — für Scan-Kontrast)</label><div class="sw" id="swBase"></div></div>
-    <div class="feld"><label>QR &amp; Text (dunkel)</label><div class="sw" id="swDark"></div></div>
+    <div class="feld"><label>Grundplatte</label><div class="sw" id="swBase"></div></div>
+    <div class="feld"><label>QR &amp; Text</label><div class="sw" id="swDark"></div></div>
+    <button id="btnUmkehren" class="ghost" style="width:100%;margin-top:2px">⇄ Farben umkehren</button>
+    <div class="note" id="farbNote"></div>
   </div>
 
   <div class="grp"><h2>Menge &amp; Preis</h2>
@@ -131,8 +133,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------- Konfiguration ----------
-const BASE_COLORS = [['Weiss','#eceff0'],['Hellgrau','#c9cfd2'],['Sand','#e8dcc0']];
-const DARK_COLORS = [['Schwarz','#1c1c1c'],['Dunkelblau','#1d3557']];
+// Beide Rollen (Platte / Druck) waehlen aus DERSELBEN Palette — damit ist
+// auch die umgekehrte Variante moeglich: helle Schrift und heller QR auf
+// dunklem Grund (Manolo 11.08.2026). Der Kontrast wird geprueft, und bei
+// invertiertem QR erscheint ein ehrlicher Hinweis zur Lesbarkeit.
+const FARBEN = [['Weiss','#eceff0'],['Hellgrau','#c9cfd2'],['Sand','#e8dcc0'],
+                ['Schwarz','#1c1c1c'],['Dunkelblau','#1d3557'],['Dunkelgrau','#3a3e44']];
 const LOGO_PALETTE = ['#1c1c1c','#eceff0','#d8332f','#ef7d1a','#f5c518','#37a24a','#2f6fd6','#e5459b'];
 const RAND = 3;            // Mindestrand aller Elemente zur Kante (mm)
 const QUIET = 2;           // Ruhezone um den QR in Modulen (je Seite)
@@ -176,7 +182,7 @@ const P = {
   aufbau:'flach', winkel:100, tiefe:30,
   typ:'url', url:'https://kohlilab.ch', ssid:'', pass:'', vname:'', vtel:'', vmail:'', vorg:'', email:'', tel:'', frei:'',
   qrSize:30, qrX:-20, qrY:8,
-  bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:6, textY:-22,
+  bausteinIdx:0, sprache:0, freitext:'', textH:6.5, textX:0, textY:-22,
   logo:null, logoW:22, logoX:26, logoY:16,
   baseColor:'#eceff0', darkColor:'#1c1c1c',
   menge:1,
@@ -771,6 +777,7 @@ let mesh=null, currentGeo=null;
 function rebuild(){
   regelCheck();
   syncUI();
+  farbNote();
   if(mesh){ scene.remove(mesh); mesh.geometry.dispose(); }
   currentGeo = schildGeometrie();
   mesh = new THREE.Mesh(currentGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.8, metalness:0.03, side:THREE.DoubleSide }));
@@ -978,11 +985,38 @@ function bausteinUI(){
 function farbUI(hostId, liste, key){
   const host=$(hostId);
   liste.forEach(([name,hex])=>{
-    const b=document.createElement('button'); b.style.background=hex; b.title=name;
-    if(P[key]===hex) b.classList.add('active');
-    b.addEventListener('click',()=>{ P[key]=hex; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); rebuild(); });
+    const b=document.createElement('button'); b.style.background=hex; b.title=name; b.dataset.hex=hex;
+    b.addEventListener('click',()=>{ P[key]=hex; farbAktiv(); rebuild(); });
     host.appendChild(b);
   });
+}
+// Aktiv-Markierung aus P ableiten (noetig, weil "Umkehren" beide Werte tauscht)
+function farbAktiv(){
+  for(const [hostId,key] of [['swBase','baseColor'],['swDark','darkColor']]){
+    const host=$(hostId); if(!host) continue;
+    host.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.hex===P[key]));
+  }
+}
+// Helligkeit nach WCAG (relative Luminanz) — fuer Kontrast und Invers-Erkennung
+function luminanz(hex){
+  const k=[1,3,5].map(i=>{ const v=parseInt(hex.substr(i,2),16)/255;
+    return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+  return 0.2126*k[0]+0.7152*k[1]+0.0722*k[2];
+}
+// Hinweis unter der Farbwahl: zu wenig Kontrast bzw. invertierter QR.
+function farbNote(){
+  const el=$('farbNote'); if(!el) return;
+  const lb=luminanz(P.baseColor), ld=luminanz(P.darkColor);
+  const kontrast=(Math.max(lb,ld)+0.05)/(Math.min(lb,ld)+0.05);
+  if(kontrast<2.5){
+    el.innerHTML='<b style="color:#ff6b1a">Zu wenig Kontrast</b> — der QR-Code lässt sich so nicht scannen. Wähle eine hellere und eine dunklere Farbe.';
+    return;
+  }
+  if(lb<ld){   // Platte dunkler als der Druck = invertierter QR
+    el.innerHTML='Umgekehrt: heller QR auf dunklem Grund. Sieht edel aus, aber <b>nicht jeder Scanner liest invertierte QR-Codes</b> — moderne Handykameras meist schon. Vor einer grösseren Bestellung bitte einmal testen.';
+    return;
+  }
+  el.textContent='Dunkler QR auf hellem Grund — die sicherste Variante fürs Scannen.';
 }
 
 function modusUI(){
@@ -1011,8 +1045,13 @@ mkBtns('aufbauBtns', AUFBAUTEN, 'aufbau');
 mkBtns('lochBtns', LOECHER, 'loecher');
 mkBtns('typBtns', TYPEN, 'typ');
 typFelder(); bausteinUI();
-farbUI('swBase', BASE_COLORS, 'baseColor');
-farbUI('swDark', DARK_COLORS, 'darkColor');
+farbUI('swBase', FARBEN, 'baseColor');
+farbUI('swDark', FARBEN, 'darkColor');
+document.getElementById('btnUmkehren').addEventListener('click', ()=>{
+  const a=P.baseColor; P.baseColor=P.darkColor; P.darkColor=a;
+  farbAktiv(); rebuild();
+});
+farbAktiv();
 slider('breite','breite'); slider('hoehe','hoehe'); slider('dicke','dicke');
 slider('qrs','qrSize'); slider('th','textH'); slider('lw','logoW');
 slider('winkel','winkel'); slider('tiefe','tiefe');
