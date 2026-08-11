@@ -1,0 +1,62 @@
+FREMDBIBLIOTHEKEN — BEWUSST LOKAL ABGELEGT
+==========================================
+
+Bis zum 11.08.2026 holten die Konfiguratoren three.js, JSZip und
+qrcode-generator zur Laufzeit von unpkg.com. Das war die groesste offene
+Flanke des Shops:
+
+  Die Konfiguratoren laufen unter kohlilab.ch — im SELBEN Ursprung wie
+  Warenkorb und Checkout. Wer eine dieser Auslieferungen haette
+  manipulieren koennen (CDN-Einbruch, DNS-Uebernahme), haette beliebiges
+  JavaScript bei uns ausgefuehrt: Warenkorb lesen, Druckdatei oder Preis
+  vertauschen, mitschreiben was die Kundschaft im Checkout eintippt.
+  Eine Pruefsumme (integrity=) war nicht gesetzt — es waere nicht
+  aufgefallen.
+
+Seit dem 11.08.2026 laedt die Seite nur noch von der eigenen Domain.
+Nebeneffekte, beide willkommen: der Konfigurator funktioniert auch, wenn
+unpkg gerade Stoerung hat, und es geht keine Besucher-IP mehr an Dritte.
+
+
+WAS HIER LIEGT
+--------------
+
+  three/three.module.js                      three.js r160
+  three/addons/controls/OrbitControls.js     dito (das einzige benutzte Addon)
+  jszip.min.js                               JSZip 3.10.1   (3MF schreiben)
+  qrcode.js                                  qrcode-generator 1.4.4
+
+Verdrahtet in den importmaps von
+  public/organizer-app/index.html
+  public/qr-schilder-app/index.html
+
+
+AKTUALISIEREN
+-------------
+
+Nur wenn es einen Grund gibt — eine Version, die laeuft, ist mehr wert als
+die neueste. Bei three.js aendern sich zwischen Hauptversionen regelmaessig
+Namen; nach einem Wechsel BEIDE Konfiguratoren durchklicken (Ansicht dreht,
+Farben stimmen, 3MF laesst sich in Bambu Studio oeffnen).
+
+  curl -sSfL https://unpkg.com/three@0.160.0/build/three.module.js \
+       -o public/vendor/three/three.module.js
+  curl -sSfL https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js \
+       -o public/vendor/three/addons/controls/OrbitControls.js
+  curl -sSfL https://unpkg.com/jszip@3.10.1/dist/jszip.min.js \
+       -o public/vendor/jszip.min.js
+  curl -sSfL https://unpkg.com/qrcode-generator@1.4.4/qrcode.js \
+       -o public/vendor/qrcode.js
+
+Nach einem Update: die Dateien werden eine Woche lang zwischengespeichert
+(netlify.toml, /vendor/*). Wer sofort sehen will, ob es stimmt, laedt den
+Konfigurator mit Strg+F5 neu.
+
+Wird ein weiteres three-Addon gebraucht, gehoert es unter
+public/vendor/three/addons/ mit demselben Unterpfad wie bei three.js —
+die importmap bildet den ganzen Ordner ab.
+
+Kommt je wieder eine Fremdquelle dazu, muss sie in der CSP in
+src/middleware.ts stehen, sonst blockt der Browser sie. Das ist Absicht.
+
+Stand: 11.08.2026

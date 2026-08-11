@@ -123,11 +123,15 @@
 <div id="view"><div id="hint">Ziehen mit der Maus: QR, Text und Logo direkt auf der Platte verschieben</div><div id="hud"></div></div>
 
 <script src="/kcart.js"></script>
+<!-- Bibliotheken liegen bei UNS (public/vendor), nicht auf unpkg — siehe
+     public/vendor/LIESMICH.txt. Fremd ausgeliefertes JavaScript laeuft hier
+     im selben Ursprung wie der Warenkorb; ohne Pruefsumme waere eine
+     manipulierte Auslieferung unbemerkt geblieben. -->
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
 </script>
-<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="/vendor/jszip.min.js"></script>
+<script src="/vendor/qrcode.js"></script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';

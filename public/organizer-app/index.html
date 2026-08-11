@@ -191,10 +191,17 @@
   </div>
 </div>
 
+<!-- Bibliotheken liegen bei UNS (public/vendor), nicht auf unpkg. Grund:
+     dieser Konfigurator laeuft im selben Ursprung wie Shop und Warenkorb —
+     fremd ausgeliefertes JavaScript koennte hier den Warenkorb lesen, die
+     Druckdatei vertauschen oder den Checkout mitschreiben. Ohne Pruefsumme
+     haetten wir das nicht einmal gemerkt. Nebenbei: funktioniert jetzt auch,
+     wenn das CDN gerade weg ist, und keine Besucher-IP geht mehr an Dritte.
+     Fassungen und Aktualisierung: public/vendor/LIESMICH.txt -->
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
 </script>
-<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="/vendor/jszip.min.js"></script>
 <script src="/kcart.js"></script>
 <script type="module">
 import * as THREE from 'three';

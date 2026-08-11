@@ -12,3 +12,56 @@
 # ENOENT Helvetica.afm bei der PDF-Erzeugung.
 [functions]
   included_files = ["node_modules/pdfkit/js/data/*.afm"]
+
+# --- Sicherheits-Header ------------------------------------------------------
+# Gilt für die statisch vorgerenderten Seiten und alles unter public/ (also
+# auch die beiden Konfiguratoren). Antworten aus der SSR-Function laufen NICHT
+# hier durch — die bekommen dieselben Werte von src/middleware.ts. Ändert sich
+# etwas, muss es an beiden Stellen geändert werden.
+#
+# Zur Begründung der einzelnen Direktiven siehe src/middleware.ts; kurz:
+# 'unsafe-inline' bei script-src, weil die Konfiguratoren autarke Ein-Datei-
+# Anwendungen sind — fremde Skript-Herkünfte bleiben trotzdem gesperrt.
+# frame-ancestors 'self', weil der Shop seine eigenen Konfiguratoren einrahmt.
+[[headers]]
+  for = "/*"
+
+  [headers.values]
+    Content-Security-Policy = """
+      default-src 'self'; \
+      base-uri 'self'; \
+      form-action 'self'; \
+      frame-ancestors 'self'; \
+      frame-src 'self'; \
+      object-src 'none'; \
+      script-src 'self' 'unsafe-inline'; \
+      style-src 'self' 'unsafe-inline'; \
+      font-src 'self'; \
+      img-src 'self' data: blob: https://*.supabase.co; \
+      connect-src 'self'; \
+      upgrade-insecure-requests"""
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # web-share bleibt erlaubt: der Konfigurator teilt am Handy den
+    # Konfigurations-Link über die System-Teilen-Funktion.
+    Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), interest-cohort=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+# Die Fremdbibliotheken ändern sich nur bei einem bewussten Wechsel (siehe
+# public/vendor/LIESMICH.txt) — eine Woche Cache spart bei Wiederbesuchen gut
+# 1.4 MB. Bewusst NICHT 'immutable' mit einem Jahr wie bei /_astro/: dort steht
+# eine Prüfsumme im Dateinamen, hier nicht. Ein Update unter gleichem Namen
+# käme sonst bei niemandem an.
+[[headers]]
+  for = "/vendor/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/_astro/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
