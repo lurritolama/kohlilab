@@ -5,23 +5,24 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const MAIL = 'manuel_looser@bluewin.ch';
-const betreff = encodeURIComponent('Anfrage Spezialanfertigung');
-const rumpf = encodeURIComponent(
-  [
-    'Hallo KohliLab',
-    '',
-    'Was ich brauche:',
-    '',
-    '',
-    'Masse (falls bekannt):',
-    'Stückzahl:',
-    '',
-    'Fotos oder 3D-Datei (3MF/STL/STEP) hänge ich dieser Mail gleich an.',
-    '',
-    'Gruss',
-  ].join('\n'),
-);
-const mailtoHref = `mailto:${MAIL}?subject=${betreff}&body=${rumpf}`;
+const BETREFF = 'Anfrage Spezialanfertigung';
+const VORLAGE = [
+  'Hallo KohliLab',
+  '',
+  'Was ich brauche:',
+  '',
+  '',
+  'Masse (falls bekannt):',
+  'Stückzahl:',
+  '',
+  'Fotos oder 3D-Datei (3MF/STL/STEP) hänge ich dieser Mail gleich an.',
+  '',
+  'Gruss',
+].join('\n');
+// RFC 6068 verlangt CRLF (%0D%0A) fuer Zeilenumbrueche im mailto-Body —
+// mit blossem %0A klappt manche Mail-App die Vorlage auf eine Zeile zusammen.
+const mailtoHref = `mailto:${MAIL}?subject=${encodeURIComponent(BETREFF)}`
+  + `&body=${encodeURIComponent(VORLAGE.replace(/\n/g, '\r\n'))}`;
 
 const beispiele = [
   {
@@ -58,10 +59,46 @@ const beispiele = [
     </p>
     <a class="btn primary" href={mailtoHref}>Anfrage per Mail senden</a>
     <p class="mailhinweis">
-      Der Knopf öffnet dein Mailprogramm mit einer kurzen Vorlage —
-      Fotos oder 3D-Dateien einfach anhängen. Oder direkt an
-      <a href={`mailto:${MAIL}`}>{MAIL}</a>.
+      Der Knopf öffnet dein Mailprogramm mit einer kurzen Vorlage.
+      Es passiert nichts? Dann schreib uns von Hand — Adresse und Vorlage
+      stehen hier, Fotos oder 3D-Dateien einfach anhängen:
     </p>
+    <div class="mailkasten">
+      <div class="mailzeile">
+        <code id="mail-adresse">{MAIL}</code>
+        <button class="btn ghost klein" type="button" data-kopiere="mail-adresse">Adresse kopieren</button>
+      </div>
+      <pre id="mail-vorlage">{`Betreff: ${BETREFF}\n\n${VORLAGE}`}</pre>
+      <button class="btn ghost klein" type="button" data-kopiere="mail-vorlage">Vorlage kopieren</button>
+    </div>
+    <script is:inline>
+      // Kopier-Fallback: funktioniert auch ohne eingerichtetes Mailprogramm.
+      // Clipboard-API zuerst, execCommand als Reserve fuer aeltere Browser.
+      document.querySelectorAll('[data-kopiere]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var text = document.getElementById(btn.dataset.kopiere).textContent;
+          function fertig() {
+            var alt = btn.textContent;
+            btn.textContent = 'Kopiert ✓';
+            setTimeout(function () { btn.textContent = alt; }, 1600);
+          }
+          function reserve() {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            ta.remove();
+            fertig();
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(fertig, reserve);
+          } else {
+            reserve();
+          }
+        });
+      });
+    </script>
   </section>
 
   <section class="block">
@@ -131,4 +168,13 @@ const beispiele = [
   .mailhinweis { color: var(--muted); font-size: 13px; margin-top: 14px; }
   .mailhinweis a { color: var(--acc2); }
   .grenzen { padding: 0; max-width: 62ch; }
+  .mailkasten { background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 16px 18px; max-width: 560px; margin-top: 10px; }
+  .mailzeile { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 12px; }
+  .mailzeile code { font-family: var(--mono); font-size: 14px; color: var(--acc2); }
+  .mailkasten pre { font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    line-height: 1.7; white-space: pre-wrap; border-top: 1px solid var(--line);
+    padding-top: 12px; margin-bottom: 12px; }
+  .btn.klein { padding: 8px 14px; font-size: 11px; }
 </style>
