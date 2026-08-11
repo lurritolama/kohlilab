@@ -35,7 +35,11 @@ const CSP = [
   "object-src 'none'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
+  // data: ist noetig, nicht bequem: die Fontsource-Schriften (BaseLayout)
+  // werden von Vite als data:-URI ins CSS eingebettet. Ohne das laedt die
+  // Seite mit Systemschriften — genau so ist es beim ersten Anlauf am
+  // 11.08.2026 live gegangen, bis die Konsole es gemeldet hat.
+  "font-src 'self' data:",
   // Sujet-Bilder liegen im öffentlichen Supabase-Bucket; blob:/data: brauchen
   // die Konfiguratoren für Vorschau und Dateiausgabe.
   "img-src 'self' data: blob: https://*.supabase.co",
