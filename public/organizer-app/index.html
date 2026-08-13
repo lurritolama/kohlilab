@@ -18,6 +18,16 @@
   .sub{color:var(--mut);font-size:11.5px;margin-bottom:12px}
   .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
   .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  /* "Erweitert" als eingeklappte Gruppe — der summary ist wie ein h2 gestylt */
+  .erwGrp summary{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;cursor:pointer;list-style:none}
+  .erwGrp summary::before{content:'▸ ';color:var(--mut)}
+  .erwGrp[open] summary{margin-bottom:9px}
+  .erwGrp[open] summary::before{content:'▾ '}
+  /* Panel-Zahlen sind anklickbar (eintippen) — gleiche Optik wie die
+     editierbaren Masszahlen im 3D-Bild */
+  .val.tippbar{cursor:text;text-decoration:underline dotted rgba(255,107,26,.55);text-underline-offset:2px}
+  .val.tippbar:hover{color:var(--acc)}
+  .valInp{width:60px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--acc2);border:1px solid var(--acc);border-radius:4px;padding:2px 5px}
   .row{display:flex;align-items:center;gap:8px;margin:7px 0}
   .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
   .row input[type=range]{flex:1;accent-color:var(--acc)}
@@ -121,26 +131,30 @@
   <h1>SCHUBLADEN-<b>ORGANIZER</b></h1>
   <div class="sub">nach Mass · KohliLab · 3D-gedruckt</div>
 
+<!-- Reihenfolge nach dem UX-Durchgang vom 13.08.2026: Masse -> Vorlage ->
+     Faecher -> Farbe. Wandhoehe/Wandstaerke/Boden sind Expertendetails, die
+     kaum jemand anfasst — sie stecken eingeklappt unter "Erweitert", statt
+     als Gruppe 2 jeden Neuling auszubremsen. -->
   <div class="grp"><h2>1 · Deine Schublade (Innenmass)</h2>
-    <div class="row"><label>Breite</label><input type="range" id="sb" min="90" max="800" step="5"><span class="val" id="sbV"></span></div>
-    <div class="row"><label>Tiefe</label><input type="range" id="st" min="90" max="600" step="5"><span class="val" id="stV"></span></div>
-    <div class="row"><label>Höhe</label><input type="range" id="sh" min="20" max="150" step="5"><span class="val" id="shV"></span></div>
-    <div class="row"><label>Spiel je Seite</label><input type="range" id="tol" min="0.5" max="3" step="0.5"><span class="val" id="tolV"></span></div>
+    <div class="row"><label>Breite</label><input type="range" id="sb" min="90" max="800" step="1"><span class="val" id="sbV"></span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="st" min="90" max="600" step="1"><span class="val" id="stV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="sh" min="20" max="150" step="1"><span class="val" id="shV"></span></div>
+    <div class="row"><label title="Luft zwischen Einsatz und Schubladenwand — damit er leicht hineingleitet und wieder herauskommt">Spiel je Seite</label><input type="range" id="tol" min="0.5" max="3" step="0.5"><span class="val" id="tolV"></span></div>
+    <div class="note"><b>Zahl anklicken und eintippen</b> — auf den Millimeter genau, der Regler ist fürs Grobe.</div>
   </div>
 
-  <div class="grp"><h2>2 · Einsatz</h2>
-    <div class="row"><label>Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
-    <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.8" max="3" step="0.2"><span class="val" id="wandV"></span></div>
-    <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
-  </div>
-
-  <div class="grp"><h2>3 · Vorlage</h2>
+  <div class="grp"><h2>2 · Vorlage</h2>
     <div class="btns" id="vorlagen"></div>
     <div class="note">Vorlagen sind Startpunkte — danach frei umbauen.</div>
   </div>
 
-  <div class="grp"><h2>4 · Fächer</h2>
+  <div class="grp"><h2>3 · Fächer</h2>
     <div class="note" style="margin-top:0">In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Löschen, <b>Wand ziehen</b> zum Verschieben. Oben links: Draufsicht, Masse, Rückgängig.</div>
+  </div>
+
+  <div class="grp"><h2>4 · Spezial-Einsätze</h2>
+    <div class="note" style="margin-top:0">Fertige Innenleben für einzelne Fächer. So geht's: <b>Fach in der Vorschau anklicken</b> → <b>„▦ Spezial-Einsatz"</b> wählen — dort steht auch, ob das Fach gross genug ist. Wieder weg: gleiches Menü → „Einsatz entfernen".</div>
+    <div id="einsatzListe"></div>
   </div>
 
   <div class="grp"><h2>5 · Farbe</h2>
@@ -148,9 +162,16 @@
     <div class="note">Der Organizer wird einfarbig gedruckt. Optional: Fächer über das Fach-Menü <b>beschriften</b> — die Schrift liegt bündig und farbig auf der Grundplatte.</div>
   </div>
 
+  <details class="grp erwGrp" id="erweitert">
+    <summary>Erweitert — Wandhöhe, Wandstärke, Boden</summary>
+    <div class="row"><label>Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
+    <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.8" max="3" step="0.2"><span class="val" id="wandV"></span></div>
+    <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
+  </details>
+
   <div class="grp"><h2>6 · Preis</h2>
     <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
-    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.50 + Zuschläge + 8 % Ausfallrisiko. Versand separat.</div>
+    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.50 + Zuschläge. In den Druckkosten stecken 8 % Reserve für misslungene Drucke. Versand separat.</div>
   </div>
 
   <div class="grp" id="lieferGrp"><h2>Lieferung</h2>
@@ -209,6 +230,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ---------- Konstanten ----------
 const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];   // 6 Farben
+// Namen in DERSELBEN Reihenfolge — fuer Tooltip und Screenreader; die
+// Knoepfe waren vorher namenlose Farbflecken.
+const FARBNAMEN = ['Weiss','Hellgrau','Schwarz','Rot','Blau','Orange'];
 const FACH_MIN = 25;
 // Garn-Zapfen sind seit 09.08.2026 STECKBAR (Manolos Entscheid nach der
 // Kalibrier-Testreihe v1-v4): angegossene Zapfen brachen an der Bodenfuge,
@@ -1173,13 +1197,24 @@ function preisInfo(){
 function preisAnzeigen(){
   const pi=preisInfo();
   const f=v=>v.toFixed(2);
+  // Kundenzeile kompakt: Druck & Material buendelt Material + Maschine +
+  // Feindruck + Ausfallreserve. Die volle Kalkulation bleibt einsehbar, aber
+  // eingeklappt — ein offener Posten "Ausfallrisiko" las sich wie "ich zahle
+  // fremde Fehldrucke" (UX-Durchgang 13.08.2026). Die 8 % stehen weiterhin
+  // transparent in der Fussnote; am Preis selbst aendert sich nichts.
+  const druck=pi.material+pi.maschine+pi.fein+pi.risiko;
+  // details-Zustand ueber die Neuberechnung hinweg erhalten
+  const offen=!!document.querySelector('#preisBox details[open]');
   document.getElementById('preisBox').innerHTML =
-    `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h<br>`+
-    `Grund ${f(PREIS.grund)} · Material ${f(pi.material)} · Maschine ${f(pi.maschine)}`+
-    (pi.fein?` · Spezial-Einsätze +${f(pi.fein)} <span style="opacity:.75">(≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+
-    ` · <span title="Deckt misslungene Drucke: Material, Maschinenzeit und Nacharbeit">Ausfallrisiko ${f(pi.risiko)}</span>`+
+    `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h`+
+    (pi.fein?` <span style="opacity:.75">(davon ≈ ${pi.feinStunden.toFixed(1)} h Feindruck)</span>`:'')+`<br>`+
+    `Druck &amp; Material ${f(druck)} · Grundpreis ${f(PREIS.grund)}`+
     (pi.zModule?` · Module +${f(pi.zModule)}`:'')+(pi.zText?` · Beschriftung +${f(pi.zText)}`:'')+
-    `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
+    `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`+
+    `<details${offen?' open':''} style="margin-top:4px"><summary style="cursor:pointer;opacity:.8">ⓘ Wie setzt sich das zusammen?</summary>`+
+    `Material ${f(pi.material)} · Druckzeit ${f(pi.maschine)}`+
+    (pi.fein?` · Spezial-Einsätze ${f(pi.fein)}`:'')+
+    ` · <span title="Deckt misslungene Drucke: Material, Maschinenzeit und Nacharbeit">Reserve für Fehldrucke (8 %) ${f(pi.risiko)}</span></details>`;
   const mb=document.getElementById('mbPreis');
   if(mb) mb.textContent=`Total CHF ${f(pi.total)}`;
 }
@@ -1573,7 +1608,8 @@ function zeigeLabelMenu(lf, cx, cy){
   // die bestehenden Beschriftungen mit um.
   let farbe=lf.n.label?.farbe || textFarbe();
   const sw=document.createElement('div'); sw.className='sw'; sw.style.padding='0 4px 4px';
-  PALETTE.forEach(hex=>{ const bt=document.createElement('button'); bt.style.background=hex;
+  PALETTE.forEach((hex,i)=>{ const bt=document.createElement('button'); bt.style.background=hex;
+    bt.title=FARBNAMEN[i]||hex; bt.setAttribute('aria-label',FARBNAMEN[i]||hex);
     if(farbe===hex) bt.classList.add('active');
     bt.addEventListener('click',()=>{ farbe=hex; sw.querySelectorAll('button').forEach(x=>x.classList.remove('active')); bt.classList.add('active'); });
     sw.appendChild(bt); });
@@ -1746,6 +1782,12 @@ const VORLAGEN = {
     const reihe=()=>({t:'split',dir:'v',pos:0.25,a:{t:'leaf'},b:{t:'split',dir:'v',pos:1/3,a:{t:'leaf'},b:{t:'split',dir:'v',pos:0.5,a:{t:'leaf'},b:{t:'leaf'}}}});
     return {t:'split',dir:'h',pos:1/3,a:reihe(),b:{t:'split',dir:'h',pos:0.5,a:reihe(),b:reihe()}};
   },
+  // Zeigt das Alleinstellungsmerkmal direkt her: die steckbaren Garn-Zapfen
+  // waren vorher nur ueber Fachklick -> "Spezial-Einsatz ..." zu entdecken.
+  // Hinten zwei Faecher fuer Schere und Kleinkram, vorne das grosse Garnfeld.
+  'Nähzimmer': ()=>({t:'split',dir:'h',pos:0.3,
+    a:{t:'split',dir:'v',pos:0.45,a:{t:'leaf'},b:{t:'leaf'}},
+    b:{t:'leaf',einsatz:'garn',garnCfg:{dicke:6,abstand:34,hoehe:42}}}),
 };
 const vh=document.getElementById('vorlagen');
 Object.keys(VORLAGEN).forEach(name=>{
@@ -1829,8 +1871,9 @@ function syncUI(){
 }
 function farbUI(hostId,key){
   const host=$(hostId);
-  PALETTE.forEach(hex=>{
+  PALETTE.forEach((hex,i)=>{
     const b=document.createElement('button'); b.style.background=hex;
+    b.title=FARBNAMEN[i]||hex; b.setAttribute('aria-label',FARBNAMEN[i]||hex);
     if(P[key]===hex) b.classList.add('active');
     b.addEventListener('click',()=>{ P[key]=hex; host.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); rebuild(); });
     host.appendChild(b);
@@ -1838,6 +1881,61 @@ function farbUI(hostId,key){
 }
 slider('sb','sb'); slider('st','st'); slider('sh','sh'); slider('tol','tol');
 slider('eh','eh'); slider('wand','wand'); slider('boden','boden');
+
+// Zahl anklicken -> eintippen. Die Regler springen grob (und frueher in
+// 5-mm-Schritten): wer 438 mm gemessen hat, konnte sein Mass gar nicht
+// einstellen — bei einem Produkt namens "nach Mass". machEditierbar() aus dem
+// 3D-Bild passt hier nicht (es ersetzt den Span und laesst ihn von
+// baueLabels() neu erzeugen; die Panel-Spans baut niemand neu), darum eine
+// eigene kleine Fassung, die den Span nur versteckt und wieder zeigt.
+function tippbar(spanId, titel, anwenden){
+  const span=$(spanId);
+  span.classList.add('tippbar'); span.title=titel;
+  span.addEventListener('click', ()=>{
+    if(span.style.display==='none') return;
+    const inp=document.createElement('input');
+    inp.type='text'; inp.inputMode='decimal'; inp.className='valInp';
+    inp.value=parseFloat(span.textContent);
+    span.style.display='none'; span.after(inp);
+    inp.focus(); inp.select();
+    let fertig=false;
+    const ende=(uebernehmen)=>{
+      if(fertig) return; fertig=true;
+      const w=parseFloat(String(inp.value).replace(',','.'));
+      inp.remove(); span.style.display='';
+      if(uebernehmen && isFinite(w)) anwenden(w);
+    };
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter') ende(true);
+      else if(e.key==='Escape') ende(false);
+    });
+    inp.addEventListener('blur', ()=>ende(true));
+  });
+}
+// ---------- Spezial-Einsaetze im Panel: reine Uebersicht ----------
+// Die Einsaetze lebten nur im Fach-Kontextmenue — wer nie ein Fach anklickte,
+// erfuhr nichts von ihnen (Manolo 13.08.2026: "sonst wird man nur durch
+// zufall auf diese aufmerksam"). Hier steht deshalb, WAS es gibt und WIE man
+// es einbaut. Bewusst NICHT klickbar (Manolos Entscheid gegen den
+// Sofort-Einbau): gewaehlt wird am Fach selbst, das Panel erklaert nur.
+// Aus EINSAETZE generiert, damit neue Eintraege automatisch erscheinen.
+{
+  const host=$('einsatzListe');
+  for(const kat of EINSATZ_KAT){
+    const namen=Object.values(EINSAETZE).filter(d=>d.kat===kat).map(d=>d.name);
+    if(!namen.length) continue;
+    const z=document.createElement('div');
+    z.style.cssText='font-size:12px;line-height:1.55;margin:5px 0;color:var(--mut)';
+    z.innerHTML=`<span style="font-size:10px;letter-spacing:1.2px;text-transform:uppercase;opacity:.75">${kat}</span><br>`+
+                namen.join(' · ');
+    host.appendChild(z);
+  }
+}
+
+tippbar('sbV','Breite eintippen (90–800 mm)', v=>{ P.sb=Math.max(90,Math.min(800,Math.round(v))); rebuild(); });
+tippbar('stV','Tiefe eintippen (90–600 mm)',  v=>{ P.st=Math.max(90,Math.min(600,Math.round(v))); rebuild(); });
+tippbar('shV','Höhe eintippen (20–150 mm)',   v=>{ P.sh=Math.max(20,Math.min(150,Math.round(v))); rebuild(); });
+tippbar('ehV','Wandhöhe eintippen (20–120 mm)', v=>{ P.eh=Math.max(20,Math.min(120,Math.round(v))); rebuild(); });
 farbUI('swFarbe','farbe');
 async function busy(btn,fn){ const alt=btn.textContent; btn.textContent='erzeugt …'; btn.disabled=true;
   try{ await new Promise(r=>setTimeout(r,30)); await fn(); } finally { btn.textContent=alt; btn.disabled=false; } }
