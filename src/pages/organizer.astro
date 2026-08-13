@@ -1,6 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import { ladeGalerie } from '../lib/server/galerie';
+
+// SSR statt vorgerendert: die Foto-Galerie kommt aus dem Storage und soll
+// ohne Deploy wachsen (werkzeug/galerie.py add ...) — wie die Ventilkappen.
+export const prerender = false;
+
+const fotos = await ladeGalerie('organizer');
 ---
 <BaseLayout
   title="Schubladen-Organizer nach Mass — KohliLab"
@@ -14,8 +21,132 @@ import KonfigFrame from '../components/KonfigFrame.astro';
       verschieben. Für Besteck, Büro, Werkzeug, Schrauben, Schminke und alles
       andere, das endlich Ordnung braucht.
     </p>
+    {fotos.length > 0 && (
+      <button class="galerie-knopf" data-galerie-auf>
+        📷 So sehen gedruckte Organizer aus
+        <span class="galerie-anzahl">{fotos.length} Foto{fotos.length > 1 ? 's' : ''}</span>
+      </button>
+    )}
   </section>
   <KonfigFrame app="organizer-app" titel="Schubladen-Organizer-Konfigurator" mobil="ansehen" />
 
+  {fotos.length > 0 && (
+    <dialog class="galerie" data-galerie>
+      <div class="galerie-kopf">
+        <strong>Gedruckte Organizer</strong>
+        <button class="galerie-zu" data-galerie-zu aria-label="Galerie schliessen">✕</button>
+      </div>
+      <div class="galerie-rolle">
+        {fotos.map((f) => (
+          <figure>
+            <img src={f.url} alt={f.text} loading="lazy" />
+            {f.text && <figcaption>{f.text}</figcaption>}
+          </figure>
+        ))}
+      </div>
+    </dialog>
+  )}
 </BaseLayout>
 
+<style>
+  .galerie-knopf {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 16px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--text, #1c1c1c);
+    background: transparent;
+    border: 1.5px solid currentColor;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .galerie-knopf:hover {
+    background: rgba(239, 125, 26, 0.12);
+    border-color: #ef7d1a;
+  }
+
+  .galerie-anzahl {
+    font-weight: 400;
+    opacity: 0.65;
+    font-size: 0.9em;
+  }
+
+  .galerie {
+    width: min(720px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: #141517;
+    color: #eceff0;
+  }
+
+  .galerie::backdrop {
+    background: rgba(0, 0, 0, 0.65);
+  }
+
+  .galerie-kopf {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(236, 239, 240, 0.15);
+    position: sticky;
+    top: 0;
+    background: #141517;
+  }
+
+  .galerie-zu {
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    padding: 6px 10px;
+    color: inherit;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  .galerie-zu:hover { opacity: 1; }
+
+  .galerie-rolle {
+    overflow-y: auto;
+    max-height: calc(100vh - 48px - 53px);
+    padding: 18px;
+    display: grid;
+    gap: 22px;
+  }
+
+  .galerie figure {
+    margin: 0;
+  }
+
+  .galerie img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .galerie figcaption {
+    margin-top: 8px;
+    font-size: 14px;
+    opacity: 0.85;
+  }
+</style>
+
+<script>
+  const dlg = document.querySelector<HTMLDialogElement>('[data-galerie]');
+  document.querySelector('[data-galerie-auf]')?.addEventListener('click', () => dlg?.showModal());
+  document.querySelector('[data-galerie-zu]')?.addEventListener('click', () => dlg?.close());
+  // Klick auf den abgedunkelten Hintergrund schliesst ebenfalls — der Dialog
+  // selbst ist das Ziel, wenn man AUSSERHALB seiner Kinder klickt.
+  dlg?.addEventListener('click', (e) => {
+    if (e.target === dlg) dlg.close();
+  });
+</script>
