@@ -43,6 +43,13 @@ export interface MailBestellung {
   wunschPruefung?: boolean;
   /** Kundentext des Wunsch-Motivs («Trikot FC Barcelona») für die Anrede im Mailtext. */
   wunschMotiv?: string;
+  /**
+   * Bestellnummer der Offerte, aus der diese Bestellung entstanden ist
+   * (Spezialanfertigung, z. B. «OF-2026-0001»). Ändert nur die Anrede — der
+   * Rest der Bestätigung ist bewusst identisch mit jeder anderen Bestellung:
+   * gleiche Zahlungsangaben, gleiche QR-Rechnung, gleicher Ablauf.
+   */
+  ausOfferte?: string;
 }
 
 /** «Hoi Benjamin» statt «Hallo Benjamin Huber» — Vorname reicht unter Werkstatt-Leuten. */
@@ -155,10 +162,14 @@ export function mailAnfrageKunde(b: MailBestellung, zahlung?: ZahlungAngaben): M
 
   const dankHtml = b.wunschPruefung
     ? wunschDankHtml(b.wunschMotiv)
-    : `<p style="color:#1c1c1c;">Danke für deine Bestellung bei KohliLab. Sie ist bei uns angekommen.</p>`;
+    : b.ausOfferte
+      ? `<p style="color:#1c1c1c;">Danke für deine Zusage zur Offerte <strong>${esc(b.ausOfferte)}</strong> — der Auftrag ist erteilt und trägt ab jetzt die Bestellnummer ${esc(b.orderNumber)}.</p>`
+      : `<p style="color:#1c1c1c;">Danke für deine Bestellung bei KohliLab. Sie ist bei uns angekommen.</p>`;
   const dankText = b.wunschPruefung
     ? wunschDankText(b.wunschMotiv)
-    : `Danke für deine Bestellung (${b.orderNumber}). Sie ist bei uns angekommen.`;
+    : b.ausOfferte
+      ? `Danke für deine Zusage zur Offerte ${b.ausOfferte} — der Auftrag ist erteilt und trägt ab jetzt die Bestellnummer ${b.orderNumber}.`
+      : `Danke für deine Bestellung (${b.orderNumber}). Sie ist bei uns angekommen.`;
 
   return {
     an: b.email,
@@ -243,14 +254,24 @@ export function mailBenachrichtigungBetreiberin(
   shopEmail: string,
   modus: 'anfrage' | 'bezahlt',
 ): MailInhalt {
-  const titel = modus === 'anfrage' ? 'Neue Bestellung (Zahlung offen)' : 'Neue bezahlte Bestellung';
+  // Aus einer Offerte entstanden? Dann heisst das Ereignis fuer Manolo nicht
+  // «neue Bestellung», sondern «Offerte angenommen» — die Bestellung selbst
+  // hat er ja schon als Offerte gesehen.
+  const titel = b.ausOfferte
+    ? `Offerte angenommen: ${b.ausOfferte}`
+    : modus === 'anfrage' ? 'Neue Bestellung (Zahlung offen)' : 'Neue bezahlte Bestellung';
+  const offerteHtml = b.ausOfferte
+    ? `<p style="color:#1c1c1c;">Daraus ist die Bestellung <strong>${esc(b.orderNumber)}</strong> geworden.
+       Die Rechnung ist bereits unterwegs; sobald das Geld da ist, kannst du drucken.</p>`
+    : '';
   return {
     an: shopEmail,
     antwortAn: b.email,
     betreff: `${titel} ${b.orderNumber} – ${formatPreis(b.totalRappen)}`,
     html: rahmen(`
       <p style="color:#1c1c1c;"><strong>${titel}</strong> von ${esc(b.name)} (${esc(b.email)})</p>
-      ${modus === 'anfrage' ? '<p style="color:#1c1c1c;">Zahlung ist noch offen. Antworten auf diese Mail geht direkt an die Kundschaft.</p>' : ''}
+      ${offerteHtml}
+      ${modus === 'anfrage' && !b.ausOfferte ? '<p style="color:#1c1c1c;">Zahlung ist noch offen. Antworten auf diese Mail geht direkt an die Kundschaft.</p>' : ''}
       ${positionenHtml(b)}
       <p style="color:#666;font-size:14px;">
         ${esc(b.name)}<br>${esc(b.strasse)}<br>${esc(b.plz)} ${esc(b.ort)} (${esc(b.land)})<br>
@@ -259,7 +280,7 @@ export function mailBenachrichtigungBetreiberin(
       </p>
     `),
     text: `${titel} ${b.orderNumber} von ${b.name} (${b.email})
-
+${b.ausOfferte ? `\nDaraus ist die Bestellung ${b.orderNumber} geworden. Die Rechnung ist bereits unterwegs.\n` : ''}
 ${positionenText(b)}
 
 ${b.name}
@@ -267,5 +288,78 @@ ${b.strasse}
 ${b.plz} ${b.ort} (${b.land})
 Versand: ${versandLabel(b.versandart)}
 ${b.bemerkung ? `\nBemerkung: ${b.bemerkung}` : ''}`,
+  };
+}
+
+/**
+ * Meldung an den Betrieb, wenn eine Offerte ABGELEHNT wurde.
+ *
+ * Für die Zusage braucht es keine eigene Meldung: dort entsteht eine
+ * Bestellung, und die meldet der übliche Weg schon.
+ */
+export function mailOfferteAbsageBetreiber(
+  o: { offerNumber: string; email: string; kundeName: string; titel: string; totalRappen: number },
+  shopEmail: string,
+): MailInhalt {
+  return {
+    an: shopEmail,
+    antwortAn: o.email,
+    betreff: `Offerte abgelehnt: ${o.offerNumber} – ${o.titel}`,
+    html: rahmen(`
+      <p style="color:#1c1c1c;font-size:18px;"><strong>Offerte abgelehnt</strong></p>
+      <p style="color:#1c1c1c;">${esc(o.kundeName)} (${esc(o.email)}) hat die Offerte
+      <strong>${esc(o.offerNumber)}</strong> über ${formatPreis(o.totalRappen)} abgelehnt.</p>
+      <p style="color:#1c1c1c;">${esc(o.titel)}</p>
+      <p style="color:#666;font-size:14px;">Es entstehen keine Kosten. Die Offerte steht im Admin
+      als abgelehnt. Antworten auf diese Mail geht direkt an die Kundschaft.</p>
+    `),
+    text: `Offerte abgelehnt
+
+${o.kundeName} (${o.email}) hat die Offerte ${o.offerNumber} über ${formatPreis(o.totalRappen)} abgelehnt.
+${o.titel}
+
+Es entstehen keine Kosten. Die Offerte steht im Admin als abgelehnt.
+Antworten auf diese Mail geht direkt an die Kundschaft.`,
+  };
+}
+
+/**
+ * Bestätigung nach einer ABSAGE zur Offerte.
+ *
+ * Bewusst kurz und ohne Nachfassen: Wer absagt, hat entschieden. Die Mail
+ * bestätigt nur, dass die Absage angekommen ist und nichts kostet — sonst
+ * bleibt die Unsicherheit, ob doch noch eine Rechnung kommt.
+ */
+export function mailOfferteAbgesagt(o: {
+  offerNumber: string;
+  email: string;
+  kundeName: string;
+  titel: string;
+}): MailInhalt {
+  return {
+    an: o.email,
+    betreff: `Offerte ${o.offerNumber} abgesagt – ${SHOP.name}`,
+    html: rahmen(`
+      <p style="color:#1c1c1c;">Hoi ${esc(vorname(o.kundeName))}</p>
+      <p style="color:#1c1c1c;">Deine Absage zur Offerte <strong>${esc(o.offerNumber)}</strong>
+      (${esc(o.titel)}) ist angekommen. <strong>Es entstehen dir keine Kosten</strong> —
+      die Machbarkeitsprüfung und die Offerte sind bei uns gratis.</p>
+      <p style="color:#1c1c1c;">Falls du es dir anders überlegst oder etwas anderes brauchst:
+      schreib oder ruf einfach an, wir rechnen dir gerne neu.</p>
+      ${GRUSS_HTML}
+    `),
+    text: `Hoi ${vorname(o.kundeName)}
+
+Deine Absage zur Offerte ${o.offerNumber} (${o.titel}) ist angekommen.
+Es entstehen dir keine Kosten - die Machbarkeitsprüfung und die Offerte
+sind bei uns gratis.
+
+Falls du es dir anders überlegst oder etwas anderes brauchst: schreib oder
+ruf einfach an, wir rechnen dir gerne neu.
+
+${GRUSS_TEXT}
+
+${VAT_HINWEIS}
+${SHOP.name}, ${SHOP.ort}`,
   };
 }

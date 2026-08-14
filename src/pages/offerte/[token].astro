@@ -1,0 +1,440 @@
+---
+/**
+ * Offerte fuer eine Spezialanfertigung — die Seite, die die Kundschaft sieht.
+ *
+ * Erreichbar nur ueber den langen Token aus der Mail; es gibt keine Liste und
+ * keinen Index. Die Seite rechnet nichts: alle Betraege stehen so in der
+ * Datenbank, wie Manolo sie beim Erstellen gesehen hat.
+ *
+ * Zwei Wege fuehren hier weg — annehmen (daraus entsteht die Bestellung) oder
+ * kostenlos absagen. Beides laeuft ueber /api/offerte-antwort.
+ */
+export const prerender = false;
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  franken, rechenweg, datumLang, istEntscheidbar, istAbgelaufen, heuteSchweiz,
+  type Offerte,
+} from '../../lib/offerte';
+import { supabaseAdmin } from '../../lib/server/supabase-admin';
+
+const { token } = Astro.params;
+
+// Vorschau-Fassung fuer die Abnahme der Oberflaeche. Nur beim lokalen
+// Entwickeln erreichbar — auf dem Server gibt es diesen Zweig nicht, dort
+// zaehlt allein der Token aus der Datenbank.
+const DEMO: Offerte = {
+  offerNumber: 'OF-2026-0001',
+  status: 'versendet',
+  datum: '2026-08-14',
+  gueltigBis: '2026-09-13',
+  // Frei erfunden — in der Vorschau hat kein echter Kundenname etwas verloren.
+  kundeName: 'Andrea Brunner',
+  strasse: 'Rebbergweg 12',
+  plz: '9053',
+  ort: 'Teufen',
+  land: 'CH',
+  email: 'andrea.brunner@example.ch',
+  titel: 'Ersatz-Zahnrad für Rasenmäher-Antrieb',
+  beschreibung:
+    'Nachbau des gebrochenen Antriebszahnrads nach dem eingeschickten Originalteil. '
+    + 'Gedruckt in PETG (wärmefester als PLA), Zahnflanken nachgearbeitet, '
+    + 'Passung auf die 12-mm-Welle geprüft. Zwei Stück, damit du ein Ersatzteil auf Lager hast.',
+  bemerkung:
+    'Das Original war an der Nabe eingerissen — ich habe die Nabe 2 mm dicker gemacht. '
+    + 'Passt weiterhin ins Gehäuse, hält aber deutlich mehr aus.',
+  stueckzahl: 2,
+  bildUrl: null,
+  positionen: [
+    { art: 'material', bezeichnung: 'PETG schwarz', menge: 186, einheit: 'g', ansatzRappen: 5, betragRappen: 930 },
+    { art: 'maschine', bezeichnung: 'Druckzeit', menge: 7.5, einheit: 'h', ansatzRappen: 250, betragRappen: 1875 },
+    { art: 'vorbereitung', bezeichnung: 'Vermessen, Modellieren, Slicing', menge: 2.5, einheit: 'h', ansatzRappen: 6000, betragRappen: 15000 },
+    { art: 'nachbearbeitung', bezeichnung: 'Stützen entfernen, Flanken entgraten, Passung prüfen', menge: 0.75, einheit: 'h', ansatzRappen: 6000, betragRappen: 4500 },
+  ],
+  versandLabel: 'B-Post',
+  versandRappen: 700,
+  subtotalRappen: 22305,
+  totalRappen: 23005,
+  orderNumber: null,
+};
+
+let offerte: Offerte | null = null;
+let fehlerBeimLaden = false;
+
+// «vorschau», «vorschau-angenommen», «vorschau-abgelehnt», «vorschau-abgelaufen»
+// zeigen die vier Zustaende der Seite. Nur beim lokalen Entwickeln erreichbar.
+if (import.meta.env.DEV && token?.startsWith('vorschau')) {
+  const zustand = token.slice('vorschau'.length).replace(/^-/, '');
+  offerte = { ...DEMO };
+  if (zustand === 'angenommen') {
+    offerte.status = 'angenommen';
+    offerte.orderNumber = 'KL-2026-0004';
+  } else if (zustand === 'abgelehnt') {
+    offerte.status = 'abgelehnt';
+  } else if (zustand === 'abgelaufen') {
+    offerte.gueltigBis = '2026-08-01';
+  }
+} else if (token) {
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from('offers')
+    .select('*')
+    .eq('token', token)
+    .maybeSingle();
+  if (error) {
+    console.error('[offerte] Laden fehlgeschlagen:', error.message);
+    fehlerBeimLaden = true;
+  } else if (data) {
+    // Der Bilder-Bucket ist privat: die Adresse wird hier fuer diesen einen
+    // Aufruf erzeugt und laeuft danach ab. Klappt das nicht, faellt bloss das
+    // Bild weg — die Offerte bleibt lesbar.
+    let bildUrl: string | null = null;
+    if (data.bild_pfad) {
+      const { data: signiert } = await db.storage
+        .from('offerten')
+        .createSignedUrl(data.bild_pfad, 60 * 60);
+      bildUrl = signiert?.signedUrl ?? null;
+    }
+    offerte = {
+      offerNumber: data.offer_number,
+      status: data.status,
+      datum: data.datum,
+      gueltigBis: data.gueltig_bis,
+      kundeName: data.kunde_name,
+      strasse: data.strasse,
+      plz: data.plz,
+      ort: data.ort,
+      land: data.land,
+      email: data.email,
+      titel: data.titel,
+      beschreibung: data.beschreibung ?? '',
+      bemerkung: data.bemerkung ?? '',
+      stueckzahl: data.stueckzahl ?? 1,
+      bildUrl,
+      positionen: data.positionen ?? [],
+      versandLabel: data.versand_label,
+      versandRappen: data.versand_rappen,
+      subtotalRappen: data.subtotal_rappen,
+      totalRappen: data.total_rappen,
+      orderNumber: data.order_number,
+    };
+  }
+}
+
+// Entwuerfe sind noch nicht verschickt — die gibt es fuer die Kundschaft nicht.
+if (offerte && offerte.status === 'entwurf') offerte = null;
+
+const heute = heuteSchweiz();
+const abgelaufen = offerte ? istAbgelaufen(offerte, heute) : false;
+const entscheidbar = offerte ? istEntscheidbar(offerte, heute) : false;
+
+// Die Arbeitszeilen wandern zusammen unter eine Zwischenueberschrift: sie
+// sind der groesste Posten, und getrennt danebengestellt wirkt es, als
+// waere die Arbeit doppelt verrechnet.
+const GRUPPEN = [
+  { titel: 'Material und Maschine', arten: ['material', 'maschine'] },
+  { titel: 'Arbeit', arten: ['vorbereitung', 'nachbearbeitung'] },
+  { titel: 'Weiteres', arten: ['frei'] },
+] as const;
+const gruppen = offerte
+  ? GRUPPEN.map((g) => ({
+      titel: g.titel,
+      posten: offerte!.positionen.filter((p) => (g.arten as readonly string[]).includes(p.art)),
+    })).filter((g) => g.posten.length > 0)
+  : [];
+---
+{!offerte ? (
+  <BaseLayout title="Offerte nicht gefunden — KohliLab" noindex>
+    <section class="block">
+      <h1>Diese Offerte gibt es nicht</h1>
+      <p class="lead">
+        {fehlerBeimLaden
+          ? 'Wir konnten die Offerte gerade nicht laden. Bitte versuch es in ein paar Minuten nochmals.'
+          : 'Der Link stimmt nicht oder die Offerte wurde zurückgezogen. Am einfachsten antwortest du kurz auf unsere Mail — wir schicken dir einen neuen Link.'}
+      </p>
+      <a class="btn ghost" href="/spezialanfertigung">Zur Spezialanfertigung</a>
+    </section>
+  </BaseLayout>
+) : (
+  <BaseLayout title={`Offerte ${offerte.offerNumber} — KohliLab`} noindex>
+    <section class="block of-seite" data-token={token} data-nummer={offerte.offerNumber}>
+
+      {/* --- Kopf: Rahmenangaben und Kundendaten --- */}
+      <div class="of-kopf">
+        <div>
+          <div class="of-marke">KOHLILAB · BÜHLER AR</div>
+          <h1>Offerte</h1>
+          <dl class="of-rahmen">
+            <div><dt>Nummer</dt><dd>{offerte.offerNumber}</dd></div>
+            <div><dt>Datum</dt><dd>{datumLang(offerte.datum)}</dd></div>
+            <div><dt>Gültig bis</dt><dd>{datumLang(offerte.gueltigBis)}</dd></div>
+          </dl>
+        </div>
+        <address class="of-kunde">
+          <span class="of-klein">Für</span>
+          {offerte.kundeName}<br />
+          {offerte.strasse}<br />
+          {`${offerte.plz} ${offerte.ort}`}
+        </address>
+      </div>
+
+      {/* --- Zustand, falls nicht mehr offen --- */}
+      {offerte.status === 'angenommen' && (
+        <p class="of-hinweis of-ja">
+          <b>Du hast diese Offerte angenommen.</b>
+          {offerte.orderNumber
+            ? ` Sie läuft als Bestellung ${offerte.orderNumber} — die Bestätigung mit der Rechnung ist per Mail unterwegs.`
+            : ' Die Bestätigung mit der Rechnung ist per Mail unterwegs.'}
+        </p>
+      )}
+      {offerte.status === 'abgelehnt' && (
+        <p class="of-hinweis">
+          Du hast abgesagt — für dich entstehen keine Kosten. Wenn du es dir
+          anders überlegst, schreib uns einfach; wir machen dir gerne eine neue Offerte.
+        </p>
+      )}
+      {offerte.status === 'versendet' && abgelaufen && (
+        <p class="of-hinweis">
+          Diese Offerte ist am {datumLang(offerte.gueltigBis)} abgelaufen.
+          Melde dich kurz — wir rechnen sie dir gerne neu.
+        </p>
+      )}
+
+      {/* --- Was gebaut wird --- */}
+      <div class="of-auftrag">
+        <div class="of-auftrag-text">
+          <h2>{offerte.titel}</h2>
+          {offerte.stueckzahl > 1 && <p class="of-menge">{offerte.stueckzahl} Stück</p>}
+          {offerte.beschreibung && <p class="of-beschreibung">{offerte.beschreibung}</p>}
+        </div>
+        {offerte.bildUrl && (
+          <figure class="of-bild">
+            <img src={offerte.bildUrl} alt={`Vorschau: ${offerte.titel}`} loading="lazy" />
+            <figcaption>So ist es geplant — Ansicht des Modells.</figcaption>
+          </figure>
+        )}
+      </div>
+
+      {/* --- Positionen --- */}
+      <div class="of-tabelle">
+        {gruppen.map((g) => (
+          <>
+            <div class="of-gruppe">{g.titel}</div>
+            {g.posten.map((p) => (
+              <div class="of-zeile">
+                <div class="of-was">
+                  <span class="of-bez">{p.bezeichnung}</span>
+                  {rechenweg(p) && <span class="of-weg">{rechenweg(p)}</span>}
+                </div>
+                <div class="of-betrag">{franken(p.betragRappen)}</div>
+              </div>
+            ))}
+          </>
+        ))}
+
+        <div class="of-zeile of-summe">
+          <div class="of-was"><span class="of-bez">Zwischentotal</span></div>
+          <div class="of-betrag">{franken(offerte.subtotalRappen)}</div>
+        </div>
+        <div class="of-zeile">
+          <div class="of-was"><span class="of-bez">Versand</span><span class="of-weg">{offerte.versandLabel}</span></div>
+          <div class="of-betrag">{franken(offerte.versandRappen)}</div>
+        </div>
+        <div class="of-zeile of-total">
+          <div class="of-was"><span class="of-bez">Gesamttotal</span></div>
+          <div class="of-betrag">{franken(offerte.totalRappen)}</div>
+        </div>
+      </div>
+      <p class="of-mwst">Keine Mehrwertsteuer geschuldet.</p>
+
+      {/* --- Bemerkung --- */}
+      {offerte.bemerkung && (
+        <div class="of-bemerkung">
+          <div class="of-klein">Bemerkung</div>
+          <p>{offerte.bemerkung}</p>
+        </div>
+      )}
+
+      {/* --- Entscheid --- */}
+      {entscheidbar && (
+        <div class="of-entscheid">
+          <h2>Wie möchtest du weiter?</h2>
+          <p class="of-entscheid-text">
+            Mit dem Ja starten wir die Arbeit; du bekommst gleich darauf die
+            Bestellbestätigung mit der Rechnung. Eine Absage kostet nichts —
+            die Prüfung und diese Offerte sind für dich gratis.
+          </p>
+          <div class="of-knoepfe">
+            <button class="btn primary" type="button" data-ja>Offerte annehmen</button>
+            <button class="btn ghost" type="button" data-nein>Kostenlos absagen</button>
+          </div>
+          <p class="of-fehler" data-fehler hidden></p>
+        </div>
+      )}
+
+      <p class="of-fuss">
+        Fragen zur Offerte? Ruf an unter <a href="tel:+41763868910">076 386 89 10</a>
+        oder antworte einfach auf unsere Mail.
+      </p>
+    </section>
+
+    {/* Zusage ist verbindlich — deshalb ein Zwischenschritt statt eines
+        Klicks, der gleich eine Bestellung ausloest. */}
+    <dialog class="of-dialog" data-dialog-ja>
+      <h2>Offerte {offerte.offerNumber} annehmen?</h2>
+      <p>
+        Damit beauftragst du uns verbindlich mit <b>{offerte.titel}</b> zum
+        Gesamtpreis von <b>{franken(offerte.totalRappen)}</b>. Du bekommst die
+        Bestellbestätigung mit der Rechnung per Mail an {offerte.email}.
+      </p>
+      <div class="of-dialog-knoepfe">
+        <button class="btn ghost" type="button" data-schliessen>Zurück</button>
+        <button class="btn primary" type="button" data-bestaetige="ja">Ja, Auftrag erteilen</button>
+      </div>
+    </dialog>
+
+    <dialog class="of-dialog" data-dialog-nein>
+      <h2>Offerte absagen?</h2>
+      <p>
+        Für dich entstehen keine Kosten. Wir legen die Anfrage ab — du kannst
+        dich jederzeit wieder melden.
+      </p>
+      <div class="of-dialog-knoepfe">
+        <button class="btn ghost" type="button" data-schliessen>Zurück</button>
+        <button class="btn" type="button" data-bestaetige="nein">Absagen</button>
+      </div>
+    </dialog>
+
+    <script is:inline>
+      (function () {
+        var seite = document.querySelector('.of-seite');
+        if (!seite) return;
+        var token = seite.dataset.token;
+        var fehler = seite.querySelector('[data-fehler]');
+        var dialogJa = document.querySelector('[data-dialog-ja]');
+        var dialogNein = document.querySelector('[data-dialog-nein]');
+
+        function oeffne(d) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+        function schliesse(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+
+        var jaKnopf = seite.querySelector('[data-ja]');
+        var neinKnopf = seite.querySelector('[data-nein]');
+        if (jaKnopf) jaKnopf.addEventListener('click', function () { oeffne(dialogJa); });
+        if (neinKnopf) neinKnopf.addEventListener('click', function () { oeffne(dialogNein); });
+
+        document.querySelectorAll('[data-schliessen]').forEach(function (b) {
+          b.addEventListener('click', function () { schliesse(b.closest('dialog')); });
+        });
+
+        document.querySelectorAll('[data-bestaetige]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var antwort = b.dataset.bestaetige;
+            b.disabled = true;
+            b.textContent = 'Einen Moment …';
+            fetch('/api/offerte-antwort', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: token, antwort: antwort }),
+            })
+              .then(function (r) { return r.json().catch(function () { return {}; }); })
+              .then(function (d) {
+                if (d && d.ok) { location.reload(); return; }
+                throw new Error((d && d.fehler) || 'Das hat gerade nicht geklappt.');
+              })
+              .catch(function (e) {
+                schliesse(b.closest('dialog'));
+                b.disabled = false;
+                b.textContent = antwort === 'ja' ? 'Ja, Auftrag erteilen' : 'Absagen';
+                if (fehler) {
+                  fehler.textContent = e.message + ' Bitte versuch es nochmals oder ruf uns an.';
+                  fehler.hidden = false;
+                }
+              });
+          });
+        });
+      })();
+    </script>
+  </BaseLayout>
+)}
+
+<style>
+  .of-seite { max-width: 780px; }
+  .of-seite h1 { font-size: 38px; margin: 6px 0 18px; }
+
+  /* Kopf */
+  .of-kopf { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .of-marke { font-family: var(--mono); font-size: 10px; letter-spacing: 1.4px; color: var(--muted); }
+  .of-rahmen { display: flex; flex-wrap: wrap; gap: 6px 30px; margin: 0; }
+  .of-rahmen div { display: flex; flex-direction: column; gap: 2px; }
+  .of-rahmen dt { font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--muted); }
+  .of-rahmen dd { margin: 0; font-size: 15px; }
+  .of-kunde { font-style: normal; font-size: 15px; line-height: 1.6; text-align: right; }
+  .of-klein { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+
+  /* Zustandsmeldungen */
+  .of-hinweis { margin-top: 22px; padding: 14px 16px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); font-size: 14.5px; line-height: 1.65; }
+  .of-hinweis.of-ja { border-color: #2f7d4f; }
+
+  /* Auftrag */
+  .of-auftrag { display: grid; gap: 24px; margin-top: 30px; align-items: start; }
+  .of-auftrag:has(.of-bild) { grid-template-columns: minmax(0, 1fr) 260px; }
+  .of-auftrag h2 { font-size: 22px; margin: 0 0 8px; }
+  .of-menge { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 0 0 10px; }
+  .of-beschreibung { margin: 0; line-height: 1.7; max-width: 60ch; }
+  .of-bild { margin: 0; }
+  .of-bild img { width: 100%; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); display: block; }
+  .of-bild figcaption { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+  /* Positionen */
+  .of-tabelle { margin-top: 30px; border-top: 1px solid var(--line); }
+  .of-gruppe { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--muted); padding: 18px 0 6px; }
+  .of-zeile { display: flex; justify-content: space-between; align-items: baseline;
+    gap: 20px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .of-was { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .of-bez { font-size: 15px; }
+  .of-weg { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .of-betrag { font-variant-numeric: tabular-nums; font-size: 15px; white-space: nowrap; }
+  .of-summe { margin-top: 10px; border-top: 1px solid var(--line); }
+  .of-total { border-bottom: none; padding-top: 14px; }
+  .of-total .of-bez, .of-total .of-betrag { font-size: 19px; font-weight: 700; }
+  .of-mwst { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .of-bemerkung { margin-top: 26px; padding: 16px 18px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); }
+  .of-bemerkung p { margin: 0; line-height: 1.7; font-size: 14.5px; }
+
+  /* Entscheid */
+  .of-entscheid { margin-top: 38px; padding-top: 26px; border-top: 1px solid var(--line); }
+  .of-entscheid h2 { font-size: 20px; margin: 0 0 8px; }
+  .of-entscheid-text { color: var(--muted); font-size: 14px; line-height: 1.7;
+    max-width: 58ch; margin: 0 0 18px; }
+  .of-knoepfe { display: flex; flex-wrap: wrap; gap: 10px; }
+  .of-fehler { color: #ff8f6b; font-size: 13.5px; margin-top: 12px; }
+  .of-fuss { margin-top: 34px; font-size: 13px; color: var(--muted); }
+  .of-fuss a { color: var(--acc2); }
+
+  /* Dialoge */
+  .of-dialog { max-width: 460px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); color: inherit; padding: 24px; }
+  .of-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+  .of-dialog h2 { font-size: 19px; margin: 0 0 10px; }
+  .of-dialog p { margin: 0 0 20px; line-height: 1.7; font-size: 14.5px; }
+  .of-dialog-knoepfe { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+
+  @media (max-width: 720px) {
+    .of-seite h1 { font-size: 30px; }
+    .of-kopf { grid-template-columns: 1fr; }
+    .of-kunde { text-align: left; }
+    .of-auftrag:has(.of-bild) { grid-template-columns: 1fr; }
+    /* Am Handy zuerst das Bild, dann der Text — ein Rendering sagt auf dem
+       kleinen Schirm mehr als drei Zeilen Beschreibung. */
+    .of-bild { order: -1; }
+    .of-knoepfe .btn { flex: 1 1 100%; text-align: center; }
+  }
+</style>
