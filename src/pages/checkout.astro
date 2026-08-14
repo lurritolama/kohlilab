@@ -37,6 +37,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
         <label>Bemerkung (optional)<textarea name="bemerkung" rows="2" placeholder="z. B. Wunschtermin …"></textarea></label>
 
+        <label>Empfehlungs-Kürzel (optional)
+          <input type="text" name="werber" maxlength="20" placeholder="z. B. FRIDU" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase" />
+          <small class="co-hilfe">Hat dich jemand auf KohliLab aufmerksam gemacht? Trag sein Kürzel ein.</small>
+        </label>
+
         <p class="co-pay">Wir drucken deine Teile und schicken sie per Post. Bezahlung per QR-Rechnung / TWINT – du bekommst nach dem Absenden eine Bestätigung per E-Mail.</p>
         <button type="submit" class="btn primary" data-submit>Bestellung abschicken</button>
       </form>
@@ -67,6 +72,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   .co-fehler { background:#3b1212; border:1px solid #f87171; color:#fca5a5; border-radius:8px; padding:11px 14px; margin-bottom:14px; font-size:13.5px; }
   .co-fehler :global(div) { margin:2px 0; }
   .co-pay { color:var(--muted); font-size:13px; margin:16px 0; line-height:1.6; }
+  .co-hilfe { display:block; color:var(--muted); font-size:12px; margin-top:3px; font-weight:400; }
   .co-summary { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; position:sticky; top:16px; }
   .co-summary h2 { font-family:var(--disp); font-size:17px; text-transform:uppercase; margin-bottom:10px; }
   .co-summary ul { list-style:none; margin:0 0 12px; padding:0; }
@@ -132,6 +138,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       email: String(fd.get('email') || ''), name: String(fd.get('name') || ''), strasse: String(fd.get('strasse') || ''),
       plz: String(fd.get('plz') || ''), ort: String(fd.get('ort') || ''), land: String(fd.get('land') || 'CH'),
       telefon: String(fd.get('telefon') || ''), versandart: String(fd.get('versandart') || 'b_post'), bemerkung: String(fd.get('bemerkung') || ''),
+      werber: String(fd.get('werber') || ''),
     };
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Wird gesendet …'; }
     try {

@@ -170,7 +170,15 @@ export const POST: APIRoute = async ({ request }) => {
   }
   if (upErr.length) console.error('[konfig-checkout] Upload:', upErr.join('; '));
 
+  // Empfehlungs-Kuerzel (Werber): vereinheitlicht auf Grossbuchstaben, damit
+  // "egli", " Egli " und "EGLI" als EIN Werber zaehlen. Bewusst KEINE
+  // Pruefung gegen die Werber-Liste — ein Tippfehler darf nie eine
+  // Bestellung verhindern; unbekannte Kuerzel tauchen in der Admin-
+  // Uebersicht gesondert auf, dort sieht Manolo sie.
+  const werber = text(roh.werber).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20) || null;
+
   const { error: updErr } = await db.from('orders').update({
+    werber,
     konfiguration: {
       typ: 'konfigurator-bestellung',
       positionen: positionen.map((p) => ({ typ: p.typ, titel: p.titel, menge: p.menge, preisRappen: p.preis, konfig: p.konfig })),

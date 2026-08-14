@@ -1,0 +1,132 @@
+---
+/**
+ * Werber-Ansicht: kohlilab.ch/werber?k=<token>
+ *
+ * Der Werber (z. B. EGLI) sieht NUR seine Summen — Anzahl Bestellungen,
+ * Warenwert, seine Provision, aufgeschluesselt nach Monat. Bewusst keine
+ * Kundennamen, Adressen oder Bestellnummern: der Link ist ein Marketing-
+ * Werkzeug und kann weitergereicht werden; Kundendaten gehoeren nicht
+ * darauf. Der Schluessel ist pro Werber und mit `werber.py token-neu`
+ * jederzeit widerrufbar (Pi-Display-Muster).
+ *
+ * Provision gibt es nur auf BEZAHLTE Bestellungen — eine offene oder
+ * stornierte Bestellung bringt keinen Gewinn.
+ */
+export const prerender = false;
+
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { supabaseAdmin } from '../lib/server/supabase-admin';
+import { ladeWerber, BEZAHLT_STATUS } from '../lib/server/werber';
+
+const token = Astro.url.searchParams.get('k')?.trim() ?? '';
+const daten = token ? await ladeWerber() : null;
+const werber = daten?.werber.find((w) => w.token === token && w.aktiv) ?? null;
+
+interface Monat { label: string; bestellungen: number; bezahlt: number; umsatzRappen: number; provisionRappen: number; }
+let monate: Monat[] = [];
+let total = { bestellungen: 0, bezahlt: 0, umsatzRappen: 0, provisionRappen: 0 };
+let ladefehler = false;
+
+if (werber && daten) {
+  try {
+    const db = supabaseAdmin();
+    const { data: orders, error } = await db
+      .from('orders')
+      .select('subtotal_rappen, status, created_at')
+      .eq('werber', werber.kuerzel)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    const faktor = daten.gewinnAnteil * werber.satz;
+    const proMonat = new Map<string, Monat>();
+    for (const o of orders ?? []) {
+      const d = new Date(o.created_at as string);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!proMonat.has(key)) {
+        proMonat.set(key, {
+          label: d.toLocaleDateString('de-CH', { month: 'long', year: 'numeric' }),
+          bestellungen: 0, bezahlt: 0, umsatzRappen: 0, provisionRappen: 0,
+        });
+      }
+      const m = proMonat.get(key)!;
+      m.bestellungen += 1;
+      total.bestellungen += 1;
+      if (BEZAHLT_STATUS.includes(o.status as string)) {
+        const u = Number(o.subtotal_rappen) || 0;
+        m.bezahlt += 1; m.umsatzRappen += u; m.provisionRappen += Math.round(u * faktor);
+        total.bezahlt += 1; total.umsatzRappen += u; total.provisionRappen += Math.round(u * faktor);
+      }
+    }
+    monate = [...proMonat.values()];
+  } catch (e) {
+    console.error('[werber-seite]', e);
+    ladefehler = true;
+  }
+}
+
+const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
+---
+<BaseLayout title="Deine Empfehlungen — KohliLab" description="Übersicht für KohliLab-Werber." noindex>
+  <section class="block" style="padding-top:28px;max-width:640px">
+    {!werber ? (
+      <>
+        <h2>Kein Zugang</h2>
+        <p class="lead">
+          Dieser Link ist ungültig oder wurde erneuert. Melde dich bei Manu —
+          du bekommst einen frischen.
+        </p>
+      </>
+    ) : ladefehler ? (
+      <>
+        <h2>Gerade nicht verfügbar</h2>
+        <p class="lead">Die Zahlen lassen sich im Moment nicht laden — bitte später nochmals versuchen.</p>
+      </>
+    ) : (
+      <>
+        <h2>Hoi {werber.name} 👋</h2>
+        <p class="lead">
+          Das läuft über dein Kürzel <b>{werber.kuerzel}</b>. Provision gibt es
+          auf bezahlte Bestellungen: {werber.satz * 100} % vom Gewinn
+          ({(daten!.gewinnAnteil * werber.satz * 100).toFixed(1)} % vom Warenwert ohne Versand).
+        </p>
+
+        <div class="w-karten">
+          <div class="w-karte"><b>{total.bestellungen}</b><span>Bestellungen</span></div>
+          <div class="w-karte"><b>{total.bezahlt}</b><span>davon bezahlt</span></div>
+          <div class="w-karte"><b>{chf(total.umsatzRappen)}</b><span>Warenwert bezahlt</span></div>
+          <div class="w-karte w-prov"><b>{chf(total.provisionRappen)}</b><span>deine Provision</span></div>
+        </div>
+
+        {monate.length === 0 ? (
+          <p class="lead">Noch keine Bestellungen mit deinem Kürzel — das wird schon. 💪</p>
+        ) : (
+          <table class="w-tab">
+            <thead><tr><th>Monat</th><th>Bestellungen</th><th>bezahlt</th><th>Warenwert</th><th>Provision</th></tr></thead>
+            <tbody>
+              {monate.map((m) => (
+                <tr>
+                  <td>{m.label}</td><td>{m.bestellungen}</td><td>{m.bezahlt}</td>
+                  <td>{chf(m.umsatzRappen)}</td><td>{chf(m.provisionRappen)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p class="w-fuss">Offene Bestellungen zählen zur Provision, sobald sie bezahlt sind. Stornierte zählen nicht.</p>
+      </>
+    )}
+  </section>
+</BaseLayout>
+
+<style>
+  .w-karten { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:20px 0; }
+  .w-karte { background:var(--panel,#1d1e21); border:1px solid rgba(236,239,240,.12); border-radius:10px; padding:14px; text-align:center; }
+  .w-karte b { display:block; font-size:22px; }
+  .w-karte span { font-size:12px; opacity:.7; }
+  .w-prov { border-color:#ef7d1a; }
+  .w-prov b { color:#ef7d1a; }
+  .w-tab { width:100%; border-collapse:collapse; font-size:14px; }
+  .w-tab th, .w-tab td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(236,239,240,.1); }
+  .w-tab th { font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.65; }
+  .w-fuss { font-size:12.5px; opacity:.65; margin-top:14px; }
+</style>

@@ -15,10 +15,13 @@ import Footer from '../components/Footer.astro';
 interface Props {
   title?: string;
   description?: string;
+  /** true fuer private Seiten (Werber-Ansicht) — haelt Suchmaschinen fern */
+  noindex?: boolean;
 }
 const {
   title = 'KohliLab — Du konfigurierst. Wir drucken.',
   description = 'Konfiguratoren für 3D-gedruckte Produkte nach Mass: QR-Schilder, Schubladen-Organizer und mehr — im Browser gestaltet, in Bühler AR gedruckt. Dazu Ventilkappen aus der KI-Mikrofabrik.',
+  noindex = false,
 } = Astro.props;
 ---
 <!doctype html>
@@ -28,6 +31,7 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <meta name="theme-color" content="#141517" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
