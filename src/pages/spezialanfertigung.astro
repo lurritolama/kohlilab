@@ -24,22 +24,30 @@ const VORLAGE = [
 const mailtoHref = `mailto:${MAIL}?subject=${encodeURIComponent(BETREFF)}`
   + `&body=${encodeURIComponent(VORLAGE.replace(/\n/g, '\r\n'))}`;
 
+// Telefon fuer unverbindliche Anfragen (Manolo 14.08.2026). Als tel:-Link,
+// damit ein Anruf vom Handy ein Antippen ist.
+const TELEFON = '076 386 89 10';
+const telHref = 'tel:+41' + TELEFON.replace(/\D/g, '').replace(/^0/, '');
+
+// Beispielbilder: echte Auftraege statt Ventilkappen-Renderings
+// (Manolo 14.08.2026). Alle im Hochformat — die Karten stellen bewusst
+// nichts beschnitten dar, siehe .card .thumb im globalen CSS.
 const beispiele = [
   {
-    bild: '/bilder/spezial-zitrone.jpg',
-    alt: 'Ventilkappe als halbe Zitrone, gedruckt nach einem Kundenfoto',
+    bild: '/bilder/spezial-statue.webp',
+    alt: 'Gedruckte Figur einer Person, nach Fotos modelliert, mit gestrickter Mütze',
     titel: 'Vom Foto zum Teil',
-    text: 'Aus einem Foto wurde ein 3D-Modell, aus dem Modell eine Ventilkappe — Farben wie in der Vorlage.',
+    text: 'Aus Fotos wird ein 3D-Modell und daraus dein Einzelstück — Figuren, Büsten, Nachbildungen in Farbe.',
   },
   {
-    bild: '/bilder/organizer-titel.jpg',
-    alt: 'Schubladen-Organizer nach Mass auf dem Druckbett',
+    bild: '/bilder/spezial-relief.webp',
+    alt: 'Gedrucktes Grundrissmodell eines Stockwerks neben dem Bauplan',
     titel: 'Teile nach Mass',
-    text: 'Halterungen, Einsätze, Gehäuse, Ersatzteile: du bringst Masse oder das defekte Teil, wir konstruieren und drucken.',
+    text: 'Halterungen, Einsätze, Gehäuse, Ersatzteile: du bringst Masse, Zeichnung oder das defekte Teil — wir konstruieren und drucken. Aus einem PDF-Plan erzeugen wir auch ein Relief, wie den Grundriss im Bild.',
   },
   {
-    bild: '/bilder/spezial-melone.jpg',
-    alt: 'Ventilkappe als halbe Wassermelone mit vier Farben',
+    bild: '/bilder/spezial-pilzlampe.webp',
+    alt: 'Leuchtende Fliegenpilz-Lampe, aus einem fertigen 3D-Modell gedruckt',
     titel: 'Dein Modell, gedruckt',
     text: 'Du hast schon eine 3MF-, STL- oder STEP-Datei? Wir prüfen sie und drucken in deinen Wunschfarben.',
   },
@@ -49,15 +57,32 @@ const beispiele = [
   title="Spezialanfertigung — KohliLab"
   description="3D-Druck nach deiner Vorgabe: Ersatzteile, Halterungen, Gehäuse, persönliche Einzelstücke oder dein fertiges 3D-Modell. Kostenlose Machbarkeitsprüfung, gedruckt in Bühler AR."
 >
+  <section class="block spezial-kopf">
+    <div class="kopf-text">
+      <h1>Spezialanfertigung</h1>
+      <p class="lead">
+        Wir bauen und drucken Einzelstücke nach deiner Vorgabe — Ersatzteil,
+        Halterung, Gehäuse, persönliches Stück oder dein fertiges 3D-Modell.
+        Schick uns deine Anfrage, wir prüfen kostenlos, ob es machbar ist.
+        Du zahlst erst, wenn wir Ja sagen und du die Offerte annimmst.
+      </p>
+      <div class="kopf-cta">
+        <a class="btn primary" href={mailtoHref}>Anfrage per Mail senden</a>
+        <a class="btn ghost" href={telHref}>{TELEFON} anrufen</a>
+      </div>
+      <p class="anrufhinweis">
+        Lieber kurz reden? Ruf einfach an — unverbindlich, auch wenn du nur
+        wissen willst, ob so etwas überhaupt geht.
+      </p>
+    </div>
+    <div class="kopf-bild">
+      <img src="/bilder/spezial-titel.webp" width="1050" height="1400"
+           alt="Gedruckte Schutzhalterungen mit Klemmringen, frisch vom Druckbett" />
+      <span class="bildlabel">AUFTRAGSARBEIT · BÜHLER AR</span>
+    </div>
+  </section>
+
   <section class="block">
-    <h1>Spezialanfertigung</h1>
-    <p class="lead">
-      Wir bauen und drucken Einzelstücke nach deiner Vorgabe — Ersatzteil,
-      Halterung, Gehäuse, persönliches Stück oder dein fertiges 3D-Modell.
-      Schick uns deine Anfrage, wir prüfen kostenlos, ob es machbar ist.
-      Du zahlst erst, wenn wir Ja sagen und du die Offerte annimmst.
-    </p>
-    <a class="btn primary" href={mailtoHref}>Anfrage per Mail senden</a>
     <p class="mailhinweis">
       Der Knopf öffnet dein Mailprogramm mit einer kurzen Vorlage.
       Es passiert nichts? Dann schreib uns von Hand — Adresse und Vorlage
@@ -165,6 +190,29 @@ const beispiele = [
 
 <style>
   .block h1 { font-size: 40px; margin-bottom: 14px; }
+
+  /* Kopf: Text links, Titelbild rechts. Das Foto ist Hochformat (3:4) wie
+     alle Druckbett-Aufnahmen — es wird formatfuellend zugeschnitten, weil es
+     hier als Stimmungsbild dient und nicht als Produktabbildung. */
+  .spezial-kopf { display: grid; gap: 28px; align-items: center;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); }
+  .kopf-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+  .anrufhinweis { color: var(--muted); font-size: 13px; margin-top: 10px; max-width: 46ch; }
+  .kopf-bild { position: relative; aspect-ratio: 3 / 4; border-radius: 10px;
+    overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
+  .kopf-bild img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .bildlabel { position: absolute; left: 10px; bottom: 10px;
+    font-family: var(--mono); font-size: 9px; letter-spacing: 1.1px;
+    color: var(--muted); background: rgba(20, 21, 23, 0.72);
+    border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+
+  /* Am Handy zuerst der Text, dann das Bild — und flacher, damit der
+     Mail-Knopf nicht unter die Falz rutscht. */
+  @media (max-width: 720px) {
+    .spezial-kopf { grid-template-columns: 1fr; gap: 18px; }
+    .kopf-bild { aspect-ratio: 4 / 3; }
+    .block h1 { font-size: 32px; }
+  }
   .mailhinweis { color: var(--muted); font-size: 13px; margin-top: 14px; }
   .mailhinweis a { color: var(--acc2); }
   .grenzen { padding: 0; max-width: 62ch; }
