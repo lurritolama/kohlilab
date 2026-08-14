@@ -85,9 +85,16 @@ const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
       <>
         <h2>Hoi {werber.name} 👋</h2>
         <p class="lead">
-          Das läuft über dein Kürzel <b>{werber.kuerzel}</b>. Provision gibt es
-          auf bezahlte Bestellungen: {werber.satz * 100} % vom Gewinn
-          ({(daten!.gewinnAnteil * werber.satz * 100).toFixed(1)} % vom Warenwert ohne Versand).
+          Das läuft über dein Kürzel <b>{werber.kuerzel}</b>.
+        </p>
+        <!-- Beide Rechenstufen ausschreiben: die kompakte Klammer "(1.0 % vom
+             Warenwert)" hat sogar Manolo als Rechenfehler gelesen. -->
+        <p class="lead">
+          Deine Provision: <b>{(werber.satz * 100).toFixed(0)} % vom Gewinn</b>.
+          Der Gewinn beträgt {(daten!.gewinnAnteil * 100).toFixed(0)} % vom
+          Warenwert (ohne Versand) — deine Provision entspricht damit
+          {(daten!.gewinnAnteil * werber.satz * 100).toFixed(1)} % vom Warenwert.
+          Gezählt werden bezahlte Bestellungen.
         </p>
 
         <div class="w-karten">
