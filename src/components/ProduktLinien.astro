@@ -1,6 +1,10 @@
 ---
 // Zentrale Produktlinien-Übersicht. Neue Konfiguratoren/Linien hier
 // ergänzen — jede Linie bekommt eine eigene Unterseite.
+//
+// Das Titelbild steht bei der Linie selbst statt in einer Bedingungskette
+// in der Darstellung: die war schon vierfach verschachtelt und musste bei
+// jedem neuen Bild aufgebohrt werden.
 const linien = [
   {
     slug: 'qr-schilder',
@@ -9,6 +13,9 @@ const linien = [
     beschreibung:
       'Dein QR-Schild im Konfigurator: Form, Farben, WLAN/URL/vCard, Text und Logo — mehrfarbig 3D-gedruckt.',
     href: '/qr-schilder',
+    bild: '/bilder/qr-schilder-titel.jpg',
+    alt: 'Neun frisch gedruckte QR-Marker auf dem Druckbett',
+    breite: 576, hoehe: 360,
   },
   {
     slug: 'organizer',
@@ -17,6 +24,9 @@ const linien = [
     beschreibung:
       'Dein Schubladeneinsatz nach Mass: Innenmass eingeben, Fächer frei einteilen — für Besteck, Büro, Werkzeug und mehr.',
     href: '/organizer',
+    bild: '/bilder/organizer-titel.jpg',
+    alt: 'Gedruckter Schubladen-Organizer mit Trennwänden auf dem Druckbett',
+    breite: 930, hoehe: 581,
   },
   {
     slug: 'ventilkappen',
@@ -25,6 +35,9 @@ const linien = [
     beschreibung:
       'Kleine Skulpturen mit Ventilgewinde aus der KI-Mikrofabrik — Schrader oder Presta, neue Sujets laufend, jedes von Hand freigegeben.',
     href: '/ventilkappen',
+    bild: '/bilder/ventilkappen-titel.jpg',
+    alt: 'Vier frisch gedruckte Glace-Ventilkappen auf dem Druckbett',
+    breite: 820, hoehe: 512,
   },
   {
     slug: 'spezialanfertigung',
@@ -33,6 +46,13 @@ const linien = [
     beschreibung:
       'Ersatzteil, Halterung, Einzelstück oder dein fertiges 3D-Modell: Anfrage schicken, wir prüfen kostenlos die Machbarkeit.',
     href: '/spezialanfertigung',
+    // Querformat-Zuschnitt desselben Fotos: die Karten sind 16:10, das
+    // Hochformat der Unterseite haette hier nur einen schmalen Streifen
+    // gefuellt. Die Teile liegen im Bild waagrecht, der Zuschnitt kostet
+    // also nichts (Manolo 14.08.2026).
+    bild: '/bilder/spezial-titel-quer.webp',
+    alt: 'Gedruckte Schutzhalterungen mit Klemmringen, frisch vom Druckbett',
+    breite: 1400, hoehe: 875,
   },
 ];
 ---
@@ -46,12 +66,8 @@ const linien = [
           {l.status === 'live' && <span class="tag">LIVE</span>}
           {l.status === 'test' && <span class="tag tag-test">TEST</span>}
           {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
-          {l.slug === 'ventilkappen' ? (
-            <img src="/bilder/ventilkappen-titel.jpg" alt="Vier frisch gedruckte Glace-Ventilkappen auf dem Druckbett" loading="lazy" width="820" height="512" />
-          ) : l.slug === 'organizer' ? (
-            <img src="/bilder/organizer-titel.jpg" alt="Gedruckter Schubladen-Organizer mit Trennwänden auf dem Druckbett" loading="lazy" width="930" height="581" />
-          ) : l.slug === 'qr-schilder' ? (
-            <img src="/bilder/qr-schilder-titel.jpg" alt="Neun frisch gedruckte QR-Marker auf dem Druckbett" loading="lazy" width="576" height="360" />
+          {l.bild ? (
+            <img src={l.bild} alt={l.alt} loading="lazy" width={l.breite} height={l.hoehe} />
           ) : l.status === 'bald' ? (
             <svg width="84" height="100" viewBox="0 0 90 110"><rect x="20" y="30" width="50" height="50" rx="6" fill="none" stroke="#9a9a93" stroke-width="4" stroke-dasharray="8 6"/><text x="45" y="63" text-anchor="middle" fill="#9a9a93" font-size="26" font-family="monospace">?</text></svg>
           ) : (
