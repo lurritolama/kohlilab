@@ -15,7 +15,10 @@ import { supabaseAdmin } from './supabase-admin';
 export interface Werber {
   kuerzel: string;
   name: string;
-  satz: number;          // Anteil am Gewinn, z. B. 0.10
+  /** Satz je Positionstyp, Anteil am Gewinn. 'standard' greift fuer alles,
+   *  was nicht eigens genannt ist. Seit 14.08.2026 haengt der Satz am
+   *  PRODUKT (Manolo): Ventilkappen 30 %, alles andere 15 %. */
+  saetze: Record<string, number>;
   token: string;
   aktiv: boolean;
   seit?: string;
@@ -24,6 +27,31 @@ export interface Werber {
 export interface WerberDaten {
   gewinnAnteil: number;  // Gewinn als Anteil am Warenwert, z. B. 0.10
   werber: Werber[];
+}
+
+/** Positionstyp -> Satz. Faellt auf 'standard' zurueck. */
+export function satzFuer(w: Werber, typ: string | undefined): number {
+  return w.saetze[typ ?? ''] ?? w.saetze.standard ?? 0.15;
+}
+
+/**
+ * Provision einer Bestellung. Gerechnet wird je POSITION, weil ein
+ * Warenkorb gemischt sein kann (Ventilkappen 30 %, Organizer 15 %).
+ * Ohne Positionsdaten (z. B. Bestellungen der anderen Shops) zaehlt der
+ * ganze Warenwert zum Standardsatz.
+ */
+export function provisionRappen(
+  w: Werber, gewinnAnteil: number,
+  subtotalRappen: number, konfiguration: unknown,
+): number {
+  const pos = (konfiguration as { positionen?: { typ?: string; preisRappen?: number }[] } | null)?.positionen;
+  if (!Array.isArray(pos) || pos.length === 0) {
+    return Math.round(subtotalRappen * gewinnAnteil * satzFuer(w, undefined));
+  }
+  return pos.reduce(
+    (s, p) => s + Math.round((Number(p.preisRappen) || 0) * gewinnAnteil * satzFuer(w, p.typ)),
+    0,
+  );
 }
 
 export async function ladeWerber(): Promise<WerberDaten | null> {
@@ -37,7 +65,8 @@ export async function ladeWerber(): Promise<WerberDaten | null> {
       werber: (roh.werber ?? []).map((w: Record<string, unknown>) => ({
         kuerzel: String(w.kuerzel),
         name: String(w.name ?? w.kuerzel),
-        satz: Number(w.satz) || 0.1,
+        // Altbestand kannte einen einzigen `satz` — der gilt dann fuer alles.
+        saetze: (w.saetze as Record<string, number>) ?? { standard: Number(w.satz) || 0.15 },
         token: String(w.token),
         aktiv: w.aktiv !== false,
         seit: w.seit ? String(w.seit) : undefined,

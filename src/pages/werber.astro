@@ -16,7 +16,7 @@ export const prerender = false;
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { supabaseAdmin } from '../lib/server/supabase-admin';
-import { ladeWerber, BEZAHLT_STATUS } from '../lib/server/werber';
+import { ladeWerber, BEZAHLT_STATUS, provisionRappen, satzFuer } from '../lib/server/werber';
 
 const token = Astro.url.searchParams.get('k')?.trim() ?? '';
 const daten = token ? await ladeWerber() : null;
@@ -32,12 +32,11 @@ if (werber && daten) {
     const db = supabaseAdmin();
     const { data: orders, error } = await db
       .from('orders')
-      .select('subtotal_rappen, status, created_at')
+      .select('subtotal_rappen, status, created_at, konfiguration')
       .eq('werber', werber.kuerzel)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    const faktor = daten.gewinnAnteil * werber.satz;
     const proMonat = new Map<string, Monat>();
     for (const o of orders ?? []) {
       const d = new Date(o.created_at as string);
@@ -53,8 +52,11 @@ if (werber && daten) {
       total.bestellungen += 1;
       if (BEZAHLT_STATUS.includes(o.status as string)) {
         const u = Number(o.subtotal_rappen) || 0;
-        m.bezahlt += 1; m.umsatzRappen += u; m.provisionRappen += Math.round(u * faktor);
-        total.bezahlt += 1; total.umsatzRappen += u; total.provisionRappen += Math.round(u * faktor);
+        // Je Position gerechnet — ein Warenkorb kann Ventilkappen (30 %)
+        // und Organizer (15 %) gemischt enthalten.
+        const prov = provisionRappen(werber, daten.gewinnAnteil, u, o.konfiguration);
+        m.bezahlt += 1; m.umsatzRappen += u; m.provisionRappen += prov;
+        total.bezahlt += 1; total.umsatzRappen += u; total.provisionRappen += prov;
       }
     }
     monate = [...proMonat.values()];
@@ -89,12 +91,21 @@ const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
         </p>
         <!-- Beide Rechenstufen ausschreiben: die kompakte Klammer "(1.0 % vom
              Warenwert)" hat sogar Manolo als Rechenfehler gelesen. -->
+        <p class="lead">Deine Provision hängt vom Produkt ab — gerechnet auf den Gewinn:</p>
+        <ul class="w-saetze">
+          <li>
+            <b>Ventilkappen: {(satzFuer(werber, 'ventilkappe') * 100).toFixed(0)} % vom Gewinn</b>
+            — das sind {(daten!.gewinnAnteil * satzFuer(werber, 'ventilkappe') * 100).toFixed(1)} % vom Warenwert
+          </li>
+          <li>
+            <b>Alles andere: {(satzFuer(werber, 'standard') * 100).toFixed(0)} % vom Gewinn</b>
+            — das sind {(daten!.gewinnAnteil * satzFuer(werber, 'standard') * 100).toFixed(1)} % vom Warenwert
+          </li>
+        </ul>
         <p class="lead">
-          Deine Provision: <b>{(werber.satz * 100).toFixed(0)} % vom Gewinn</b>.
-          Der Gewinn beträgt {(daten!.gewinnAnteil * 100).toFixed(0)} % vom
-          Warenwert (ohne Versand) — deine Provision entspricht damit
-          {(daten!.gewinnAnteil * werber.satz * 100).toFixed(1)} % vom Warenwert.
-          Gezählt werden bezahlte Bestellungen.
+          Der Gewinn beträgt {(daten!.gewinnAnteil * 100).toFixed(0)} % vom Warenwert
+          (ohne Versand). Gezählt werden bezahlte Bestellungen; bei gemischten
+          Bestellungen wird jede Position einzeln gerechnet.
         </p>
 
         <div class="w-karten">
@@ -136,4 +147,6 @@ const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
   .w-tab th, .w-tab td { text-align:left; padding:8px 10px; border-bottom:1px solid rgba(236,239,240,.1); }
   .w-tab th { font-size:12px; text-transform:uppercase; letter-spacing:.06em; opacity:.65; }
   .w-fuss { font-size:12.5px; opacity:.65; margin-top:14px; }
+  .w-saetze { margin:10px 0 14px; padding-left:20px; line-height:1.75; }
+  .w-saetze b { color:#ef7d1a; }
 </style>

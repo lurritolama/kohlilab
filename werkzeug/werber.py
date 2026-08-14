@@ -8,15 +8,17 @@ aber in einem PRIVATEN Bucket `intern` — sie enthaelt die Zugangsschluessel
 fuer die Werber-Ansicht (kohlilab.ch/werber?k=...) und darf darum nie
 oeffentlich lesbar sein. Lesen koennen sie nur die Server (Service-Key).
 
-Provisionsmodell (Manolo 13.08.2026): Gewinn = gewinn_anteil vom Warenwert
-(ohne Versand), Provision = satz vom Gewinn. Standard 10 % von 10 % — also
-effektiv 1 % vom Warenwert. Beides steht in werber.json und ist ohne Deploy
-aenderbar; gezaehlt und verguetet werden nur BEZAHLTE Bestellungen.
+Provisionsmodell: Gewinn = gewinn_anteil vom Warenwert (ohne Versand),
+Provision = Satz vom Gewinn. Der Satz haengt seit 14.08.2026 am PRODUKT
+(Manolo): Ventilkappen 30 %, alles andere 15 %. Weil ein Warenkorb gemischt
+sein kann, wird je POSITION gerechnet, nicht je Bestellung. Alle Saetze
+stehen in werber.json und sind ohne Deploy aenderbar; verguetet werden nur
+BEZAHLTE Bestellungen.
 
 Gebrauch:
     python werber.py add EGLI --name "Egli"           # legt an, druckt den Link
     python werber.py liste
-    python werber.py satz EGLI 0.15                   # 15 % vom Gewinn
+    python werber.py satz EGLI --ventilkappe 0.30 --standard 0.15
     python werber.py token-neu EGLI                   # alter Link wird ungueltig
     python werber.py aus EGLI / an EGLI               # deaktivieren/aktivieren
 """
@@ -83,9 +85,25 @@ def bucket_sicherstellen():
             f"Bucket '{BUCKET}' ist PUBLIC — sofort auf privat stellen, er enthaelt Schluessel!"
 
 
+# Standardsaetze fuer neue Werber. Schluessel = Positionstyp aus dem
+# Checkout ('ventilkappe', 'organizer', 'schild'); 'standard' greift fuer
+# alles, was nicht eigens genannt ist.
+SAETZE_STANDARD = {"ventilkappe": 0.30, "standard": 0.15}
+
+
 def laden():
     roh = _req("GET", f"/storage/v1/object/{BUCKET}/{PFAD}", ok_fehlt=True)
-    return json.loads(roh) if roh else {"gewinn_anteil": 0.10, "werber": []}
+    d = json.loads(roh) if roh else {"gewinn_anteil": 0.10, "werber": []}
+    d.setdefault("saetze_standard", dict(SAETZE_STANDARD))
+    # Altbestand: frueher gab es EINEN Satz je Werber. Der wird zum
+    # Standardsatz, Ventilkappen bekommen den neuen Produktsatz.
+    for w in d["werber"]:
+        if "saetze" not in w:
+            alt = w.pop("satz", None)
+            w["saetze"] = dict(d["saetze_standard"])
+            if alt is not None:
+                w["saetze"]["standard"] = alt
+    return d
 
 
 def speichern(d):
@@ -110,14 +128,26 @@ def cmd_add(a):
         sys.exit(f"'{k}' existiert schon.")
     token = f"{k}-{secrets.token_hex(12)}"
     d["werber"].append({
-        "kuerzel": k, "name": a.name or k, "satz": a.satz,
+        "kuerzel": k, "name": a.name or k,
+        "saetze": dict(d["saetze_standard"]),
         "token": token, "aktiv": True,
         "seit": datetime.date.today().isoformat(),
     })
     speichern(d)
-    eff = a.satz * d["gewinn_anteil"] * 100
-    print(f"OK: {k} angelegt — {a.satz*100:.0f} % vom Gewinn = {eff:.1f} % vom Warenwert.")
+    print(f"OK: {k} angelegt.")
+    _zeige_saetze(d, d["werber"][-1], "  ")
     print(f"Persoenlicher Link (nur an {a.name or k} geben):\n  {BASIS}?k={token}")
+
+
+def _zeige_saetze(d, w, einzug=""):
+    """Beide Rechenstufen ausschreiben — die kompakte Effektiv-Klammer hat
+    Manolo schon einmal als Rechenfehler gelesen."""
+    ga = d["gewinn_anteil"]
+    for typ, satz in sorted(w["saetze"].items()):
+        label = ("Ventilkappen" if typ == "ventilkappe" else
+                 "alles Uebrige" if typ == "standard" else typ)
+        print(f"{einzug}{label:14s} {satz*100:3.0f} % vom Gewinn "
+              f"= {satz*ga*100:.1f} % vom Warenwert")
 
 
 def cmd_liste(_):
@@ -126,17 +156,23 @@ def cmd_liste(_):
     if not d["werber"]:
         print("Keine Werber angelegt."); return
     for w in d["werber"]:
-        eff = w["satz"] * d["gewinn_anteil"] * 100
         print(f"  {w['kuerzel']:8s} {w.get('name',''):16s} "
-              f"{w['satz']*100:3.0f} % v. Gewinn (= {eff:.1f} % v. Warenwert)  "
               f"{'aktiv' if w.get('aktiv') else 'AUS'}  seit {w.get('seit','?')}")
-        print(f"           Link: {BASIS}?k={w['token']}")
+        _zeige_saetze(d, w, "           ")
+        print(f"           Link: {BASIS}?k={w['token']}\n")
 
 
 def cmd_satz(a):
     d = laden(); w = _finde(d, a.kuerzel)
-    w["satz"] = a.satz; speichern(d)
-    print(f"OK: {w['kuerzel']} hat jetzt {a.satz*100:.0f} % vom Gewinn.")
+    if a.ventilkappe is None and a.standard is None:
+        sys.exit("Nichts zu tun — --ventilkappe und/oder --standard angeben.")
+    if a.ventilkappe is not None:
+        w["saetze"]["ventilkappe"] = a.ventilkappe
+    if a.standard is not None:
+        w["saetze"]["standard"] = a.standard
+    speichern(d)
+    print(f"OK: neue Saetze fuer {w['kuerzel']}:")
+    _zeige_saetze(d, w, "  ")
 
 
 def cmd_token_neu(a):
@@ -160,9 +196,11 @@ def cmd_an(a):
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 sub = p.add_subparsers(dest="cmd", required=True)
 s = sub.add_parser("add"); s.add_argument("kuerzel"); s.add_argument("--name")
-s.add_argument("--satz", type=float, default=0.10); s.set_defaults(fn=cmd_add)
+s.set_defaults(fn=cmd_add)
 s = sub.add_parser("liste"); s.set_defaults(fn=cmd_liste)
-s = sub.add_parser("satz"); s.add_argument("kuerzel"); s.add_argument("satz", type=float); s.set_defaults(fn=cmd_satz)
+s = sub.add_parser("satz"); s.add_argument("kuerzel")
+s.add_argument("--ventilkappe", type=float); s.add_argument("--standard", type=float)
+s.set_defaults(fn=cmd_satz)
 s = sub.add_parser("token-neu"); s.add_argument("kuerzel"); s.set_defaults(fn=cmd_token_neu)
 s = sub.add_parser("aus"); s.add_argument("kuerzel"); s.set_defaults(fn=cmd_aus)
 s = sub.add_parser("an"); s.add_argument("kuerzel"); s.set_defaults(fn=cmd_an)
