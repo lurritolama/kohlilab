@@ -456,7 +456,7 @@ const HALTER = {
     rundung:     { name: 'Rundung',         min: 0,  max: 15, schritt: 1, einheit: 'mm',     start: 4 },
     tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
-  RUECKWAND_HOEHE: 30,
+  RUECKWAND_HOEHE: 36,   // 36 statt 30 (18.08.): Platz fuer die Einschub-Tafel (14 mm) ueber den Wangen
   BRETT: 5,
   masse(p) {
     const breiteMm = p.breite * RASTER;
@@ -586,7 +586,7 @@ const KLEMME = {
     tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
   ARM: 3.0,          // Armstaerke (Manolo 17.08.: 2.0 war zu duenn)
-  HAKENZONE: 12,     // Rueckwand ueber dem Ring
+  HAKENZONE: 18,     // Rueckwand ueber dem Ring (18 statt 12, 18.08.: Platz fuer die Einschub-Tafel)
   masse(p) {
     const w = this.ARM, D = p.durchmesser;
     const Ro = D / 2 + w;
@@ -677,50 +677,252 @@ const KLEMME = {
 // Farbwechsel (Spuelturm, Zeit); auf einer waagrechten Flaeche liegt die
 // Farbe in wenigen Schichten, wie beim QR-Schild. Ebene Flaechen gibt es
 // beim Halter (Konsole) und bei der Wanne (Boden innen). Fuer alles andere
-// gibt es das SCHILD (siehe unten): eine flache Platte mit dem Text, flach
-// gedruckt, zum Aufsetzen. Uebernommen vom Organizer (public/organizer-app):
-// der Text wird in eine Pixelmaske gerastert (Canvas, "Arial Black"), und
-// die Flaeche wird in Zellen zerlegt, jede Zelle bekommt ihre Farbe als
-// DREIECKSFARBE im 3MF (wie beim QR-Schild: der Drucker legt die Farbe plan
-// ein). Damit die Familien-Geometrie unangetastet bleibt, ist das Etikett
-// ein eigener, geschlossener Koerper: 0.8 mm dick, IN der Wand (0.75 mm
-// eingelassen), Vorderseite 0.05 mm vor der Wandflaeche — unterhalb jeder
-// Druckaufloesung, aber eindeutig die aeusserste Flaeche: so gewinnen beim
-// Vereinigen ihre Zellfarben, nicht die Wandflaeche dahinter.
+// gibt es die EINSCHUB-TAFEL (siehe unten).
+//
+// SCHRIFT ALS VEKTOR (Manolo 18.08.: "keine kantige pixelige Variante"):
+// die Buchstaben kommen als Konturen aus einer typeface.json-Schrift (Droid
+// Sans Bold, 591 Glyphen inkl. Umlaute; three-Format), werden zu Shapes mit
+// Loechern und direkt trianguliert — die Deckflaeche der Platte besteht aus
+// Buchstaben (Textfarbe), Buchstaben-Loechern (Grundfarbe) und dem Ring
+// drumherum (Grundfarbe), alle mit gemeinsamen Randpunkten (wasserdicht).
+// Jede Dreiecksfarbe landet im 3MF (wie beim QR-Schild: Farbe plan eingelegt).
+// Die Schrift wird einmal geladen (App: fetch; Node: readFileSync) und mit
+// setzeSchrift() uebergeben; vorher gibt es kein Etikett/keine Tafel.
+//
+// Das Etikett bleibt ein eigener, geschlossener Koerper: 0.8 mm dick, IN
+// der Wand (0.75 mm eingelassen), Vorderseite 0.05 mm vor der Wandflaeche —
+// unterhalb jeder Druckaufloesung, aber eindeutig die aeusserste Flaeche.
 //
 // Jede Familie liefert `beschriftung(p)`: Mitte o, Leserichtung u, Hoch v,
 // Normale n (nach aussen), verfuegbare breite/hoehe in mm. Fehlt Platz,
 // null -> kein Etikett, die App sagt es.
 const ETIKETT_DICKE = 0.8, ETIKETT_VOR = 0.05;
-// Masken-Cache als Map (der Organizer merkt sich nur die letzte Maske; hier
-// rastern sechs Module mit Text bei jeder Preisrechnung neu — das hing den
-// Browser sekundenlang). Ebenso werden fertige Etiketten/Schilder je
-// Eingabe gemerkt (etikett()/schild()).
-const maskCache = new Map();
-function textMaske(txt, hMm, res) {
-  if (typeof document === 'undefined') return globalThis.__testMaske ? globalThis.__testMaske(txt, hMm, res) : null;   // Node: kein Canvas -> Testmaske (koerper-check) oder nichts
-  const key = txt + '|' + hMm + '|' + res;
-  if (maskCache.has(key)) { const c = maskCache.get(key); return c.leer ? null : c; }
-  if (maskCache.size > 300) maskCache.clear();
-  const hPx = hMm / res / 0.72;
-  const mess = document.createElement('canvas').getContext('2d');
-  mess.font = `${hPx}px "Arial Black", Arial, sans-serif`;
-  const wPx = Math.min(1600, Math.ceil(mess.measureText(txt).width) + 6);
-  const c = document.createElement('canvas'); c.width = wPx; c.height = Math.ceil(hPx * 1.5);
-  const x = c.getContext('2d');
-  x.font = `${hPx}px "Arial Black", Arial, sans-serif`;
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#fff';
-  x.fillText(txt, c.width / 2, c.height / 2);
-  const d = x.getImageData(0, 0, c.width, c.height).data;
-  const pix = (px, py) => px >= 0 && py >= 0 && px < c.width && py < c.height && d[(py * c.width + px) * 4 + 3] > 127;
-  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, leer = true;
-  for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) if (pix(px, py)) { leer = false; if (px < minX) minX = px; if (px > maxX) maxX = px; if (py < minY) minY = py; if (py > maxY) maxY = py; }
-  if (leer) { maskCache.set(key, { leer: true }); return null; }
-  const cols = maxX - minX + 1, rows = maxY - minY + 1;
-  const mk = { cols, rows, res, w: cols * res, h: rows * res, drin: (i, j) => pix(minX + i, maxY - j) };
-  maskCache.set(key, mk);
-  return mk;
+export const SCHRIFT_MIN = 5, SCHRIFT_MAX = 12;      // mm Versalhoehe (Manolo 18.08.: mind. 5)
+const LAUFWEITE = 1.04;                               // 4 % mehr Vorschub: Glyphen duerfen sich nie beruehren
+let SCHRIFT = null, CAP = 1;                          // CAP = Versalhoehe in Schrift-Einheiten / resolution
+export function setzeSchrift(json) {
+  SCHRIFT = json;
+  // Versalhoehe aus dem 'E' messen: in typeface.json ist "resolution" nicht
+  // die Gevierthoehe (Droid Sans Bold: E = 992 bei resolution 1000, also
+  // fast 1.0; Helvetiker haette ~0.7). So stimmt "Schrifthoehe 8 mm" = 8 mm
+  // hohe Grossbuchstaben, unabhaengig von der Schriftdatei.
+  const e = json.glyphs.E || json.glyphs.H;
+  let maxY = 0;
+  if (e && e.o) { const o = e.o.split(' '); for (let i = 0; i < o.length;) { const c = o[i++]; const n = c === 'm' || c === 'l' ? 2 : c === 'q' ? 4 : c === 'b' ? 6 : 0; for (let k = 0; k < n; k += 2) { const y = +o[i + k + 1]; if (y > maxY) maxY = y; } i += n; } }
+  CAP = maxY > 0 ? maxY / json.resolution : 0.7;
+  ergebnisCache.clear();
 }
+export function schriftBereit() { return !!SCHRIFT; }
+
+/** Buchstaben eines Textes als Shapes (mit Loechern), Versalhoehe capH mm,
+ *  Kasten zentriert um (0,0). null ohne Schrift oder ohne darstellbare Zeichen. */
+function textShapes(txt, capH) {
+  if (!SCHRIFT) return null;
+  const size = capH / CAP, scale = size / SCHRIFT.resolution;
+  let x = 0; const shapes = [], zeichenVon = [];
+  let zi = 0;
+  for (const ch of txt) {
+    const g = SCHRIFT.glyphs[ch] || SCHRIFT.glyphs['?'];
+    if (!g) continue;
+    if (g.o) {
+      const path = new THREE.ShapePath();
+      const o = g.o.split(' ');
+      for (let i = 0; i < o.length;) {
+        const cmd = o[i++];
+        if (cmd === 'm') path.moveTo(+o[i++] * scale + x, +o[i++] * scale);
+        else if (cmd === 'l') path.lineTo(+o[i++] * scale + x, +o[i++] * scale);
+        else if (cmd === 'q') { const px = +o[i++] * scale + x, py = +o[i++] * scale, cx = +o[i++] * scale + x, cy = +o[i++] * scale; path.quadraticCurveTo(cx, cy, px, py); }
+        else if (cmd === 'b') { const px = +o[i++] * scale + x, py = +o[i++] * scale, c1x = +o[i++] * scale + x, c1y = +o[i++] * scale, c2x = +o[i++] * scale + x, c2y = +o[i++] * scale; path.bezierCurveTo(c1x, c1y, c2x, c2y, px, py); }
+      }
+      const neu = path.toShapes();
+      shapes.push(...neu); for (const _ of neu) zeichenVon.push(zi);
+    }
+    x += g.ha * scale * LAUFWEITE;
+    zi++;
+  }
+  if (!shapes.length) return null;
+  // Kasten aus den echten Konturpunkten, dann um die Mitte zentrieren
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const punkte = shapes.map((s) => s.extractPoints(6));
+  for (const pk of punkte) for (const q of pk.shape) { if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x; if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y; }
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const glyphen = punkte.map((pk, i) => ({
+    zeichen: zeichenVon[i],
+    aussen: pk.shape.map((q) => [q.x - cx, q.y - cy]),
+    loecher: pk.holes.map((h) => h.map((q) => [q.x - cx, q.y - cy])),
+  }));
+  return { glyphen, w: maxX - minX, h: maxY - minY };
+}
+
+/** Deckflaeche mit Text: Dreiecke (a,b) fuer Grund (Kontur minus Buchstaben),
+ *  Buchstaben (Text), Buchstabenloecher (Grund). `kontur` = Aussenrand gegen
+ *  den Uhrzeigersinn, `ts` = textShapes(), verschoben um (ta, tb).
+ *  Rueckgabe [{tri:[[a,b]x3], farbe}] — alle gegen den Uhrzeigersinn.
+ *
+ *  Die Flaeche wird in SENKRECHTE STREIFEN je Zeichen zerlegt (Grenzen in
+ *  der Luecke zwischen zwei Zeichen), jeder Streifen = Kontur-Ausschnitt mit
+ *  den Konturen SEINES Zeichens als Loechern. Grund: three's earcut lieferte
+ *  bei mehreren Buchstaben-Loechern in einer Flaeche (HR, RA, BE, EN …)
+ *  offene Kanten; mit einem Zeichen je Flaeche war jeder Buchstabe sauber.
+ *  Nachbarstreifen teilen ihre senkrechte Kante exakt (gleiche Punkte). */
+function textDeckflaeche(kontur, ts, ta, tb, farbeText, farbeGrund) {
+  const V2 = (q) => new THREE.Vector2(q[0], q[1]);
+  const flaeche = (pts) => { let s = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; s += p[0] * q[1] - q[0] * p[1]; } return s / 2; };
+  const ccw = (pts) => flaeche(pts) >= 0 ? pts : [...pts].reverse();
+  const cw = (pts) => flaeche(pts) < 0 ? pts : [...pts].reverse();
+  const EPS = 0.02;
+  // Fast-Doppelpunkte und fast-kollineare Punkte (Abstand zur Sehne < EPS)
+  // entfernen — earcut lieferte an solchen Stellen Splitter-Dreiecke mit
+  // falscher Windung. Konturen bleiben optisch identisch (0.02 mm).
+  const entdoppelt = (pts) => {
+    let o = [];
+    for (const q of pts) { const l = o[o.length - 1]; if (!l || Math.abs(l[0] - q[0]) > EPS || Math.abs(l[1] - q[1]) > EPS) o.push(q); }
+    while (o.length > 1) { const f = o[0], l = o[o.length - 1]; if (Math.abs(f[0] - l[0]) < EPS && Math.abs(f[1] - l[1]) < EPS) o.pop(); else break; }
+    let geaendert = true;
+    while (geaendert && o.length > 3) {
+      geaendert = false;
+      for (let i = 0; i < o.length && o.length > 3; i++) {
+        const a = o[(i - 1 + o.length) % o.length], b = o[i], c = o[(i + 1) % o.length];
+        const dx = c[0] - a[0], dy = c[1] - a[1], len = Math.hypot(dx, dy) || 1e-9;
+        const abstand = Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / len;
+        if (abstand < EPS) { o.splice(i, 1); geaendert = true; i--; }
+      }
+    }
+    return o;
+  };
+  const aus = [];
+  const tris = (aussen, loecher, farbe) => {
+    const A = ccw(entdoppelt(aussen)), L = loecher.map((l) => cw(entdoppelt(l))).filter((l) => l.length >= 3);
+    if (A.length < 3) return;
+    const idx = THREE.ShapeUtils.triangulateShape(A.map(V2), L.map((l) => l.map(V2)));
+    const alle = A.concat(...L);
+    for (const [i, j, k] of idx) { let tri = [alle[i], alle[j], alle[k]]; const f = flaeche(tri); if (Math.abs(f) < 1e-9) continue; if (f < 0) tri = [tri[0], tri[2], tri[1]]; aus.push({ tri, farbe }); }
+  };
+  // Polygon auf das Band xa <= x <= xb beschneiden (Sutherland-Hodgman, zwei
+  // Halbebenen). Schnittpunkte identisch berechnet -> Nachbarstreifen teilen
+  // exakt dieselben Punkte auf der Grenze.
+  const schnitt = (p, q, x) => { const tt = (x - p[0]) / (q[0] - p[0]); return [x, p[1] + tt * (q[1] - p[1])]; };
+  const aufGrenze = (pt, x) => Math.abs(pt[0] - x) < 1e-9;
+  const clipHalb = (poly, x, links) => {   // links=true: behalte x >= xGrenze
+    const drin = (pt) => links ? pt[0] >= x - 1e-9 : pt[0] <= x + 1e-9;
+    const o = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const dp = drin(p), dq = drin(q);
+      if (dp) o.push(p);
+      // Grenzpunkte sind vorab in die Kontur eingefuegt (siehe unten): liegt
+      // p oder q genau auf der Grenze, KEINEN neuen Schnittpunkt erzeugen —
+      // sonst entstuende ein numerisch minimal anderer Doppelpunkt.
+      if (dp !== dq && !aufGrenze(p, x) && !aufGrenze(q, x)) o.push(schnitt(p, q, x));
+    }
+    return o;
+  };
+  // Grenzpunkte EINMAL aus der Originalkontur berechnen und einfuegen, damit
+  // Deckflaeche, Nachbarstreifen und Mantel dieselben Punkte teilen.
+  const mitGrenzpunkten = (poly, xs) => {
+    let o = poly;
+    for (const x of xs) {
+      const n = [];
+      for (let i = 0; i < o.length; i++) {
+        const p = o[i], q = o[(i + 1) % o.length];
+        n.push(p);
+        if ((p[0] < x && q[0] > x) || (p[0] > x && q[0] < x)) n.push(schnitt(p, q, x));
+      }
+      o = n;
+    }
+    return o;
+  };
+  const clip = (poly, xa, xb) => { let o = poly; if (xa != null) o = clipHalb(o, xa, true); if (xb != null) o = clipHalb(o, xb, false); return o; };
+  // Zeichen -> Loops (verschoben), Kasten je Zeichen
+  const verschoben = (pts) => pts.map((q) => [q[0] + ta, q[1] + tb]);
+  const zeichen = new Map();
+  for (const g of ts.glyphen) {
+    if (!zeichen.has(g.zeichen)) zeichen.set(g.zeichen, { loops: [], minX: Infinity, maxX: -Infinity });
+    const z = zeichen.get(g.zeichen);
+    const aussen = verschoben(g.aussen), loecher = g.loecher.map(verschoben);
+    z.loops.push({ aussen, loecher });
+    for (const q of aussen) { if (q[0] < z.minX) z.minX = q[0]; if (q[0] > z.maxX) z.maxX = q[0]; }
+  }
+  const gruppen = [...zeichen.values()].sort((a, b) => a.minX - b.minX);
+  // ueberlappende Kaesten (Unterschneidung) in einen Streifen zusammenlegen
+  const streifen = [];
+  for (const z of gruppen) {
+    const l = streifen[streifen.length - 1];
+    if (l && z.minX < l.maxX + 0.05) { l.loops.push(...z.loops); l.maxX = Math.max(l.maxX, z.maxX); }
+    else streifen.push({ loops: [...z.loops], minX: z.minX, maxX: z.maxX });
+  }
+  // Streifengrenzen: Mitte der Luecke; erster/letzter Streifen bis zum Rand
+  const grenzen = [];
+  for (let i = 0; i < streifen.length - 1; i++) grenzen.push((streifen[i].maxX + streifen[i + 1].minX) / 2);
+  const kontur0 = mitGrenzpunkten(entdoppelt(ccw(kontur)), grenzen);
+  // Randstreifen links (ohne Zeichen), Zeichenstreifen, Randstreifen rechts —
+  // die Randstreifen sind Teil des ersten/letzten Zeichenstreifens, damit die
+  // Rundungen der Kontur nicht durch eine Grenze geschnitten werden muessen.
+  for (let i = 0; i < streifen.length; i++) {
+    const xa = i === 0 ? null : grenzen[i - 1];
+    const xb = i === streifen.length - 1 ? null : grenzen[i];
+    const poly = clip(kontur0, xa, xb);
+    const st = streifen[i];
+    tris(poly, st.loops.map((l) => l.aussen), farbeGrund);                  // Grund um die Buchstaben
+    for (const l of st.loops) {
+      tris(l.aussen, l.loecher, farbeText);                                   // Buchstabe
+      for (const h of l.loecher) tris(h, [], farbeGrund);                     // Loch im Buchstaben
+    }
+  }
+  if (!streifen.length) tris(kontur0, [], farbeGrund);
+  aus.kontur = kontur0;                                   // fuer Mantel und Rueckseite (gleiche Punkte!)
+  return aus;
+}
+
+/** Groesste Versalhoehe (>= SCHRIFT_MIN, <= maxH), bei der der Text in
+ *  breite x hoehe passt — oder null. */
+function textPassend(txt, maxH, breite, hoehe) {
+  for (let h = Math.min(SCHRIFT_MAX, maxH); h >= SCHRIFT_MIN - 1e-9; h -= 0.5) {
+    const ts = textShapes(txt, h);
+    if (!ts) return null;
+    if (ts.w <= breite && ts.h <= hoehe) return { ts, h };
+  }
+  return null;
+}
+
+/** Geschlossener Koerper aus Deckflaeche (mit Text), Rueckseite und Mantel
+ *  ueber eine Kontur (a,b), Dicke von c0 bis c1 in Normalenrichtung; P bildet
+ *  (a,b,c) in den Modulraum ab. Rueckgabe { geo, farben }. */
+function textKoerper(kontur, ts, ta, tb, c0, c1, P, farbeText, farbeGrund) {
+  const pos = [], farben = [];
+  const tri = (A, B, C, farbe) => { pos.push(...A, ...B, ...C); farben.push(farbe); };
+  const deck = textDeckflaeche(kontur, ts, ta, tb, farbeText, farbeGrund);
+  for (const d of deck) tri(P(d.tri[0][0], d.tri[0][1], c1), P(d.tri[1][0], d.tri[1][1], c1), P(d.tri[2][0], d.tri[2][1], c1), d.farbe);
+  kontur = deck.kontur;                                    // mit Streifen-Grenzpunkten
+  // Rueckseite: Faecher um den Konturmittelpunkt (Normale -n)
+  let ma = 0, mb = 0; for (const q of kontur) { ma += q[0]; mb += q[1]; } ma /= kontur.length; mb /= kontur.length;
+  const M0 = P(ma, mb, c0);
+  for (let i = 0; i < kontur.length; i++) { const a = kontur[i], b = kontur[(i + 1) % kontur.length]; tri(M0, P(b[0], b[1], c0), P(a[0], a[1], c0), farbeGrund); }
+  // Mantel
+  for (let i = 0; i < kontur.length; i++) {
+    const a = kontur[i], b = kontur[(i + 1) % kontur.length];
+    tri(P(a[0], a[1], c0), P(b[0], b[1], c0), P(b[0], b[1], c1), farbeGrund);
+    tri(P(a[0], a[1], c0), P(b[0], b[1], c1), P(a[0], a[1], c1), farbeGrund);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  const col = new Float32Array(pos.length);
+  const cc = new THREE.Color();
+  farben.forEach((fb, i) => { cc.set(fb); for (let k = 0; k < 3; k++) { col[i * 9 + k * 3] = cc.r; col[i * 9 + k * 3 + 1] = cc.g; col[i * 9 + k * 3 + 2] = cc.b; } });
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  return { geo, farben };
+}
+
+/** Rahmen (o,u,v,n als Vector3, rechtshaendig) + Abbildung P aus einer Flaechenangabe. */
+function rahmen(pl) {
+  const u = new THREE.Vector3(...pl.u).normalize(), v = new THREE.Vector3(...pl.v).normalize(), n = new THREE.Vector3(...pl.n).normalize();
+  if (new THREE.Vector3().crossVectors(u, v).dot(n) < 0) v.negate();
+  const o = new THREE.Vector3(...pl.o);
+  const P = (a, b, c) => [o.x + a * u.x + b * v.x + c * n.x, o.y + a * u.y + b * v.y + c * n.y, o.z + a * u.z + b * v.z + c * n.z];
+  return { o, u, v, n, P };
+}
+
 // Ergebnis-Cache fuer etikett()/schild(): dieselbe Eingabe -> dasselbe Objekt
 // (Geometrie wird geteilt; wer sie in eine Szene haengt, darf sie nicht
 // dispose()n — die App haelt sich daran).
@@ -732,72 +934,27 @@ function gemerkt(key, bau) {
 }
 
 /**
- * Etikett fuer ein Modul: { geo, farben } oder null.
- *   geo    — BufferGeometry (nicht indiziert), Zellen der Vorderseite +
- *            Rueckseite + 4 Seiten
- *   farben — Hex-Farbe je Dreieck (Text- oder Modulfarbe), fuer 3MF und Anzeige
- *   groesse — tatsaechlich verwendete Schrifthoehe (mm)
- * `groesse` 0 = automatisch: so gross wie moeglich (max 12), mindestens 4;
- * passt der Text auch mit 4 mm nicht, gibt es null.
+ * Etikett (Ebene) fuer ein Modul: { geo, farben, groesse } oder null.
+ * `groesse` 0 = automatisch: so gross wie moeglich (max 12), mindestens 5;
+ * passt der Text auch mit 5 mm nicht, gibt es null.
  */
 export function etikett(f, p, text, groesse, farbeText, farbeModul) {
   const txt = (text || '').trim().slice(0, 20);
-  if (!txt || !f.beschriftung) return null;
+  if (!txt || !f.beschriftung || !SCHRIFT) return null;
   return gemerkt('E' + f.id + JSON.stringify(p) + '|' + txt + '|' + groesse + '|' + farbeText + '|' + farbeModul, () => etikettBauen(f, p, txt, groesse, farbeText, farbeModul));
 }
 function etikettBauen(f, p, txt, groesse, farbeText, farbeModul) {
   const pl = f.beschriftung(p);
   if (!pl) return null;
-  const maxH = Math.min(12, pl.hoehe);
-  let h = groesse > 0 ? Math.min(groesse, maxH) : maxH;
-  let mk = null;
-  for (; h >= 4; h -= 0.5) { mk = textMaske(txt, h, Math.max(0.3, h / 22)); if (mk && mk.w <= pl.breite && mk.h <= pl.hoehe) break; mk = null; }
-  if (!mk) return null;
-  const rand = 0.6;
-  const bw = mk.w + 2 * rand, bh = mk.h + 2 * rand;
-  const u = new THREE.Vector3(...pl.u).normalize(), v = new THREE.Vector3(...pl.v).normalize(), n = new THREE.Vector3(...pl.n).normalize();
-  // Rechtssystem sicherstellen (u x v = n), sonst v spiegeln
-  if (new THREE.Vector3().crossVectors(u, v).dot(n) < 0) v.negate();
-  const o = new THREE.Vector3(...pl.o);
-  const P = (a, b, c) => [o.x + a * u.x + b * v.x + c * n.x, o.y + a * u.y + b * v.y + c * n.y, o.z + a * u.z + b * v.z + c * n.z];
-  const pos = [], farben = [];
-  const tri = (A, B, C, farbe) => { pos.push(...A, ...B, ...C); farben.push(farbe); };
-  const c0 = -(ETIKETT_DICKE - ETIKETT_VOR), c1 = ETIKETT_VOR;
-  // Vorderseite: Zellenraster (Randstreifen als grosse Zellen)
-  const xs = [-bw / 2, -mk.w / 2]; for (let i = 1; i <= mk.cols; i++) xs.push(-mk.w / 2 + i * mk.res); xs.push(bw / 2);
-  const ys = [-bh / 2, -mk.h / 2]; for (let j = 1; j <= mk.rows; j++) ys.push(-mk.h / 2 + j * mk.res); ys.push(bh / 2);
-  for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < xs.length - 1; i++) {
-    const imMaske = i >= 1 && i <= mk.cols && j >= 1 && j <= mk.rows;
-    const farbe = imMaske && mk.drin(i - 1, j - 1) ? farbeText : farbeModul;
-    const a0 = xs[i], a1 = xs[i + 1], b0 = ys[j], b1 = ys[j + 1];
-    tri(P(a0, b0, c1), P(a1, b0, c1), P(a1, b1, c1), farbe);
-    tri(P(a0, b0, c1), P(a1, b1, c1), P(a0, b1, c1), farbe);
-  }
-  // Seiten als Streifen entlang des Rasters (dieselben Ecken wie die
-  // Vorderseite — sonst T-Stoesse, 162 offene Kanten in der ersten Fassung),
-  // Rueckseite als Faecher um den Mittelpunkt ueber dieselben Randpunkte.
-  const A = -bw / 2, B = bw / 2, C = -bh / 2, D = bh / 2;
-  for (let i = 0; i < xs.length - 1; i++) {
-    const a0 = xs[i], a1 = xs[i + 1];
-    tri(P(a0, C, c0), P(a1, C, c0), P(a1, C, c1), farbeModul); tri(P(a0, C, c0), P(a1, C, c1), P(a0, C, c1), farbeModul);   // unten (-v)
-    tri(P(a0, D, c0), P(a1, D, c1), P(a1, D, c0), farbeModul); tri(P(a0, D, c0), P(a0, D, c1), P(a1, D, c1), farbeModul);   // oben (+v)
-  }
-  for (let j = 0; j < ys.length - 1; j++) {
-    const b0 = ys[j], b1 = ys[j + 1];
-    tri(P(A, b0, c0), P(A, b0, c1), P(A, b1, c1), farbeModul); tri(P(A, b0, c0), P(A, b1, c1), P(A, b1, c0), farbeModul);   // links (-u)
-    tri(P(B, b0, c0), P(B, b1, c1), P(B, b0, c1), farbeModul); tri(P(B, b0, c0), P(B, b1, c0), P(B, b1, c1), farbeModul);   // rechts (+u)
-  }
-  const M0 = P(0, 0, c0);                                        // Rueckseite: Faecher (Normale -n)
-  for (let i = 0; i < xs.length - 1; i++) { tri(M0, P(xs[i + 1], C, c0), P(xs[i], C, c0), farbeModul); tri(M0, P(xs[i], D, c0), P(xs[i + 1], D, c0), farbeModul); }
-  for (let j = 0; j < ys.length - 1; j++) { tri(M0, P(A, ys[j], c0), P(A, ys[j + 1], c0), farbeModul); tri(M0, P(B, ys[j + 1], c0), P(B, ys[j], c0), farbeModul); }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  const col = new Float32Array(pos.length);
-  const cc = new THREE.Color();
-  farben.forEach((fb, i) => { cc.set(fb); for (let k = 0; k < 3; k++) { col[i * 9 + k * 3] = cc.r; col[i * 9 + k * 3 + 1] = cc.g; col[i * 9 + k * 3 + 2] = cc.b; } });
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.computeVertexNormals();
-  return { geo, farben, groesse: h };
+  const rand = 0.8;
+  const maxH = Math.min(SCHRIFT_MAX, groesse > 0 ? groesse : SCHRIFT_MAX, pl.hoehe - 2 * rand);
+  const tp = textPassend(txt, maxH, pl.breite - 2 * rand, pl.hoehe - 2 * rand);
+  if (!tp) return null;
+  const bw = tp.ts.w + 2 * rand, bh = tp.ts.h + 2 * rand;
+  const { P } = rahmen(pl);
+  const kontur = [[-bw / 2, -bh / 2], [bw / 2, -bh / 2], [bw / 2, bh / 2], [-bw / 2, bh / 2]];
+  const k = textKoerper(kontur, tp.ts, 0, 0, -(ETIKETT_DICKE - ETIKETT_VOR), ETIKETT_VOR, P, farbeText, farbeModul);
+  return { geo: k.geo, farben: k.farben, groesse: tp.h };
 }
 
 // ---------------------------------------------------------------- Tafelhalter + Einschub-Tafel
@@ -895,35 +1052,20 @@ export function tafelhalter(f, p) {
  */
 export function schild(f, p, text, groesse, farbeText, farbeSchild) {
   const txt = (text || '').trim().slice(0, 20);
-  if (!txt || !f.schildflaeche) return null;
+  if (!txt || !f.schildflaeche || !SCHRIFT) return null;
   return gemerkt('S' + f.id + JSON.stringify(p) + '|' + txt + '|' + groesse + '|' + farbeText + '|' + farbeSchild, () => schildBauen(f, p, txt, groesse, farbeText, farbeSchild));
 }
 function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
   const tm = tafelMasse(f, p);
   if (!tm) return null;
-  // 0.4 mm Luft zum Rand: liegt die Textkante genau auf der Hoehe der
-  // Eckenrundung, kippt die Ring-Triangulation (207 offene Kanten bei h = 12).
-  const maxH = Math.min(12, tm.sichtHoehe - 0.4);
-  let h = groesse > 0 ? Math.min(groesse, maxH) : maxH;
-  let mk = null;
-  for (; h >= 4; h -= 0.5) { mk = textMaske(txt, h, Math.max(0.3, h / 22)); if (mk && mk.w <= tm.sichtBreite && mk.h <= tm.sichtHoehe - 0.4) break; mk = null; }
-  if (!mk) return null;
+  // 0.4 mm Luft zum Rand (Eckenrundung); sichtbar ist die Tafel oberhalb des Stegs, zwischen den Lippen
+  const maxH = Math.min(SCHRIFT_MAX, groesse > 0 ? groesse : SCHRIFT_MAX, tm.sichtHoehe - 0.4);
+  const tp = textPassend(txt, maxH, tm.sichtBreite, tm.sichtHoehe - 0.4);
+  if (!tp) return null;
   const bw = tm.tafelBreite, bh = tm.tafelHoehe;
   const bM = tm.tafelUnten + bh / 2;                       // Tafelmitte (b); Text darum zentriert
   const c0 = 0.1, c1 = 0.1 + TAFEL.dicke;                  // 0.1 vor der Wand, in der Tasche (0..1.2)
-  const o = new THREE.Vector3(...tm.o), u = new THREE.Vector3(...tm.u), v = new THREE.Vector3(...tm.v), n = new THREE.Vector3(...tm.n);
-  const P = (a, b, c) => [o.x + a * u.x + b * v.x + c * n.x, o.y + a * u.y + b * v.y + c * n.y, o.z + a * u.z + b * v.z + c * n.z];
-  const pos = [], farben = [];
-  const tri = (A, B, C, farbe) => { pos.push(...A, ...B, ...C); farben.push(farbe); };
-  // Vorderseite: Textraster (zentriert), Rest als Ring um das Raster
-  const tb = bM + (TAFEL.griff - TAFEL.steg) / 2 * 0;      // Text mittig auf der Tafel
-  const xs = [-mk.w / 2]; for (let i = 1; i <= mk.cols; i++) xs.push(-mk.w / 2 + i * mk.res);
-  const ys = [tb - mk.h / 2]; for (let j = 1; j <= mk.rows; j++) ys.push(tb - mk.h / 2 + j * mk.res);
-  for (let j = 0; j < mk.rows; j++) for (let i = 0; i < mk.cols; i++) {
-    const farbe = mk.drin(i, j) ? farbeText : farbeSchild;
-    tri(P(xs[i], ys[j], c1), P(xs[i + 1], ys[j], c1), P(xs[i + 1], ys[j + 1], c1), farbe);
-    tri(P(xs[i], ys[j], c1), P(xs[i + 1], ys[j + 1], c1), P(xs[i], ys[j + 1], c1), farbe);
-  }
+  const { P } = rahmen(tm);
   // Aussenkontur: unten gerundet (Einfuehren), oben eckig; gegen den Uhrzeigersinn
   const kontur = [];
   const R = 1.0, seg = 5;
@@ -932,32 +1074,8 @@ function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
   ecke(bw / 2 - R, bU + R, -Math.PI / 2);                  // unten rechts
   kontur.push([bw / 2, bO], [-bw / 2, bO]);                // oben rechts, oben links
   ecke(-bw / 2 + R, bU + R, Math.PI);                      // unten links
-  const loch = [];
-  for (let i = 0; i < mk.cols; i++) loch.push([xs[i], ys[0]]);
-  for (let j = 0; j < mk.rows; j++) loch.push([xs[mk.cols], ys[j]]);
-  for (let i = mk.cols; i > 0; i--) loch.push([xs[i], ys[mk.rows]]);
-  for (let j = mk.rows; j > 0; j--) loch.push([xs[0], ys[j]]);
-  const V2 = (q) => new THREE.Vector2(q[0], q[1]);
-  const ringTris = THREE.ShapeUtils.triangulateShape(kontur.map(V2), [loch.map(V2)]);
-  const alle = kontur.concat(loch);
-  for (const [a, b, c] of ringTris) tri(P(alle[a][0], alle[a][1], c1), P(alle[b][0], alle[b][1], c1), P(alle[c][0], alle[c][1], c1), farbeSchild);
-  // Rueckseite: Faecher um die Tafelmitte (Normale -n)
-  const M0 = P(0, bM, c0);
-  for (let i = 0; i < kontur.length; i++) { const a = kontur[i], b = kontur[(i + 1) % kontur.length]; tri(M0, P(b[0], b[1], c0), P(a[0], a[1], c0), farbeSchild); }
-  // Mantel
-  for (let i = 0; i < kontur.length; i++) {
-    const a = kontur[i], b = kontur[(i + 1) % kontur.length];
-    tri(P(a[0], a[1], c0), P(b[0], b[1], c0), P(b[0], b[1], c1), farbeSchild);
-    tri(P(a[0], a[1], c0), P(b[0], b[1], c1), P(a[0], a[1], c1), farbeSchild);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
-  const col = new Float32Array(pos.length);
-  const cc = new THREE.Color();
-  farben.forEach((fb, i) => { cc.set(fb); for (let k = 0; k < 3; k++) { col[i * 9 + k * 3] = cc.r; col[i * 9 + k * 3 + 1] = cc.g; col[i * 9 + k * 3 + 2] = cc.b; } });
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.computeVertexNormals();
-  return { geo, farben, groesse: h, breite: bw, hoehe: bh, o: tm.o, u: tm.u, v: tm.v, n: tm.n };
+  const k = textKoerper(kontur, tp.ts, 0, bM, c0, c1, P, farbeText, farbeSchild);
+  return { geo: k.geo, farben: k.farben, groesse: tp.h, breite: bw, hoehe: bh, o: tm.o, u: tm.u, v: tm.v, n: tm.n };
 }
 
 /** Matrix, die eine Tafel aus dem Modulraum FLACH aufs Bett legt: u -> +x,

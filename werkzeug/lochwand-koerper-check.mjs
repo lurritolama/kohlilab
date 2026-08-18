@@ -32,7 +32,7 @@ geos.forEach((g, i) => {
 
 // Etikett (Beschriftung) pruefen — im Node gibt es kein Canvas, deshalb
 // eine Schachbrett-Testmaske; es geht um Windung und Geschlossenheit.
-globalThis.__testMaske = (txt, hMm, res) => { const cols = Math.round(hMm * 0.6 * txt.length / res), rows = Math.round(hMm / res); return { cols, rows, res, w: cols * res, h: rows * res, drin: (i, j) => (i + j) % 2 === 0 }; };
+M.setzeSchrift(JSON.parse(readFileSync('public/vendor/three/fonts/droid_sans_bold.typeface.json', 'utf-8')));   // Vektorschrift wie in der App
 function pruefeKoerper(name, geo, extra) {
   const a = geo.attributes.position.array;
   const key = (j) => a[j].toFixed(3) + ',' + a[j + 1].toFixed(3) + ',' + a[j + 2].toFixed(3);
@@ -46,9 +46,9 @@ function pruefeKoerper(name, geo, extra) {
   let offen = 0; for (const [k] of kanten) { const [p, q] = k.split('|'); if (!kanten.get(q + '|' + p)) offen++; }
   console.log(`${name}: ${n} Dreiecke, Vol ${vol.toFixed(2)}, offene Kanten ${offen}${extra || ''}`);
 }
-const sc = M.schild(fam, params, 'TEST', 0, '#1c1c1c', '#eceff0');
+const sc = M.schild(fam, params, 'Nägel Ü', 0, '#1c1c1c', '#eceff0');
 if (sc) pruefeKoerper('Schild', sc.geo, `, Schrift ${sc.groesse} mm, ${sc.breite.toFixed(1)} x ${sc.hoehe.toFixed(1)} mm`); else console.log('Schild: keins');
-const et = M.etikett(fam, params, 'TEST', 0, '#1c1c1c', '#ef7d1a');
+const et = M.etikett(fam, params, 'Nägel Ü', 0, '#1c1c1c', '#ef7d1a');
 if (et) {
   const a = et.geo.attributes.position.array;
   const key = (j) => a[j].toFixed(3) + ',' + a[j + 1].toFixed(3) + ',' + a[j + 2].toFixed(3);

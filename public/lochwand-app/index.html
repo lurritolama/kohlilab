@@ -110,7 +110,7 @@
     <div class="row" id="textZeile"><label>Text</label><input type="text" id="modText" maxlength="20" placeholder="Beschriftung (optional)" autocomplete="off"></div>
     <div id="textOpt" style="display:none">
       <div class="row"><label>Art</label><div class="btns" id="modTextArt" style="flex:1"></div></div>
-      <div class="row"><label>Schrift</label><input type="range" id="modTextGr" min="0" max="12" step="0.5" value="0"><span class="val" id="modTextGrVal">auto</span></div>
+      <div class="row"><label>Schrift</label><label style="width:auto;display:flex;gap:6px;align-items:center;font-size:12px;color:var(--mut)"><input type="checkbox" id="modTextAuto" checked> auto</label><input type="range" id="modTextGr" min="5" max="12" step="0.5" value="8" style="flex:1"><span class="val" id="modTextGrVal">auto</span></div>
       <div class="row"><label>Textfarbe</label><div class="sw" id="modTextFarben"></div></div>
       <div class="note" id="textHinweis" style="margin-top:2px"></div>
     </div>
@@ -156,7 +156,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLATTEN, PLATTENFARBEN, loecher, rasterInfo, naechstesLoch,
          SCHLITZ_BREITE, SCHLITZ_HOEHE, PLATTE_DICKE, RASTER, REIHEN_TEILUNG } from './raster.js';
-import { FAMILIEN, familie, startParameter, parameterRastern, volumenMm3, DICHTE_G_CM3, drucklageMatrix, umriss, etikett, schild, schildFlach } from './module.js';
+import { FAMILIEN, familie, startParameter, parameterRastern, volumenMm3, DICHTE_G_CM3, drucklageMatrix, umriss, etikett, schild, schildFlach, setzeSchrift, schriftBereit, SCHRIFT_MIN, SCHRIFT_MAX } from './module.js';
 import { HAKEN_TIEFE } from './haken.js';
 import { wandPreis, modulAnteil, chf, PREIS } from './preis.js';
 
@@ -236,7 +236,13 @@ controls.minDistance = 25; controls.maxDistance = 4500;
 // feste Stufen. Stattdessen: sanfter Zoom um den Zielpunkt, und der
 // Zielpunkt laesst sich per Doppelklick auf ein Modul setzen.
 controls.zoomToCursor = false;
-controls.enableZoom = false;   // eigener Zoom, siehe unten
+// Zoom der OrbitControls bleibt AN — er traegt das Zwei-Finger-Zoomen am
+// Tablet/Handy (Manolo, iPad 18.08.: "Zoom funktioniert nicht" — enableZoom
+// war aus, weil das Mausrad eigenen Code hat). Das Mausrad faengt unser
+// Handler unten in der Capture-Phase ab und stoppt es, bevor OrbitControls
+// es sieht; Pinch laeuft weiter ueber OrbitControls.
+controls.enableZoom = true;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 // Eigener Rad-Zoom statt dem der OrbitControls. Grund: OrbitControls
 // normiert deltaY mit 100 * devicePixelRatio und rechnet mit deltaMode 0
 // (Pixel). Liefert die Maus deltaMode 1 (Zeilen) oder grosse deltaY-Werte,
@@ -246,6 +252,7 @@ controls.enableZoom = false;   // eigener Zoom, siehe unten
 // auf jeder Maus und jedem Bildschirm gleich weich.
 renderer.domElement.addEventListener('wheel', (ev) => {
   ev.preventDefault();
+  ev.stopImmediatePropagation();                     // OrbitControls' Rad-Handler nicht mehr
   const richtung = Math.sign(ev.deltaY);            // +1 raus, -1 rein
   if (!richtung) return;
   const faktor = richtung > 0 ? 1.08 : 1 / 1.08;
@@ -254,7 +261,7 @@ renderer.domElement.addEventListener('wheel', (ev) => {
   const richtungsVektor = camera.position.clone().sub(controls.target).normalize();
   camera.position.copy(controls.target).addScaledVector(richtungsVektor, neu);
   controls.update();
-}, { passive: false });
+}, { passive: false, capture: true });
 controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 // Doppelklick auf ein Modul: Kamera darauf zentrieren, damit Drehen und
 // Zoomen um DAS Modul laufen.
@@ -515,10 +522,13 @@ function baueDetail(m) {
   // Klone ersetzt, sonst haengen die Listener des VORHER gewaehlten Moduls
   // noch dran und die Eingabe schreibt in mehrere Module (Manolo, 18.08.,
   // Testphase: "die Schrift zaehlt nur fuer das aktuell angewaehlte Modul").
-  for (const id of ['modText', 'modTextGr']) { const alt = $(id); alt.replaceWith(alt.cloneNode(true)); }
-  const tIn = $('modText'), tGr = $('modTextGr'), tGrVal = $('modTextGrVal'), tOpt = $('textOpt'), tHin = $('textHinweis');
+  for (const id of ['modText', 'modTextGr', 'modTextAuto']) { const alt = $(id); alt.replaceWith(alt.cloneNode(true)); }
+  const tIn = $('modText'), tGr = $('modTextGr'), tGrVal = $('modTextGrVal'), tOpt = $('textOpt'), tHin = $('textHinweis'), tAuto = $('modTextAuto');
   tIn.value = m.text || '';
-  tGr.value = m.textGroesse || 0; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto';
+  // Schriftgroesse: auto (0) oder 5-12 mm (Manolo 18.08.: mindestens 5)
+  tAuto.checked = !m.textGroesse; tGr.disabled = tAuto.checked;
+  tGr.value = m.textGroesse || 8; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto';
+  tAuto.addEventListener('change', () => { merke(); m.textGroesse = tAuto.checked ? 0 : +tGr.value; tGr.disabled = tAuto.checked; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto'; baueModulMesh(m); markiere(); aktualisiereListe(); textStand(); });
   const arten = textArten(m);
   $('textZeile').style.display = (f.schildflaeche || f.beschriftung) ? '' : 'none';
   const artBox = $('modTextArt'); artBox.innerHTML = '';
@@ -527,11 +537,12 @@ function baueDetail(m) {
     tOpt.style.display = m.text ? 'block' : 'none';
     if (!m.text) { tHin.textContent = ''; return; }
     if (!arten.length) { tHin.textContent = 'Auf diesem Modul ist kein Platz für eine Beschriftung.'; return; }
+    if (!schriftBereit()) { tHin.textContent = 'Schrift lädt …'; return; }
     artBox.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.art === textArtVon(m)));
     const et = etikettVon(m), sc = schildVon(m);
     if (sc) tHin.textContent = `Tafel ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes flaches Druckteil in Modulfarbe, wird von oben in den Tafelhalter am Modul geschoben (${f.id === 'wanne' ? 'Front' : 'Rückwand'}); zum Wechseln herausziehen. + ${chf(PREIS.schild)}`;
     else if (et) tHin.textContent = `Bündig im Material, ${et.groesse} mm hoch — ${ARTNAME.ebene}. + ${chf(PREIS.textJeModul + Math.max(0, et.groesse - 4) * PREIS.textJeMm)}`;
-    else tHin.textContent = 'Passt nicht — kürzer schreiben oder das Modul grösser machen.';
+    else tHin.textContent = `Passt nicht (Schrift mindestens ${SCHRIFT_MIN} mm) — kürzer schreiben oder das Modul grösser machen.`;
   };
   for (const art of arten) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.art = art; b.textContent = ARTNAME[art];
@@ -620,7 +631,7 @@ async function hashLesen() {
       const f = familie(q.f); if (!f) continue;
       zustand.module.push({ id: naechsteId++, familie: f.id, params: parameterRastern(f, q.p || {}), reihe: +q.r || 0, spalte: +q.s || 0, brett: +q.b || 0,
                             farbe: PALETTE.includes(q.c) ? q.c : PALETTE[5], text: typeof q.t === 'string' ? q.t.slice(0, 20) : '',
-                            textArt: q.ta === 'ebene' || q.ta === 'schild' ? q.ta : '', textGroesse: Math.min(12, Math.max(0, +q.tg || 0)), textFarbe: PALETTE.includes(q.tc) ? q.tc : '' });
+                            textArt: q.ta === 'ebene' || q.ta === 'schild' ? q.ta : '', textGroesse: (+q.tg >= SCHRIFT_MIN ? Math.min(SCHRIFT_MAX, +q.tg) : 0), textFarbe: PALETTE.includes(q.tc) ? q.tc : '' });
     }
     return true;
   } catch (e) { return false; }
@@ -705,6 +716,9 @@ function ansichtRan(id) {
 }
 
 renderer.domElement.addEventListener('pointerdown', (ev) => {
+  // Zweiter Finger waehrend eines Modul-Zugs (Tablet): der Zug endet, die
+  // Kamera bekommt die Finger — sonst blieben Pinch und Drehen tot.
+  if (ev.pointerType === 'touch' && zieht != null) { ziehenEnde(); return; }
   if (ev.button === 2) {
     const idR = unterMaus(ev);
     rechtsAufModul = idR;
@@ -926,6 +940,13 @@ function aktualisierePlatte(neuePlatte) {
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 hashLesen().then((ok) => { aktualisierePlatte(true); if (ok) hud(); });
+// Vektorschrift fuer Etikett und Tafel (Droid Sans Bold, typeface.json, ~330 KB,
+// eine Woche gecacht). Bis sie da ist, gibt es keine Beschriftung; danach
+// werden alle Module neu gezeichnet und der Preis nachgefuehrt.
+fetch('/vendor/three/fonts/droid_sans_bold.typeface.json').then((r) => r.json()).then((j) => {
+  setzeSchrift(j); zeichneAlle(); aktualisiereListe();
+  const m = zustand.module.find((x) => x.id === zustand.aktiv); if (m) baueDetail(m);
+}).catch((e) => console.error('Schrift konnte nicht geladen werden', e));
 (function tick() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(tick); })();
 
 // Fuer Pruefungen von aussen.

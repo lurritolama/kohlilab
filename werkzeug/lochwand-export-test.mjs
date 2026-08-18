@@ -20,10 +20,11 @@ for (const n of ['raster', 'haken', 'module', 'preis']) {
 }
 const M = await import(pathToFileURL(path.join(dir, 'module.js')).href);
 const P = await import(pathToFileURL(path.join(dir, 'preis.js')).href);
+M.setzeSchrift(JSON.parse(readFileSync('public/vendor/three/fonts/droid_sans_bold.typeface.json', 'utf-8')));   // Vektorschrift wie in der App
 
 // Dieselbe Drucklage-Logik wie index.html: x -> z (Seitenlage), an den Ursprung.
-function modulDreiecke(fam, params) {
-  const geos = [...fam.geometrie(params), ...(fam.stuetzen ? fam.stuetzen(params) : [])]; const out = [];
+function modulDreiecke(fam, params, extra = []) {
+  const geos = [...fam.geometrie(params), ...(fam.stuetzen ? fam.stuetzen(params) : []), ...extra]; const out = [];
   const Rm = M.drucklageMatrix(fam);
   let minZ = Infinity, minX = Infinity, minY = Infinity; const tmp = [];
   for (const g of geos) {
@@ -52,6 +53,9 @@ const faelle = [
   { fam: HA, name: 'Halter-1L-Bohrer', params: { ...M.startParameter(HA), breite: 1, reihen: 3, durchmesser: 5, anzahl: 4, tiefe: 60 } },
   { fam: KL, name: 'Klemme-Flasche-66', params: M.startParameter(KL) },
   { fam: KL, name: 'Klemme-Bohrfutter-40', params: { ...M.startParameter(KL), durchmesser: 40, klemmweite: 30, hoehe: 20 } },
+  // Beschriftung: Modul mit Tafelhalter (tafel: 1) + Tafel als eigenes Objekt; Ebene-Text auf der Konsole
+  { fam: W, name: 'Wanne-2L-Tafelhalter', params: { ...M.startParameter(W), tafel: 1 }, tafel: 'Nägel & Ösen' },
+  { fam: HA, name: 'Halter-2L-Konsolentext', params: M.startParameter(HA), ebene: 'Bohrer Ø6' },
 ];
 // Aufruf: node lochwand-export-test.mjs [familie] [zieldatei]
 //   ohne Argumente: alle Faelle -> Projekt-Daten/kohlilab-skadis/lochwand-test.3mf
@@ -60,8 +64,25 @@ const nurFamilie = process.argv[2] || null;
 const zielDatei = process.argv[3] || 'C:/Users/Allgemein/Projekt-Daten/kohlilab-skadis/lochwand-test.3mf';
 const auswahl = nurFamilie ? faelle.filter((f) => f.fam.id === nurFamilie) : faelle;
 let objs = '', items = '', tx = 0; const gramm = [];
-auswahl.forEach((f, oi) => {
-  const fam = f.fam; const tris = modulDreiecke(fam, f.params); let map = new Map(); const verts = [], T = []; let maxX = 0;
+// Text: Etikett (Ebene) haengt am Modul; die Tafel wird ein eigenes flaches Objekt
+const objekte = [];
+for (const f of auswahl) {
+  const extra = [];
+  if (f.ebene) { const et = M.etikett(f.fam, f.params, f.ebene, 0, '#1c1c1c', '#ef7d1a'); if (et) extra.push(et.geo); else console.log('!! kein Etikett fuer', f.name); }
+  objekte.push({ name: f.name, fam: f.fam, params: f.params, extra });
+  if (f.tafel) {
+    const sc = M.schild(f.fam, f.params, f.tafel, 0, '#1c1c1c', '#eceff0');
+    if (!sc) { console.log('!! keine Tafel fuer', f.name); continue; }
+    const Mf = M.schildFlach(sc); const a = sc.geo.attributes.position.array; const arr = new Float32Array(a.length);
+    let mn = [Infinity, Infinity, Infinity];
+    for (let i = 0; i < a.length; i += 3) { const v = new THREE.Vector3(a[i], a[i + 1], a[i + 2]).applyMatrix4(Mf); arr[i] = v.x; arr[i + 1] = v.y; arr[i + 2] = v.z; mn = [Math.min(mn[0], v.x), Math.min(mn[1], v.y), Math.min(mn[2], v.z)]; }
+    for (let i = 0; i < arr.length; i += 3) { arr[i] -= mn[0]; arr[i + 1] -= mn[1]; arr[i + 2] -= mn[2]; }
+    objekte.push({ name: 'Schild ' + f.name, tris: [arr] });
+  }
+}
+objekte.forEach((ob, oi) => {
+  const f = ob; const fam = ob.fam;
+  const tris = ob.tris || modulDreiecke(fam, ob.params, ob.extra); let map = new Map(); const verts = [], T = []; let maxX = 0;
   // Ecken je KOERPER zusammenfassen, nicht je Modul: Boden, Waende, Keil und
     // Haken ueberlappen sich; teilen sie Ecken, entstehen nicht-mannigfaltige
     // Stellen (Slicer meckert, der Waechter zaehlt Fetzen). Getrennte, in sich
@@ -79,8 +100,10 @@ auswahl.forEach((f, oi) => {
   } }
   objs += '<object id="' + (oi + 10) + '" type="model" name="' + f.name + '"><mesh><vertices>' + verts.join('') + '</vertices><triangles>' + T.join('') + '</triangles></mesh></object>';
   items += '<item objectid="' + (oi + 10) + '" transform="1 0 0 0 1 0 0 0 1 ' + tx.toFixed(2) + ' 0 0"/>'; tx += maxX + 12;
-  const g = M.volumenMm3([...f.fam.geometrie(f.params), ...(f.fam.stuetzen ? f.fam.stuetzen(f.params) : [])]) / 1000 * M.DICHTE_G_CM3; gramm.push(g);   // inkl. Abbrechstuetzen, wie modulGramm() in der App
-  console.log(f.name.padEnd(16) + ' ' + T.length + ' Dreiecke, ' + g.toFixed(1) + ' g, Umriss ' + JSON.stringify(M.umriss(f.fam, f.params)));
+  if (f.fam) {
+    const g = M.volumenMm3([...f.fam.geometrie(f.params), ...(f.fam.stuetzen ? f.fam.stuetzen(f.params) : []), ...(f.extra || [])]) / 1000 * M.DICHTE_G_CM3; gramm.push(g);   // inkl. Abbrechstuetzen + Etikett, wie modulGramm() in der App
+    console.log(f.name.padEnd(16) + ' ' + T.length + ' Dreiecke, ' + g.toFixed(1) + ' g, Umriss ' + JSON.stringify(M.umriss(f.fam, f.params)));
+  } else console.log(f.name.padEnd(16) + ' ' + T.length + ' Dreiecke (Tafel, eigenes Objekt)');
 });
 const model = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>' + objs + '</resources><build>' + items + '</build></model>';
 
