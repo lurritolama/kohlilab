@@ -28,6 +28,32 @@ const TEXT_RP_JE_MM = 40;       // 0.40 je mm Schrifthoehe ueber 4 mm
 // Modulzuschlag fallen bei einem Fehldruck nicht doppelt an.
 const AUSFALL = 0.08;           // 8 %
 
+/**
+ * Lochwand-Planer (Skådis-Module): EINE Wand = ein Auftrag. Spiegelt exakt
+ * public/lochwand-app/preis.js (dort steht die Begründung): Grundpreis
+ * einmal je Wand, 2.— je Zusatzmodul, Filament + Maschine + 8 % Ausfall,
+ * min 12.—, Rundung 0.50. Farbe je Modul kostet nichts. `module` = Anzahl
+ * Druckdateien; `gramm` = serverseitig gemessen (inkl. Abbrechstützen —
+ * die druckt Manolo mit, sie kosten Material).
+ */
+const LOCHWAND_JE_MODUL_RP = 500;     // 5.— je Zusatzmodul (Manolo 18.08.2026)
+const LOCHWAND_SCHILD_RP = 250;       // 2.50 je aufgesetztem Schild (Vorschlag, nach Drucktest bestaetigen)
+export function lochwandPreisRappen(o: { gramm: number; module: number; textModule?: number; textMmUeber4?: number; schilder?: number }): number {
+  const module = Math.min(200, Math.max(1, Math.round(o.module)));
+  // Beschriftung: Kennzahlen kommen vom Client (Schrifthoehe laesst sich aus
+  // dem 3MF nicht messen) — nach unten auf 0, nach oben auf die Modulzahl bzw.
+  // grosszuegig gekappt. Saetze wie beim Organizer.
+  const textModule = Math.min(module, Math.max(0, Math.round(o.textModule ?? 0)));
+  const textMm = Math.min(2000, Math.max(0, o.textMmUeber4 ?? 0));
+  const schilder = Math.min(module, Math.max(0, Math.round(o.schilder ?? 0)));
+  const text = textModule * TEXT_RP_JE_FACH + textMm * TEXT_RP_JE_MM + schilder * LOCHWAND_SCHILD_RP;
+  const material = o.gramm * FILAMENT_RP_G;
+  const maschine = (o.gramm / 25) * MASCHINE_RP_H;
+  const druck = (material + maschine) * (1 + AUSFALL);
+  const roh = 950 + druck + (module - 1) * LOCHWAND_JE_MODUL_RP + text;
+  return Math.max(1200, Math.ceil(roh / 50) * 50);
+}
+
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
 export function organizerPreisRappen(o: {
   gramm: number; module: number; hatText: boolean;

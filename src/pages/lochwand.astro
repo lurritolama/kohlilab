@@ -1,0 +1,36 @@
+---
+// Lochwand-Planer — Etappe 1: die Buehne. Noch NICHT in den Produktlinien
+// verlinkt und noch nicht bestellbar; die Seite ist ueber die Adresse
+// erreichbar, damit Manolo sie abnehmen kann. Verlinkung und Freischaltung
+// kommen mit den Modulen (Etappe 2/3).
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KonfigFrame from '../components/KonfigFrame.astro';
+---
+<BaseLayout
+  title="Lochwand-Planer (Test) — KohliLab"
+  description="Plane deine IKEA-Skådis-Wand: Platte wählen, Module platzieren, 3D-gedruckt in Bühler AR."
+  noindex
+>
+  <section class="block" style="padding-top:28px">
+    <h2>Lochwand-Planer <span class="testmarke">TEST</span></h2>
+    <p class="lead">
+      Passend für IKEA Skådis. Wähle deine Platte — das Lochbild ist massgenau
+      nachgebaut, an einer echten Platte vermessen. Als Nächstes kommen die
+      Module: Wannen, Halter, Haken und Klemmen, die du frei auf der Wand
+      platzierst und beschriftest.
+    </p>
+    <p class="hinweis-etappe">
+      <b>Testphase:</b> Haken, Wanne, Halter, Klemme — mit Beschriftung, Teilen-Link und Warenkorb. Bestellungen aus dem Planer sind bis auf Weiteres Testbestellungen und werden als «TEST» geführt.
+    </p>
+  </section>
+  <KonfigFrame app="lochwand-app" titel="Lochwand-Planer" mobil="ansehen" />
+</BaseLayout>
+
+<style>
+  .hinweis-etappe { font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+    color: var(--muted); border: 1px dashed var(--line); border-radius: 6px;
+    padding: 8px 12px; display: inline-block; margin-top: 4px; }
+  .hinweis-etappe b { color: var(--acc2); font-weight: 600; }
+  .testmarke { display:inline-block; vertical-align:middle; margin-left:10px; padding:3px 9px; border-radius:5px;
+    background:#e2483d; color:#fff; font-family:var(--mono); font-size:11px; letter-spacing:1.5px; font-weight:700; }
+</style>

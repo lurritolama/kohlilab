@@ -14,21 +14,33 @@ function modelXml(buf: Buffer): string {
   return strFromU8(files[key]);
 }
 
-/** Volumen eines 3MF in mm³ (Betrag der Summe signierter Tetraeder). */
+/**
+ * Volumen eines 3MF in mm³ (Betrag der Summe signierter Tetraeder).
+ * JE <mesh> gerechnet: die Dreiecks-Indizes eines 3MF zählen innerhalb
+ * ihres Objekts von 0 — über die ganze Datei gesammelt (erste Fassung)
+ * zeigten sie bei mehreren Objekten auf falsche Ecken. Ein Lochwand-3MF
+ * hat mehrere Objekte; die Organizer-Dateien hatten je eines.
+ */
 export function volumenMm3(buf: Buffer): number {
   const xml = modelXml(buf);
-  const verts: [number, number, number][] = [];
   const vre = /<vertex\s+x="([-\d.eE]+)"\s+y="([-\d.eE]+)"\s+z="([-\d.eE]+)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = vre.exec(xml))) verts.push([parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])]);
   const tre = /<triangle\s+v1="(\d+)"\s+v2="(\d+)"\s+v3="(\d+)"/g;
   let vol = 0;
-  while ((m = tre.exec(xml))) {
-    const a = verts[+m[1]], b = verts[+m[2]], c = verts[+m[3]];
-    if (!a || !b || !c) continue;
-    vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+  const meshes = xml.match(/<mesh>[\s\S]*?<\/mesh>/g) ?? [xml];
+  for (const mesh of meshes) {
+    const verts: [number, number, number][] = [];
+    let m: RegExpExecArray | null;
+    vre.lastIndex = 0; tre.lastIndex = 0;
+    while ((m = vre.exec(mesh))) verts.push([parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])]);
+    let v = 0;
+    while ((m = tre.exec(mesh))) {
+      const a = verts[+m[1]], b = verts[+m[2]], c = verts[+m[3]];
+      if (!a || !b || !c) continue;
+      v += (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+    }
+    vol += Math.abs(v);
   }
-  return Math.abs(vol);
+  return vol;
 }
 
 /** Gewicht in Gramm über eine oder mehrere Druckdateien. */

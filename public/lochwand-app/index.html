@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KohliLab — Lochwand-Planer</title>
+<style>
+  /* Farbschema und Bedienelemente 1:1 vom Organizer-Konfigurator (Brief §0). */
+  :root{ --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
+         --ink:#e8e6e1; --mut:#9a9a93; --acc:#ff6b1a; --acc2:#ffb347; --warn:#e2483d;
+         --mono:Consolas,"JetBrains Mono",monospace; }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+  #panel{width:340px;flex:none;background:var(--bg2);border-right:1px solid var(--line);padding:16px 14px;overflow-y:auto}
+  #panel h1{font-size:18px;letter-spacing:.5px;font-weight:600}
+  #panel h1 b{color:var(--acc);font-weight:700}
+  .sub{font-family:var(--mono);font-size:10px;letter-spacing:1.6px;color:var(--mut);margin:3px 0 14px}
+  .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
+  .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .btns button:hover{border-color:var(--line2);color:var(--ink)}
+  .sw{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap}
+  .sw button{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+  .sw button.active{border-color:var(--acc);box-shadow:0 0 0 2px var(--bg2),0 0 0 4px var(--acc)}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--acc)}
+  .row .val{font-family:var(--mono);font-size:11px;width:56px;text-align:right;color:var(--ink)}
+  .row input[type=checkbox]{accent-color:var(--acc);width:16px;height:16px}
+  .note{font-size:11.5px;color:var(--mut);line-height:1.55;margin-top:8px}
+  .note b{color:var(--ink);font-weight:600}
+  .fakten{font-family:var(--mono);font-size:11px;color:var(--mut);line-height:1.8;margin-top:6px}
+  .fakten b{color:var(--ink);font-weight:500}
+  .bib{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .bib button{background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:10px 8px;font-size:12px;cursor:pointer;text-align:left;line-height:1.35}
+  .bib button small{display:block;color:var(--mut);font-size:10.5px}
+  .bib button:hover{border-color:var(--acc)}
+  .bib button.bald{opacity:.45;cursor:default}
+  .liste{font-size:12px;line-height:1.7}
+  .liste .z{display:flex;justify-content:space-between;gap:8px;padding:3px 6px;border-radius:4px;cursor:pointer}
+  .liste .z:hover{background:#17181b}
+  .liste .z.aktiv{background:#17181b;outline:1px solid var(--acc)}
+  .liste .z .m{font-family:var(--mono);color:var(--mut);font-size:10.5px}
+  .liste .z.koll{color:var(--warn)}
+  .preis{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px}
+  .preis .p{font-family:var(--mono);font-size:22px;color:var(--acc2)}
+  .preis .d{font-family:var(--mono);font-size:10.5px;color:var(--mut)}
+  .exp{display:flex;gap:6px;margin-top:8px}
+  .exp button{flex:1;background:var(--acc);border:none;color:#141517;font-weight:700;border-radius:6px;padding:9px 6px;font-size:12px;cursor:pointer}
+  .exp button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500}
+  .exp button:disabled{opacity:.4;cursor:default}
+  .warn{color:var(--warn);font-size:11.5px;margin-top:6px;display:none}
+  #view{flex:1;position:relative;background:radial-gradient(ellipse at 50% 40%,#1e2024 0%,var(--bg) 70%)}
+  #view canvas{display:block}
+  #hint{position:absolute;left:14px;top:12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.8px;color:var(--mut);pointer-events:none}
+  #hud{position:absolute;right:14px;bottom:12px;font-family:var(--mono);font-size:10.5px;color:var(--mut);pointer-events:none;text-align:right;line-height:1.7}
+  #hud b{color:var(--acc2);font-weight:500}
+  .stufe{display:inline-block;background:var(--acc);color:#141517;font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;padding:2px 7px;border-radius:3px;margin-bottom:8px;font-weight:700}
+  #detail{display:none}
+  #detail.an{display:block}
+  .kl{background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer}
+  .kl:disabled{opacity:.35;cursor:default}
+  .testmarke{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 7px;border-radius:4px;background:var(--warn);color:#fff;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;font-weight:700}
+  .testmarke.aus{display:none}
+  .kl:hover{color:var(--ink);border-color:var(--ink)}
+  .kl.rot:hover{color:var(--warn);border-color:var(--warn)}
+  /* Modul-Knoepfe (Abschnitt 3): gross, Entfernen rot gefuellt — der kleine
+     Textknopf ging unter (Manolo, 17.08.) */
+  .modbtns{display:flex;gap:8px;margin-top:12px}
+  .modbtns button{flex:1;border-radius:6px;padding:10px 8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.2px}
+  .modbtns .dupl{background:transparent;border:1px solid var(--line2);color:var(--ink)}
+  .modbtns .dupl:hover{border-color:var(--acc);color:var(--acc)}
+  .modbtns .del{background:var(--warn);border:1px solid var(--warn);color:#fff}
+  .modbtns .del:hover{background:#c73a30;border-color:#c73a30}
+  /* Kontextmenue (Rechtsklick auf ein Modul in der Ansicht) */
+  #ctx{position:fixed;z-index:50;display:none;min-width:190px;background:#1b1c20;border:1px solid var(--line2);border-radius:8px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  #ctx.an{display:block}
+  #ctx .t{font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;color:var(--acc2);text-transform:uppercase;padding:6px 10px 8px}
+  #ctx button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:0;color:var(--ink);padding:9px 10px;border-radius:5px;font-size:13px;cursor:pointer}
+  #ctx button:hover{background:#26282d}
+  #ctx button.del{color:#ff7b71}
+  #ctx button.del:hover{background:rgba(226,72,61,.15)}
+  #ctx .k{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mut)}
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>LOCHWAND-<b>PLANER</b> <span class="testmarke" id="testmarke" title="Testphase — Bestellungen sind Testbestellungen">TEST</span></h1>
+  <div class="sub">passend für IKEA Skådis · KohliLab · 3D-gedruckt</div>
+  <div class="stufe">ETAPPE 2 · ERSTE MODULE</div>
+
+  <div class="grp"><h2>1 · Deine Lochplatte</h2>
+    <div class="btns" id="platten"></div>
+    <div class="row" style="margin-top:8px"><label>Farbe Platte</label><div class="sw" id="farben"></div></div>
+    <div class="fakten" id="fakten"></div>
+  </div>
+
+  <div class="grp"><h2>2 · Module dazulegen</h2>
+    <div class="bib" id="bib"></div>
+    <div class="note"><b>Antippen</b> legt das Modul auf die Platte. Dann in der Ansicht <b>ziehen</b> — es rastet auf dem nächsten Loch ein. <b>Anklicken</b> zum Bearbeiten.</div>
+  </div>
+
+  <div class="grp" id="detail">
+    <h2>3 · <span id="detailName">Modul</span></h2>
+    <div id="params"></div>
+    <div class="row"><label>Farbe</label><div class="sw" id="modFarben"></div></div>
+    <div class="row" id="textZeile"><label>Text</label><input type="text" id="modText" maxlength="20" placeholder="Beschriftung (optional)" autocomplete="off"></div>
+    <div id="textOpt" style="display:none">
+      <div class="row"><label>Art</label><div class="btns" id="modTextArt" style="flex:1"></div></div>
+      <div class="row"><label>Schrift</label><input type="range" id="modTextGr" min="0" max="12" step="0.5" value="0"><span class="val" id="modTextGrVal">auto</span></div>
+      <div class="row"><label>Textfarbe</label><div class="sw" id="modTextFarben"></div></div>
+      <div class="note" id="textHinweis" style="margin-top:2px"></div>
+    </div>
+    <div class="fakten" id="modFakten"></div>
+    <div class="modbtns">
+      <button type="button" class="dupl" id="dupl">⧉ Duplizieren</button>
+      <button type="button" class="del" id="del">✕ Entfernen</button>
+    </div>
+    <button type="button" class="kl" id="modCart" style="margin-top:8px;width:100%">🛒 Nur dieses Modul in den Warenkorb</button>
+  </div>
+
+  <div class="grp"><h2 style="display:flex;justify-content:space-between;align-items:center">4 · Deine Wand <button type="button" class="kl" id="undo" disabled title="Ctrl+Z">↶ Rückgängig</button></h2>
+    <div class="liste" id="liste"><span style="color:var(--mut);font-size:12px">Noch keine Module.</span></div>
+    <div class="warn" id="kollWarn">⚠ Module überlappen — rot markiert. Du kannst trotzdem bestellen, wir bauen genau das.</div>
+    <div class="preis"><span class="p" id="preis">CHF —</span><span class="d" id="preisD"></span></div>
+    <div class="exp">
+      <button type="button" class="ghost" id="teilen" title="Link zu dieser Wand kopieren">🔗 Teilen</button>
+      <button type="button" id="ex3mf" disabled>3MF herunterladen</button>
+      <button type="button" class="ghost" id="cart" disabled>In den Warenkorb</button>
+    </div>
+    <div class="note" style="margin-top:6px">Der Grundpreis fällt <b>einmal pro Wand</b> an, nicht pro Modul. Nur die Module werden gedruckt — die Platte ist von IKEA.</div>
+  </div>
+</div>
+
+<div id="ctx" role="menu">
+  <div class="t" id="ctxTitel">Modul</div>
+  <button type="button" id="ctxDupl">⧉ Duplizieren</button>
+  <button type="button" id="ctxRan">⌖ Ansicht ran <span class="k">Doppelklick</span></button>
+  <button type="button" id="ctxCart">🛒 Nur dieses Modul bestellen</button>
+  <button type="button" class="del" id="ctxDel">✕ Entfernen <span class="k">Entf</span></button>
+</div>
+<div id="view">
+  <div id="hint">ZIEHEN: DREHEN · RAD: ZOOM · RECHTS: SCHIEBEN · MODUL ZIEHEN: VERSETZEN · RECHTSKLICK AUF MODUL: MENÜ · DOPPELKLICK: MODUL RAN · ENTF: MODUL WEG · CTRL+Z: RÜCKGÄNGIG</div>
+  <div id="hud"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+<script src="/vendor/jszip.min.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PLATTEN, PLATTENFARBEN, loecher, rasterInfo, naechstesLoch,
+         SCHLITZ_BREITE, SCHLITZ_HOEHE, PLATTE_DICKE, RASTER, REIHEN_TEILUNG } from './raster.js';
+import { FAMILIEN, familie, startParameter, parameterRastern, volumenMm3, DICHTE_G_CM3, drucklageMatrix, umriss, etikett, schild, schildFlach } from './module.js';
+import { HAKEN_TIEFE } from './haken.js';
+import { wandPreis, modulAnteil, chf, PREIS } from './preis.js';
+
+const $ = (id) => document.getElementById(id);
+// TESTPHASE (Manolo, 18.08.2026): bis Drucke und Bestellablauf abgenommen
+// sind, traegt der Planer eine TEST-Marke und jede Warenkorb-Position
+// "TEST" im Titel — so ist eine Testbestellung im Admin und in der Mail
+// als solche erkennbar. Auf false setzen = Marke weg, Titel normal.
+const TESTPHASE = true;
+const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];   // wie Organizer
+const FARBNAMEN = ['Weiss','Hellgrau','Schwarz','Rot','Blau','Orange'];
+
+// ---------------------------------------------------------------- Zustand
+// Module in RASTEREINHEITEN: (reihe, spalte, brett) = das ANKERLOCH, in dem
+// der erste (vom Betrachter aus linke) Einhaengehaken sitzt. Millimeter erst
+// beim Zeichnen/Exportieren. `brett` braucht es fuer die Doppelplatten: dort
+// gibt es Reihe 3 / Loch 2 zweimal.
+const zustand = {
+  platte: PLATTEN[0],
+  farbe: PLATTENFARBEN[0],
+  module: [],          // { id, familie, params, reihe, spalte, brett, farbe }
+  aktiv: null,         // id
+};
+let naechsteId = 1;
+
+// ---------------------------------------------------------------- Verlauf (Rueckgaengig)
+// Vor jeder Aenderung an den Modulen (dazulegen, entfernen, versetzen,
+// Parameter, Farbe) wird der Modulstand als Schnappschuss gemerkt; Ctrl+Z
+// oder der Knopf holt den letzten zurueck. Doppelte Schnappschuesse (nichts
+// geaendert) werden nicht gestapelt. Hoechstens 60 Schritte.
+const verlauf = [];
+function stand() { return JSON.stringify(zustand.module); }
+function merke() {
+  const s = stand();
+  if (verlauf.length && verlauf[verlauf.length - 1] === s) return;
+  verlauf.push(s); if (verlauf.length > 60) verlauf.shift();
+  $('undo').disabled = false;
+}
+function rueckgaengig() {
+  // Schritte ueberspringen, die dem aktuellen Stand gleichen (z. B. Griff ohne Versetzen)
+  let s = null;
+  while (verlauf.length) { s = verlauf.pop(); if (s !== stand()) break; s = null; }
+  $('undo').disabled = !verlauf.length;
+  if (s == null) return;
+  for (const g of meshes.values()) { modulGruppe.remove(g); g.traverse((o) => o.geometry?.dispose?.()); }
+  meshes.clear();
+  zustand.module = JSON.parse(s);
+  const aktivNoch = zustand.module.some((m) => m.id === zustand.aktiv);
+  zeichneAlle();
+  waehle(aktivNoch ? zustand.aktiv : null);
+  aktualisiereListe();
+}
+addEventListener('keydown', (ev) => {
+  const inFeld = /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target?.tagName || '');
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z' && !inFeld) { ev.preventDefault(); rueckgaengig(); return; }
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && !inFeld && zustand.aktiv != null) { ev.preventDefault(); entferneAktives(); }
+});
+
+// ---------------------------------------------------------------- Szene
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 8000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.62;
+// Zoom von "ganze Doppelwand" bis "ein Haken formatfuellend": ein 7-mm-Modul
+// braucht ~30 mm Kameraabstand, eine 1.5-m-Wand ~4 m. Und der Zoom geht
+// ZUM MAUSZEIGER, nicht zur Plattenmitte — sonst muss man nach jedem Zoom
+// erst wieder hinschieben, wo man hinschauen wollte.
+controls.minDistance = 25; controls.maxDistance = 4500;
+// Kein zoomToCursor: bei diesem Abstandsbereich (25 mm bis 4.5 m) sprang
+// die Ansicht mit einem Radklick von "ganze Wand" auf "im Loch drin" — der
+// Zielpunkt wanderte mit jedem Schritt und der Zoom fuehlte sich an wie zwei
+// feste Stufen. Stattdessen: sanfter Zoom um den Zielpunkt, und der
+// Zielpunkt laesst sich per Doppelklick auf ein Modul setzen.
+controls.zoomToCursor = false;
+controls.enableZoom = false;   // eigener Zoom, siehe unten
+// Eigener Rad-Zoom statt dem der OrbitControls. Grund: OrbitControls
+// normiert deltaY mit 100 * devicePixelRatio und rechnet mit deltaMode 0
+// (Pixel). Liefert die Maus deltaMode 1 (Zeilen) oder grosse deltaY-Werte,
+// wird aus einer Radraste ein Riesensprung — genau das, was Manolo sah:
+// zwei Ansichten, nichts dazwischen. Hier zaehlt nur die RICHTUNG einer
+// Radraste, jede Raste ist genau ein Schritt von 8 %. Damit ist der Zoom
+// auf jeder Maus und jedem Bildschirm gleich weich.
+renderer.domElement.addEventListener('wheel', (ev) => {
+  ev.preventDefault();
+  const richtung = Math.sign(ev.deltaY);            // +1 raus, -1 rein
+  if (!richtung) return;
+  const faktor = richtung > 0 ? 1.08 : 1 / 1.08;
+  const abstand = camera.position.distanceTo(controls.target);
+  const neu = Math.min(controls.maxDistance, Math.max(controls.minDistance, abstand * faktor));
+  const richtungsVektor = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).addScaledVector(richtungsVektor, neu);
+  controls.update();
+}, { passive: false });
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+// Doppelklick auf ein Modul: Kamera darauf zentrieren, damit Drehen und
+// Zoomen um DAS Modul laufen.
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3c40, 1.05));
+const sonne = new THREE.DirectionalLight(0xffffff, 1.1); sonne.position.set(-400, 600, 900); scene.add(sonne);
+const gegen = new THREE.DirectionalLight(0xffe0c0, 0.35); gegen.position.set(600, -200, 400); scene.add(gegen);
+const wand = new THREE.Mesh(new THREE.PlaneGeometry(6000, 3000), new THREE.MeshStandardMaterial({ color: 0x2c2e32, roughness: 1 }));
+wand.position.z = -PLATTE_DICKE - 22; scene.add(wand);
+
+let plattenGruppe = null;
+const modulGruppe = new THREE.Group(); scene.add(modulGruppe);
+const meshes = new Map();   // modul.id -> THREE.Group
+
+// Plattenkoordinaten -> Welt: Platte zentriert, Vorderseite bei z=0.
+// Loch (x,y) in mm von links oben -> Welt (x - B/2, H/2 - y, 0).
+function lochWelt(l) { const p = zustand.platte; return new THREE.Vector3(l.x - p.breite / 2, p.hoehe / 2 - l.y, 0); }
+function weltZuPlatte(v) { const p = zustand.platte; return { x: v.x + p.breite / 2, y: p.hoehe / 2 - v.y }; }
+
+function bauePlatte(platte, farbe) {
+  if (plattenGruppe) { scene.remove(plattenGruppe); plattenGruppe.traverse((o) => o.geometry?.dispose?.()); }
+  plattenGruppe = new THREE.Group();
+  const einzel = platte.breite / platte.teile;
+  const alle = loecher(platte);
+  for (let brett = 0; brett < platte.teile; brett++) {
+    const form = new THREE.Shape();
+    const x0 = brett * einzel, x1 = x0 + einzel;
+    form.moveTo(x0, 0); form.lineTo(x1, 0); form.lineTo(x1, -platte.hoehe); form.lineTo(x0, -platte.hoehe); form.closePath();
+    const r = SCHLITZ_BREITE / 2, gerade = SCHLITZ_HOEHE - SCHLITZ_BREITE;
+    for (const l of alle.filter((q) => q.brett === brett)) {
+      const cx = l.x, cy = -l.y, p = new THREE.Path();
+      p.moveTo(cx - r, cy - gerade / 2); p.lineTo(cx - r, cy + gerade / 2);
+      p.absarc(cx, cy + gerade / 2, r, Math.PI, 0, true);
+      p.lineTo(cx + r, cy - gerade / 2); p.absarc(cx, cy - gerade / 2, r, 0, Math.PI, true);
+      form.holes.push(p);
+    }
+    const geo = new THREE.ExtrudeGeometry(form, { depth: PLATTE_DICKE, bevelEnabled: false, curveSegments: 6 });
+    geo.translate(0, 0, -PLATTE_DICKE);
+    plattenGruppe.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: farbe.hex, roughness: 0.82, metalness: 0.02 })));
+    const kante = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(einzel, platte.hoehe, PLATTE_DICKE)),
+      new THREE.LineBasicMaterial({ color: farbe.loch, transparent: true, opacity: 0.35 }));
+    kante.position.set(x0 + einzel / 2, -platte.hoehe / 2, -PLATTE_DICKE / 2);
+    plattenGruppe.add(kante);
+  }
+  if (platte.teile > 1) for (let b = 1; b < platte.teile; b++) {
+    const fuge = new THREE.Mesh(new THREE.BoxGeometry(0.8, platte.hoehe, PLATTE_DICKE + 0.2), new THREE.MeshBasicMaterial({ color: 0x0c0d0f }));
+    fuge.position.set(b * einzel, -platte.hoehe / 2, -PLATTE_DICKE / 2); plattenGruppe.add(fuge);
+  }
+  plattenGruppe.position.set(-platte.breite / 2, platte.hoehe / 2, 0);
+  scene.add(plattenGruppe);
+}
+function kameraEinpassen(platte) {
+  const diag = Math.hypot(platte.breite, platte.hoehe), dist = diag * 0.95;
+  camera.position.set(dist * 0.18, dist * 0.12, dist); controls.target.set(0, 0, 0); controls.update();
+}
+
+// ---------------------------------------------------------------- Module zeichnen
+function lochVon(m) { return loecher(zustand.platte).find((l) => l.reihe === m.reihe && l.spalte === m.spalte && l.brett === (m.brett || 0)) || null; }
+// Ankerpunkt eines Moduls in Plattenkoordinaten (mm, y nach unten): die
+// Mitte der UNTERKANTE des Ankerlochs — dort liegt die Halsunterkante des
+// Hakens auf. Modulraum-Ursprung (module.js) = genau dieser Punkt.
+function ankerVon(l) { return { x: l.x, y: l.y + SCHLITZ_HOEHE / 2 }; }
+
+// Beschriftung (Etikett) eines Moduls — { geo, farben, groesse } oder null.
+// Textfarbe: gewaehlt, sonst dunkel auf hellen / hell auf dunklen Modulen.
+function textFarbeVon(m) { return m.textFarbe || (['#1c1c1c', '#2f6fd6', '#d8332f'].includes(m.farbe) ? '#eceff0' : '#1c1c1c'); }
+// Beschriftungsarten je Modul: 'ebene' (im Material auf waagrechter Flaeche)
+// und/oder 'schild' (flache Platte zum Aufsetzen). Manolo 18.08.2026.
+function textArten(m) {
+  const f = familie(m.familie), arten = [];
+  if (f.schildflaeche && f.schildflaeche(m.params)) arten.push('schild');
+  if (f.beschriftung && f.beschriftung(m.params)) arten.push('ebene');
+  return arten;
+}
+function textArtVon(m) { const a = textArten(m); if (!a.length) return null; return a.includes(m.textArt) ? m.textArt : a[0]; }
+function etikettVon(m) { return (m.text && textArtVon(m) === 'ebene') ? etikett(familie(m.familie), m.params, m.text, m.textGroesse || 0, textFarbeVon(m), m.farbe) : null; }
+// Schild: Textfarbe wie gewaehlt, Schildfarbe = Modulfarbe (ein Teil mehr in derselben Farbe)
+function schildVon(m) { return (m.text && textArtVon(m) === 'schild') ? schild(familie(m.familie), m.params, m.text, m.textGroesse || 0, textFarbeVon(m), m.farbe) : null; }
+function baueModulMesh(m) {
+  const alt = meshes.get(m.id);
+  if (alt) { modulGruppe.remove(alt); alt.traverse((o) => { if (o.isMesh && !o.userData.etikett) o.geometry?.dispose?.(); }); }
+  const f = familie(m.familie);
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: m.farbe, roughness: 0.55, metalness: 0.05 });
+  for (const geo of f.geometrie(m.params)) g.add(new THREE.Mesh(geo, mat));
+  const et = etikettVon(m), sc = schildVon(m);
+  for (const x of [et, sc]) if (x) { const em = new THREE.Mesh(x.geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05 })); em.userData.etikett = true; g.add(em); }
+  g.userData.modulId = m.id;
+  // Modulraum: z=0 ist die Rueckseite des Moduls (liegt an der Platten-
+  // VORDERSEITE an), der Einhaengehaken ragt in +z, Arm/Wanne in -z.
+  // Weltraum der Buehne: Plattenvorderseite bei z=0, die Wand dahinter bei
+  // -z, der Betrachter bei +z. Der Haken muss also in Welt-(-z) durchs Loch,
+  // der Arm in Welt-(+z) zum Betrachter: die z-Achse ist UMGEKEHRT.
+  // Deshalb 180 Grad um die Y-Achse drehen — das kehrt z (und x) um, ohne
+  // zu spiegeln. Eine Spiegelung (scale z = -1) wuerde die Windung kippen
+  // und die Beleuchtung falsch machen. Beim ersten Anlauf stand hier
+  // "spiegeln" im Kommentar und scale(1,1,1) im Code: Haken vor der Platte,
+  // Arm in der Wand — Manolos Screenshot.
+  const l = lochVon(m);
+  if (l) { const w = lochWelt(l); g.position.set(w.x, w.y - SCHLITZ_HOEHE / 2, 0); }
+  // Halsunterkante liegt auf dem unteren Lochrand: Lochmitte - 7.5. Der Hals
+  // (5.5 hoch) steht damit in der unteren Haelfte des 15-mm-Langlochs, die
+  // Zunge haengt dahinter herab — physisch so, wie der Haken sitzt. (Bis
+  // Etappe 2b schwebte er 1.5 mm hoeher, "damit er im Loch steht".)
+  g.rotation.y = Math.PI;
+  modulGruppe.add(g);
+  meshes.set(m.id, g);
+  return g;
+}
+function zeichneAlle() { for (const m of zustand.module) baueModulMesh(m); markiere(); }
+
+// ---------------------------------------------------------------- Kollision (§5)
+// Erkennen, nicht blockieren: rot einfaerben und warnen. Zwei Pruefungen:
+//   1. QUADER: der Huellquader jedes Moduls (umriss aus module.js, aus der
+//      Geometrie abgeleitet) in Plattenkoordinaten; ueberschneiden sich zwei
+//      Quader in Breite, Hoehe UND Tiefe, kollidieren die Module. Das gilt
+//      auch ueber die versetzten Reihen hinweg — eine Wanne ueber zwei Loecher
+//      deckt das Loch der Zwischenreihe mit ab. Ein Haken direkt unter einer
+//      Wanne ist erlaubt (nichts ueberschneidet sich); ob dort noch etwas
+//      dranpasst, sieht der Kunde in 3D.
+//   2. LOECHER: jeder Haken des Moduls braucht ein echtes Loch in der Reihe
+//      des Ankerlochs (Wanne mit 3 Loechern am rechten Plattenrand; auf der
+//      Doppelplatte liegt zwischen den Brettern ein 36-mm-Streifen ohne
+//      Loecher). Fehlt eines, ist das Modul nicht aufhaengbar -> rot.
+const LUFT = 0.5;   // mm Toleranz: Kante an Kante ist keine Kollision
+function quader(m) {
+  const l = lochVon(m); if (!l) return null;
+  const a = ankerVon(l), u = umriss(familie(m.familie), m.params);
+  return { x1: a.x + u.links, x2: a.x + u.rechts, y1: a.y + u.oben, y2: a.y + u.unten, z: u.tiefe };
+}
+function ueberschneiden(q, r) {
+  return q.x1 < r.x2 - LUFT && r.x1 < q.x2 - LUFT && q.y1 < r.y2 - LUFT && r.y1 < q.y2 - LUFT
+      && Math.min(q.z, r.z) > LUFT;   // beide bauen nach vorne (z ab Plattenvorderseite)
+}
+function hakenHabenLoch(m) {
+  const l = lochVon(m); if (!l) return false;
+  const reihe = loecher(zustand.platte).filter((q) => q.reihe === l.reihe);
+  return familie(m.familie).haken(m.params).every((h) => reihe.some((q) => Math.abs(q.x - (l.x + h.dx * RASTER)) < 0.5));
+}
+function kollidiert(m, andere) {
+  const q = quader(m); if (!q) return false;
+  return andere.some((n) => n.id !== m.id && (() => { const r = quader(n); return r && ueberschneiden(q, r); })());
+}
+function kollisionen() {
+  const koll = new Set(), ohneLoch = new Set();
+  const M = zustand.module;
+  const Q = M.map(quader);
+  for (let i = 0; i < M.length; i++) {
+    if (!hakenHabenLoch(M[i])) ohneLoch.add(M[i].id);
+    for (let j = i + 1; j < M.length; j++) if (Q[i] && Q[j] && ueberschneiden(Q[i], Q[j])) { koll.add(M[i].id); koll.add(M[j].id); }
+  }
+  for (const id of ohneLoch) koll.add(id);
+  koll.ohneLoch = ohneLoch;
+  return koll;
+}
+let auswahlRahmen = null;
+function markiere() {
+  const koll = kollisionen();
+  for (const m of zustand.module) {
+    const g = meshes.get(m.id); if (!g) continue;
+    const rot = koll.has(m.id), aktiv = m.id === zustand.aktiv;
+    g.traverse((o) => { if (o.isMesh && !o.userData.etikett) { o.material.color.set(rot ? 0xe2483d : m.farbe); o.material.emissive.set(aktiv ? 0x6a3210 : 0x000000); } });
+  }
+  // Angewaehltes Modul deutlich hervorheben (Manolo, 17.08.): warmes Leuchten
+  // UND ein oranger Rahmen (Huellquader) — die Tönung allein ging bei
+  // orangen und dunklen Modulen unter.
+  if (auswahlRahmen) { scene.remove(auswahlRahmen); auswahlRahmen.geometry.dispose(); auswahlRahmen = null; }
+  const ga = zustand.aktiv != null && meshes.get(zustand.aktiv);
+  if (ga) { auswahlRahmen = new THREE.BoxHelper(ga, 0xff6b1a); auswahlRahmen.material.depthTest = false; auswahlRahmen.material.transparent = true; auswahlRahmen.material.opacity = 0.9; auswahlRahmen.renderOrder = 10; scene.add(auswahlRahmen); }
+  $('kollWarn').style.display = koll.size ? 'block' : 'none';
+  $('kollWarn').textContent = koll.ohneLoch?.size
+    ? '⚠ Ein Modul findet nicht für jeden Haken ein Loch (Plattenrand oder Brettstoss) — rot markiert. Verschieben oder schmaler machen.'
+    : '⚠ Module überlappen — rot markiert. Du kannst trotzdem bestellen, wir bauen genau das.';
+  return koll;
+}
+
+// ---------------------------------------------------------------- Bibliothek
+for (const f of FAMILIEN) {
+  const b = document.createElement('button');
+  b.innerHTML = `${f.name}<small>${f.kurz}</small>`;
+  b.addEventListener('click', () => modulDazu(f.id));
+  $('bib').appendChild(b);
+}
+function freiesLoch(famId, params) {
+  // Ein Loch, an dem das neue Modul weder kollidiert noch ueber den Rand
+  // ragt — nahe der Mitte oben. Wir probieren die Kandidaten der Reihe nach
+  // mit der echten Pruefung durch: sonst landet ein zweites Modul mitten im
+  // ersten und ist sofort rot.
+  const alle = loecher(zustand.platte);
+  const mitteX = zustand.platte.breite / 2;
+  const kand = alle.filter((l) => l.reihe >= 2)
+    .sort((a, b) => (Math.abs(a.x - mitteX) + a.y * 0.3) - (Math.abs(b.x - mitteX) + b.y * 0.3));
+  const probe = { id: -1, familie: famId, params, reihe: 0, spalte: 0, brett: 0, farbe: '#000' };
+  for (const l of kand) {
+    probe.reihe = l.reihe; probe.spalte = l.spalte; probe.brett = l.brett;
+    if (hakenHabenLoch(probe) && !kollidiert(probe, zustand.module)) return l;
+  }
+  return kand[0] || alle[0];
+}
+function modulDazu(famId, vorlage) {
+  merke();
+  const f = familie(famId);
+  const params = vorlage ? { ...vorlage.params } : startParameter(f);
+  const l = freiesLoch(famId, params);
+  const m = { id: naechsteId++, familie: famId, params,
+              reihe: l.reihe, spalte: l.spalte, brett: l.brett, farbe: vorlage ? vorlage.farbe : PALETTE[5] };
+  zustand.module.push(m);
+  baueModulMesh(m);
+  waehle(m.id);
+  aktualisiereListe();
+}
+
+// ---------------------------------------------------------------- Auswahl + Detail
+function waehle(id) {
+  zustand.aktiv = id;
+  const m = zustand.module.find((x) => x.id === id);
+  $('detail').classList.toggle('an', !!m);
+  if (m) baueDetail(m);
+  markiere(); aktualisiereListe();
+}
+function baueDetail(m) {
+  const f = familie(m.familie);
+  $('detailName').textContent = `${f.name} #${m.id}`;
+  const box = $('params'); box.innerHTML = '';
+  for (const [k, def] of Object.entries(f.parameter)) {
+    const row = document.createElement('div'); row.className = 'row';
+    if (def.schalter) {
+      row.innerHTML = `<label>${def.name}</label><input type="checkbox" ${m.params[k] ? 'checked' : ''}><span class="val"></span>`;
+      row.querySelector('input').addEventListener('change', (e) => { merke(); m.params[k] = e.target.checked ? 1 : 0; baueModulMesh(m); markiere(); aktualisiereListe(); });
+    } else {
+      row.innerHTML = `<label>${def.name}</label><input type="range" min="${def.min}" max="${def.max}" step="${def.schritt}" value="${m.params[k]}"><span class="val">${m.params[k]} ${def.einheit}</span>`;
+      const inp = row.querySelector('input'), val = row.querySelector('.val');
+      inp.addEventListener('pointerdown', merke); inp.addEventListener('keydown', merke);
+      inp.addEventListener('input', () => { m.params[k] = +inp.value; val.textContent = `${inp.value} ${def.einheit}`; baueModulMesh(m); markiere(); aktualisiereListe(); });
+    }
+    box.appendChild(row);
+  }
+  const sw = $('modFarben'); sw.innerHTML = '';
+  PALETTE.forEach((hex, i) => {
+    const b = document.createElement('button'); b.style.background = hex; b.title = FARBNAMEN[i]; b.setAttribute('aria-label', FARBNAMEN[i]);
+    b.classList.toggle('active', hex === m.farbe);
+    b.addEventListener('click', () => { merke(); m.farbe = hex; sw.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b)); if (m.text) baueModulMesh(m); markiere(); hashSchreiben(); });
+    sw.appendChild(b);
+  });
+  // Beschriftung
+  const tIn = $('modText'), tGr = $('modTextGr'), tGrVal = $('modTextGrVal'), tOpt = $('textOpt'), tHin = $('textHinweis');
+  tIn.value = m.text || '';
+  tGr.value = m.textGroesse || 0; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto';
+  const arten = textArten(m);
+  $('textZeile').style.display = (f.schildflaeche || f.beschriftung) ? '' : 'none';
+  const artBox = $('modTextArt'); artBox.innerHTML = '';
+  const ARTNAME = { schild: 'Schild (aufsetzen)', ebene: f.id === 'wanne' ? 'im Boden innen' : 'in der Konsole' };
+  const textStand = () => {
+    tOpt.style.display = m.text ? 'block' : 'none';
+    if (!m.text) { tHin.textContent = ''; return; }
+    if (!arten.length) { tHin.textContent = 'Auf diesem Modul ist kein Platz für eine Beschriftung.'; return; }
+    artBox.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.art === textArtVon(m)));
+    const et = etikettVon(m), sc = schildVon(m);
+    if (sc) tHin.textContent = `Schild ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes Druckteil in Modulfarbe, zum Aufkleben (${f.id === 'wanne' ? 'Front' : 'Rückwand'}). + ${chf(PREIS.schild)}`;
+    else if (et) tHin.textContent = `Bündig im Material, ${et.groesse} mm hoch — ${ARTNAME.ebene}. + ${chf(PREIS.textJeModul + Math.max(0, et.groesse - 4) * PREIS.textJeMm)}`;
+    else tHin.textContent = 'Passt nicht — kürzer schreiben oder das Modul grösser machen.';
+  };
+  for (const art of arten) {
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.art = art; b.textContent = ARTNAME[art];
+    b.addEventListener('click', () => { merke(); m.textArt = art; baueModulMesh(m); markiere(); aktualisiereListe(); textStand(); });
+    artBox.appendChild(b);
+  }
+  tIn.addEventListener('focus', merke);
+  tIn.addEventListener('input', () => { m.text = tIn.value.slice(0, 20); baueModulMesh(m); markiere(); aktualisiereListe(); textStand(); });
+  tGr.addEventListener('pointerdown', merke); tGr.addEventListener('keydown', merke);
+  tGr.addEventListener('input', () => { m.textGroesse = +tGr.value; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto'; baueModulMesh(m); markiere(); aktualisiereListe(); textStand(); });
+  const tsw = $('modTextFarben'); tsw.innerHTML = '';
+  PALETTE.forEach((hex, i) => {
+    const b = document.createElement('button'); b.style.background = hex; b.title = FARBNAMEN[i]; b.setAttribute('aria-label', FARBNAMEN[i]);
+    b.classList.toggle('active', hex === textFarbeVon(m));
+    b.addEventListener('click', () => { merke(); m.textFarbe = hex; tsw.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b)); baueModulMesh(m); markiere(); hashSchreiben(); textStand(); });
+    tsw.appendChild(b);
+  });
+  textStand();
+  const g = modulGramm(m);
+  const nH = f.haken(m.params).length;
+  $('modFakten').innerHTML = `${zustand.platte.teile > 1 ? `Brett <b>${(m.brett || 0) + 1}</b>, ` : ''}Loch Reihe <b>${m.reihe + 1}</b>, Nr. <b>${m.spalte + 1}</b>${nH > 1 ? ` (+${nH - 1} nach rechts)` : ''} · ca. <b>${g.toFixed(0)} g</b> · Anteil ~<b>${chf(modulAnteil(g))}</b>`;
+}
+$('dupl').addEventListener('click', () => { const m = zustand.module.find((x) => x.id === zustand.aktiv); if (m) modulDazu(m.familie, m); });
+function entferneAktives() {
+  const i = zustand.module.findIndex((x) => x.id === zustand.aktiv); if (i < 0) return;
+  merke();
+  const g = meshes.get(zustand.aktiv); if (g) { modulGruppe.remove(g); meshes.delete(zustand.aktiv); }
+  zustand.module.splice(i, 1); waehle(null);
+}
+$('del').addEventListener('click', entferneAktives);
+$('undo').addEventListener('click', rueckgaengig);
+
+// ---------------------------------------------------------------- Liste + Preis
+function modulGramm(m) {
+  // Inklusive Abbrechstuetzen (stehende Familien): sie werden gedruckt und
+  // der Server misst dieselbe Datei — Anzeige und Rechnung stimmen ueberein.
+  const f = familie(m.familie);
+  const et = etikettVon(m), sc = schildVon(m);
+  const eigene = [...f.geometrie(m.params), ...(f.stuetzen ? f.stuetzen(m.params) : [])];
+  const v = volumenMm3([...eigene, ...(et ? [et.geo] : []), ...(sc ? [sc.geo] : [])]);
+  eigene.forEach((g) => g.dispose());                 // Etikett/Schild sind gecacht (module.js) -> nicht dispose()n
+  return v / 1000 * DICHTE_G_CM3;
+}
+// ---------------------------------------------------------------- Teilen-Link (#k=)
+// Der komplette Stand (Platte, Farbe, alle Module mit Loch, Parametern,
+// Farbe, Text) steckt komprimiert im #k=-Fragment der SEITEN-URL — wie beim
+// Organizer (Brief §8: "bestehende Teilen-Funktion adaptieren"). Jede
+// Aenderung schreibt ihn nach (replaceState): Link an sich selbst mailen, am
+// anderen Geraet weitermachen; auch ein Reload verliert nichts.
+const b64u = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const b64uLesen = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+function konfigObjekt() {
+  return { v: 1, platte: zustand.platte.id, farbe: zustand.farbe.id,
+           module: zustand.module.map((m) => ({ f: m.familie, p: m.params, r: m.reihe, s: m.spalte, b: m.brett || 0, c: m.farbe, t: m.text || '', ta: m.textArt || '', tg: m.textGroesse || 0, tc: m.textFarbe || '' })) };
+}
+let hashTimer = null;
+function hashSchreiben() {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(async () => {
+    try {
+      const json = JSON.stringify(konfigObjekt());
+      let s;
+      if (window.CompressionStream) {
+        const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+        s = 'z' + b64u(new Uint8Array(buf));
+      } else s = 'j' + b64u(new TextEncoder().encode(json));
+      (window.top || window).history.replaceState(null, '', '#k=' + s);
+    } catch (e) {}
+  }, 250);
+}
+async function hashLesen() {
+  try {
+    const m2 = ((window.top || window).location.hash || location.hash).match(/#k=(.+)/);
+    if (!m2) return false;
+    const art = m2[1][0], bytes = b64uLesen(m2[1].slice(1));
+    const json = art === 'z'
+      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()
+      : new TextDecoder().decode(bytes);
+    const o = JSON.parse(json);
+    if (o.v !== 1 || !Array.isArray(o.module)) return false;
+    zustand.platte = PLATTEN.find((p) => p.id === o.platte) || PLATTEN[0];
+    zustand.farbe = PLATTENFARBEN.find((f) => f.id === o.farbe) || PLATTENFARBEN[0];
+    zustand.module = [];
+    for (const q of o.module) {
+      const f = familie(q.f); if (!f) continue;
+      zustand.module.push({ id: naechsteId++, familie: f.id, params: parameterRastern(f, q.p || {}), reihe: +q.r || 0, spalte: +q.s || 0, brett: +q.b || 0,
+                            farbe: PALETTE.includes(q.c) ? q.c : PALETTE[5], text: typeof q.t === 'string' ? q.t.slice(0, 20) : '',
+                            textArt: q.ta === 'ebene' || q.ta === 'schild' ? q.ta : '', textGroesse: Math.min(12, Math.max(0, +q.tg || 0)), textFarbe: PALETTE.includes(q.tc) ? q.tc : '' });
+    }
+    return true;
+  } catch (e) { return false; }
+}
+async function linkTeilen() {
+  await new Promise((r) => setTimeout(r, 300));               // ausstehendes hashSchreiben abwarten
+  const url = (window.top || window).location.href;
+  if (navigator.share) { try { await navigator.share({ title: 'Meine Lochwand — KohliLab', url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); const b = $('teilen'); b.textContent = '✓ Link kopiert'; setTimeout(() => { b.textContent = '🔗 Teilen'; }, 2200); }
+  catch (e) { prompt('Link zu deiner Wand:', url); }
+}
+$('teilen').addEventListener('click', linkTeilen);
+
+function aktualisiereListe() {
+  const box = $('liste'); box.innerHTML = '';
+  const koll = kollisionen();
+  if (!zustand.module.length) { box.innerHTML = '<span style="color:var(--mut);font-size:12px">Noch keine Module.</span>'; }
+  const gramm = [];
+  for (const m of zustand.module) {
+    const f = familie(m.familie), g = modulGramm(m); gramm.push(g);
+    const z = document.createElement('div'); z.className = 'z' + (m.id === zustand.aktiv ? ' aktiv' : '') + (koll.has(m.id) ? ' koll' : '');
+    z.innerHTML = `<span>${f.name} #${m.id}${koll.has(m.id) ? ' ⚠' : ''}</span><span class="m">R${m.reihe + 1}/L${m.spalte + 1} · ${g.toFixed(0)} g</span>`;
+    z.addEventListener('click', () => waehle(m.id));
+    box.appendChild(z);
+  }
+  const ta = textAngaben(zustand.module);
+  const p = wandPreis(gramm, ta.texte, ta.schilder);
+  $('preis').textContent = zustand.module.length ? chf(p.total) : 'CHF —';
+  $('preisD').textContent = zustand.module.length ? `${zustand.module.length} Modul${zustand.module.length > 1 ? 'e' : ''} · ${p.gramm.toFixed(0)} g · Grund ${chf(p.grund)}` : '';
+  $('ex3mf').disabled = !zustand.module.length;
+  $('cart').disabled = !zustand.module.length;
+  hud();
+  hashSchreiben();
+}
+
+// ---------------------------------------------------------------- Ziehen (Verschieben)
+const ray = new THREE.Raycaster(), maus = new THREE.Vector2();
+const ebene = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);   // Plattenvorderseite
+let zieht = null;
+const zieheVersatz = { x: 0, y: 0 };   // Ankerpunkt minus Greifpunkt (Plattenkoordinaten)
+function unterMaus(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  maus.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(maus, camera);
+  const treffer = ray.intersectObjects(modulGruppe.children, true);
+  return treffer.length ? treffer[0].object.parent.userData.modulId ?? treffer[0].object.userData.modulId : null;
+}
+// ---------------------------------------------------------------- Kontextmenue
+// Rechtsklick AUF ein Modul: Menue (Duplizieren, Ansicht ran, Entfernen).
+// Rechtsklick daneben: wie bisher die Ansicht schieben. Damit der Rechts-
+// klick auf ein Modul nicht zugleich schiebt, wird OrbitControls fuer diesen
+// Klick abgeschaltet.
+const ctx = $('ctx');
+let ctxModul = null, rechtsAufModul = null;
+function ctxZeigen(id, x, y) {
+  const m = zustand.module.find((q) => q.id === id); if (!m) return;
+  ctxModul = id; waehle(id);
+  $('ctxTitel').textContent = `${familie(m.familie).name} #${m.id}`;
+  ctx.classList.add('an');
+  // im Fenster halten
+  const b = ctx.getBoundingClientRect();
+  ctx.style.left = Math.min(x, innerWidth - b.width - 8) + 'px';
+  ctx.style.top = Math.min(y, innerHeight - b.height - 8) + 'px';
+}
+function ctxWeg() { ctx.classList.remove('an'); ctxModul = null; }
+$('ctxDupl').addEventListener('click', () => { const m = zustand.module.find((q) => q.id === ctxModul); ctxWeg(); if (m) modulDazu(m.familie, m); });
+$('ctxDel').addEventListener('click', () => { const id = ctxModul; ctxWeg(); if (id != null) { waehle(id); entferneAktives(); } });
+$('ctxRan').addEventListener('click', () => { const id = ctxModul; ctxWeg(); if (id != null) ansichtRan(id); });
+addEventListener('pointerdown', (ev) => { if (!ctx.contains(ev.target)) ctxWeg(); });
+addEventListener('keydown', (ev) => { if (ev.key === 'Escape') ctxWeg(); });
+renderer.domElement.addEventListener('contextmenu', (ev) => {
+  ev.preventDefault();
+  if (rechtsAufModul != null) { ctxZeigen(rechtsAufModul, ev.clientX, ev.clientY); rechtsAufModul = null; controls.enabled = true; }
+});
+function ansichtRan(id) {
+  const g = meshes.get(id); if (!g) return;
+  const ziel = new THREE.Vector3(); new THREE.Box3().setFromObject(g).getCenter(ziel);
+  const richtung = camera.position.clone().sub(controls.target).normalize();
+  controls.target.copy(ziel);
+  camera.position.copy(ziel).addScaledVector(richtung, 140);
+  controls.update();
+}
+
+renderer.domElement.addEventListener('pointerdown', (ev) => {
+  if (ev.button === 2) {
+    const idR = unterMaus(ev);
+    rechtsAufModul = idR;
+    if (idR != null) { controls.enabled = false; waehle(idR); }
+    return;
+  }
+  if (ev.button !== 0) return;
+  const id = unterMaus(ev);
+  if (id == null) return;
+  merke();
+  waehle(id); zieht = id; controls.enabled = false;
+  renderer.domElement.setPointerCapture(ev.pointerId);
+  // Greifpunkt merken: das Modul soll unter der Maus bleiben, nicht mit dem
+  // Anker unter die Maus springen (bei einer 200-mm-Wanne 100 mm Sprung).
+  const m = zustand.module.find((x) => x.id === id), l = m && lochVon(m);
+  const p = new THREE.Vector3();
+  if (l && ray.ray.intersectPlane(ebene, p)) { const g = weltZuPlatte(p), a = ankerVon(l); zieheVersatz.x = a.x - g.x; zieheVersatz.y = a.y - g.y; }
+  else { zieheVersatz.x = 0; zieheVersatz.y = 0; }
+});
+renderer.domElement.addEventListener('pointermove', (ev) => {
+  if (zieht == null) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  maus.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(maus, camera);
+  const p = new THREE.Vector3(); if (!ray.ray.intersectPlane(ebene, p)) return;
+  const pl = weltZuPlatte(p);
+  // Der Mauspunkt ist der Ankerpunkt (Lochunterkante) -> Lochmitte liegt 7.5 hoeher
+  const l = naechstesLoch(zustand.platte, pl.x + zieheVersatz.x, pl.y + zieheVersatz.y - SCHLITZ_HOEHE / 2, RASTER * 1.5);   // magnetisch
+  const m = zustand.module.find((x) => x.id === zieht);
+  if (l && m && (l.reihe !== m.reihe || l.spalte !== m.spalte || l.brett !== m.brett)) { m.reihe = l.reihe; m.spalte = l.spalte; m.brett = l.brett; baueModulMesh(m); markiere(); aktualisiereListe(); baueDetail(m); }
+});
+function ziehenEnde(ev) { zieht = null; if (!(ev && ev.button === 2 && rechtsAufModul != null)) controls.enabled = true; }
+renderer.domElement.addEventListener('pointerup', ziehenEnde);
+renderer.domElement.addEventListener('pointercancel', ziehenEnde);
+addEventListener('pointerup', ziehenEnde);          // Maus ausserhalb losgelassen
+addEventListener('blur', ziehenEnde);               // Fenster verloren
+// Doppelklick auf ein Modul: Ansicht darauf zentrieren
+renderer.domElement.addEventListener('dblclick', (ev) => { const id = unterMaus(ev); if (id != null) ansichtRan(id); });
+
+// ---------------------------------------------------------------- 3MF-Export
+const CT = `<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>`;
+const RELS = `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
+
+/**
+ * Ein Modul in DRUCKLAGE als Dreiecksliste: auf der Seite liegend, der
+ * Einhaengehaken an der Bettkante (Etappe 0: nur so stuetzenfrei).
+ * Modulraum: x Breite, y Hoehe, z Tiefe (+z Haken). Drucklage: x -> Bauhoehe.
+ * Wir drehen so, dass die -x-Kante des Moduls (Hakenkante) auf z=0 liegt.
+ */
+function modulDreiecke(m) {
+  const f = familie(m.familie);
+  // Abbrechstuetzen (nur stehende Familien) kommen NUR hier dazu — nicht auf
+  // die Buehne, nicht ins Gewicht. Siehe module.js, abbrechstuetzen().
+  const et = etikettVon(m);
+  const geos = [...f.geometrie(m.params), ...(f.stuetzen ? f.stuetzen(m.params) : []), ...(et ? [et.geo] : [])];
+  // Etikett-Dreiecke tragen je eine Farbe (Text/Modul) -> 3MF-Dreiecksfarbe
+  const farbenJe = geos.map((g) => (et && g === et.geo) ? et.farben : null);
+  const out = [];
+  const R = drucklageMatrix(f);   // je Familie: Seite oder stehend
+  let minZ = Infinity, minX = Infinity, minY = Infinity;
+  const tmp = [];
+  for (const g of geos) {
+    const ng = g.index ? g.toNonIndexed() : g;
+    const a = ng.attributes.position.array;
+    const arr = new Float32Array(a.length);
+    for (let i = 0; i < a.length; i += 3) {
+      const v = new THREE.Vector3(a[i], a[i+1], a[i+2]).applyMatrix4(R);
+      arr[i] = v.x; arr[i+1] = v.y; arr[i+2] = v.z;
+      if (v.z < minZ) minZ = v.z; if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
+    }
+    tmp.push(arr); if (ng !== g) ng.dispose(); if (!(et && g === et.geo)) g.dispose();   // Etikett ist gecacht
+  }
+  tmp.forEach((arr, k) => { for (let i = 0; i < arr.length; i += 3) { arr[i] -= minX; arr[i+1] -= minY; arr[i+2] -= minZ; } arr.farben = farbenJe[k]; out.push(arr); });
+  return out;
+}
+// Schild eines Moduls FLACH aufs Bett gelegt (Text oben) — als Dreiecksliste
+// wie modulDreiecke, an den Ursprung geschoben.
+function schildDreiecke(m) {
+  const sc = schildVon(m); if (!sc) return [];
+  const M = schildFlach(sc);
+  const a = sc.geo.attributes.position.array, arr = new Float32Array(a.length);
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  for (let i = 0; i < a.length; i += 3) { const v = new THREE.Vector3(a[i], a[i+1], a[i+2]).applyMatrix4(M); arr[i] = v.x; arr[i+1] = v.y; arr[i+2] = v.z; if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y; if (v.z < minZ) minZ = v.z; }
+  for (let i = 0; i < arr.length; i += 3) { arr[i] -= minX; arr[i+1] -= minY; arr[i+2] -= minZ; }
+  arr.farben = sc.farben;
+  return [arr];
+}
+async function make3mfSchild(m, nr) { return make3mfObjekte([{ name: `Schild ${nr} (${familie(m.familie).name} R${m.reihe + 1} L${m.spalte + 1})`, tris: schildDreiecke(m), farbe: m.farbe }]); }
+async function make3mf(auswahl = zustand.module, mitSchildern = true) {
+  const objekte = [];
+  auswahl.forEach((m, oi) => {
+    const f = familie(m.familie);
+    objekte.push({ name: `${f.name} ${oi + 1} (R${m.reihe + 1} L${m.spalte + 1})`, tris: modulDreiecke(m), farbe: m.farbe });
+    if (mitSchildern && schildVon(m)) objekte.push({ name: `Schild ${oi + 1} (${f.name} R${m.reihe + 1} L${m.spalte + 1})`, tris: schildDreiecke(m), farbe: m.farbe });
+  });
+  return make3mfObjekte(objekte);
+}
+async function make3mfObjekte(objekte) {
+  const srgbHex = (hex) => hex.toUpperCase();
+  const palette = [], palIdx = new Map();
+  const idxOf = (h) => { const k = srgbHex(h); if (!palIdx.has(k)) { palIdx.set(k, palette.length); palette.push(k); } return palIdx.get(k); };
+  let objs = '', items = '', tx = 0;
+  objekte.forEach((ob, oi) => {
+    const m = { farbe: ob.farbe }, tris = ob.tris;
+    let map = new Map(); const verts = [], T = [];
+    let maxX = 0;
+    // Ecken je KOERPER zusammenfassen, nicht je Modul: Boden, Waende, Keil und
+    // Haken ueberlappen sich; teilen sie Ecken, entstehen nicht-mannigfaltige
+    // Stellen (Slicer meckert, der Waechter zaehlt Fetzen). Getrennte, in sich
+    // geschlossene Koerper vereinigt jeder Slicer sauber.
+    for (const arr of tris) { map = new Map(); for (let i = 0; i < arr.length; i += 9) {
+      const ids = [];
+      for (let k = 0; k < 9; k += 3) {
+        const x = arr[i+k].toFixed(3), y = arr[i+k+1].toFixed(3), z = arr[i+k+2].toFixed(3);
+        maxX = Math.max(maxX, +x);
+        const key = x + ',' + y + ',' + z; let id = map.get(key);
+        if (id === undefined) { id = verts.length; verts.push(`<vertex x="${x}" y="${y}" z="${z}"/>`); map.set(key, id); }
+        ids.push(id);
+      }
+      if (ids[0] === ids[1] || ids[1] === ids[2] || ids[0] === ids[2]) continue;
+      const fb = arr.farben ? arr.farben[i / 9] : m.farbe;
+      T.push(`<triangle v1="${ids[0]}" v2="${ids[1]}" v3="${ids[2]}" p1="${idxOf(fb)}"/>`);
+    } }
+    const id = oi + 10;
+    objs += `<object id="${id}" type="model" pid="2" pindex="${idxOf(m.farbe)}" name="${ob.name}"><mesh><vertices>${verts.join('')}</vertices><triangles>${T.join('')}</triangles></mesh></object>`;
+    items += `<item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 ${tx.toFixed(2)} 0 0"/>`;
+    tx += maxX + 12;
+  });
+  const colorGroup = `<m:colorgroup id="2">${palette.map((h) => `<m:color color="${h}FF"/>`).join('')}</m:colorgroup>`;
+  const model = `<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02"><metadata name="Application">KohliLab Lochwand-Planer</metadata><resources>${colorGroup}${objs}</resources><build>${items}</build></model>`;
+  const zip = new JSZip(); zip.file('[Content_Types].xml', CT); zip.folder('_rels').file('.rels', RELS); zip.folder('3D').file('3dmodel.model', model);
+  return zip.generateAsync({ type: 'blob', mimeType: 'model/3mf', compression: 'DEFLATE' });
+}
+function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+$('ex3mf').addEventListener('click', async () => { download(await make3mf(), 'kohlilab_lochwand.3mf'); });
+
+// ---------------------------------------------------------------- Warenkorb (Etappe 3)
+// Ganze Wand als Set ODER ein einzelnes Modul (Brief §9) — in beiden Faellen
+// EINE Position mit einer Druckdatei je Modul (modul_1.3mf, modul_2.3mf …),
+// damit in der Produktion alles zusammen sichtbar ist. Der Server misst das
+// Gewicht aus genau diesen Dateien und rechnet den Preis nach (preis.ts
+// spiegelt preis.js). Der Warenkorb ist der geteilte KCart (IndexedDB) des
+// Shops; die App laeuft im iframe, deshalb window.top.
+const blobB64 = (b) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(b); });
+/** Beschriftungen, die wirklich Platz haben: { texte: [{groesse}] (Ebene), schilder: n }. */
+function textAngaben(module) {
+  return { texte: module.map((m) => etikettVon(m)).filter(Boolean).map((et) => ({ groesse: et.groesse })),
+           schilder: module.filter((m) => schildVon(m)).length };
+}
+function lochText(m) { return `R${m.reihe + 1}/L${m.spalte + 1}${zustand.platte.teile > 1 ? `/B${(m.brett || 0) + 1}` : ''}`; }
+async function inWarenkorb(auswahl) {
+  const cart = (window.top && window.top.KCart) || window.KCart;
+  if (!cart) { alert('Der Warenkorb ist gerade nicht erreichbar — bitte die Seite neu laden.'); return; }
+  if (!auswahl.length) return;
+  // Sperre: ein Modul, dessen Haken kein Loch findet, laesst sich nicht
+  // aufhaengen — das bauen wir nicht. Ueberlappungen dagegen sind erlaubt
+  // ("wir bauen genau das"), der Kunde sieht es rot.
+  const ohne = auswahl.filter((m) => !hakenHabenLoch(m));
+  if (ohne.length) { waehle(ohne[0].id); alert(`${ohne.length === 1 ? 'Ein Modul findet' : ohne.length + ' Module finden'} nicht für jeden Haken ein Loch (rot markiert) — bitte verschieben oder schmaler machen.`); return; }
+  const dateien = {};
+  for (let i = 0; i < auswahl.length; i++) {
+    dateien[`modul_${i + 1}`] = await blobB64(await make3mf([auswahl[i]], false));
+    if (schildVon(auswahl[i])) dateien[`schild_${i + 1}`] = await blobB64(await make3mfSchild(auswahl[i], i + 1));
+  }
+  const gramm = auswahl.map(modulGramm);
+  const ta = textAngaben(auswahl);
+  const preis = wandPreis(gramm, ta.texte, ta.schilder);
+  const rappen = Math.round(preis.total * 100);
+  const zaehl = {};
+  for (const m of auswahl) zaehl[m.familie] = (zaehl[m.familie] || 0) + 1;
+  const zusammensetzung = Object.entries(zaehl).map(([f, n]) => `${n}× ${familie(f).name}`).join(', ');
+  const titel = (TESTPHASE ? 'TEST · ' : '') + (auswahl.length === 1
+    ? `Lochwand-Modul · ${zusammensetzung} · für IKEA Skådis`
+    : `Lochwand-Set · ${auswahl.length} Module (${zusammensetzung}) · für IKEA Skådis ${zustand.platte.name}`);
+  await cart.add({
+    typ: 'lochwand', titel, menge: 1, gesamtRappen: rappen, stueckRappen: rappen,
+    konfig: {
+      test: TESTPHASE,
+      platte: zustand.platte.name, plattenId: zustand.platte.id, plattenFarbe: zustand.farbe.id, anzahl: auswahl.length,
+      gramm: Math.round(gramm.reduce((s, g) => s + g, 0)),
+      module: auswahl.map((m) => { const et = etikettVon(m), sc = schildVon(m); const x = et || sc; return { familie: m.familie, params: m.params, farbe: m.farbe, loch: lochText(m), text: x ? m.text : '', textArt: et ? 'ebene' : sc ? 'schild' : '', textGroesse: x ? x.groesse : 0, textFarbe: x ? textFarbeVon(m) : '' }; }),
+      // Kennzahlen fuer die serverseitige Preispruefung (wie Organizer)
+      textModule: ta.texte.length, textMmUeber4: +ta.texte.reduce((s, x) => s + Math.max(0, x.groesse - 4), 0).toFixed(1), schilder: ta.schilder,
+    },
+    dateien,
+  });
+  (window.top || window).location.href = '/warenkorb';
+}
+async function beschaeftigt(btn, fn) {
+  const alt = btn.textContent; btn.textContent = 'erzeugt …'; btn.disabled = true;
+  try { await fn(); } catch (e) { console.error(e); alert('Das hat nicht geklappt: ' + (e?.message || e)); }
+  finally { btn.textContent = alt; btn.disabled = false; aktualisiereListe(); }
+}
+$('cart').addEventListener('click', () => beschaeftigt($('cart'), () => inWarenkorb(zustand.module)));
+$('modCart').addEventListener('click', () => { const m = zustand.module.find((x) => x.id === zustand.aktiv); if (m) beschaeftigt($('modCart'), () => inWarenkorb([m])); });
+$('ctxCart').addEventListener('click', () => { const m = zustand.module.find((q) => q.id === ctxModul); ctxWeg(); if (m) beschaeftigt($('cart'), () => inWarenkorb([m])); });
+
+// ---------------------------------------------------------------- Bedienung Platte
+for (const p of PLATTEN) { const b = document.createElement('button'); b.textContent = p.name; b.dataset.id = p.id; b.addEventListener('click', () => { zustand.platte = p; aktualisierePlatte(true); }); $('platten').appendChild(b); }
+for (const f of PLATTENFARBEN) { const b = document.createElement('button'); b.style.background = '#' + f.hex.toString(16).padStart(6, '0'); b.title = f.name; b.setAttribute('aria-label', f.name); b.dataset.id = f.id; b.addEventListener('click', () => { zustand.farbe = f; aktualisierePlatte(false); }); $('farben').appendChild(b); }
+function hud() {
+  const i = rasterInfo(zustand.platte);
+  $('hud').innerHTML = `<b>${zustand.platte.name}</b><br>${i.gesamt} Löcher · ${i.reihen} Reihen · ${zustand.module.length} Modul${zustand.module.length === 1 ? '' : 'e'}`;
+  $('fakten').innerHTML = `Platte <b>${zustand.platte.breite} × ${zustand.platte.hoehe} mm</b> · Langloch ${SCHLITZ_BREITE} × ${SCHLITZ_HOEHE} mm · Rand rundum gleich`;
+}
+function aktualisierePlatte(neuePlatte) {
+  document.querySelectorAll('#platten button').forEach((b) => b.classList.toggle('active', b.dataset.id === zustand.platte.id));
+  document.querySelectorAll('#farben button').forEach((b) => b.classList.toggle('active', b.dataset.id === zustand.farbe.id));
+  bauePlatte(zustand.platte, zustand.farbe);
+  if (neuePlatte) {
+    // Module, die auf der neuen Platte kein Loch mehr haben, ans naechste gueltige Loch schieben
+    const alle = loecher(zustand.platte);
+    for (const m of zustand.module) if (!lochVon(m)) { const l = alle.find((q) => q.reihe === m.reihe && q.spalte === m.spalte) || alle[Math.min(alle.length - 1, m.reihe * 8 + m.spalte)] || alle[0]; m.reihe = l.reihe; m.spalte = l.spalte; m.brett = l.brett; }
+    kameraEinpassen(zustand.platte);
+  }
+  zeichneAlle(); aktualisiereListe();
+}
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+hashLesen().then((ok) => { aktualisierePlatte(true); if (ok) hud(); });
+(function tick() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(tick); })();
+
+// Fuer Pruefungen von aussen.
+$('testmarke').classList.toggle('aus', !TESTPHASE);
+window.__lochwand = { zustand, rueckgaengig, merke, entferneAktives, loecher: () => loecher(zustand.platte), info: () => rasterInfo(zustand.platte), modulDazu, waehle, kollisionen, quader, hakenHabenLoch, modulGramm, make3mf, meshes, zeichneAlle, markiere, aktualisiereListe, renderer, scene, camera, controls, kameraEinpassen };
+</script>
+</body>
+</html>

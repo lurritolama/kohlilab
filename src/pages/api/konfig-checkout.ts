@@ -14,7 +14,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { SHOP_ID, VERSANDARTEN, VERSANDART_IDS, LIEFERLAENDER, type VersandartId, type Lieferland } from '../../lib/config';
-import { organizerPreisRappen, schildGesamtRappen } from '../../lib/preis';
+import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen } from '../../lib/preis';
 import { grammAus, farbAnzahl } from '../../lib/server/dreimf';
 import { getPaymentProvider } from '../../lib/payments';
 import { supabaseAdmin } from '../../lib/server/supabase-admin';
@@ -24,7 +24,9 @@ const ANKER: Record<string, string> = {
   schild: 'c0111ab0-0000-4000-8000-000000000001',
   organizer: 'c0111ab0-0000-4000-8000-000000000002',
   ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
+  lochwand: 'c0111ab0-0000-4000-8000-000000000005',      // Ankerprodukt (SQL: lochwand-anker.sql)
 };
+const LOCHWAND_FAMILIEN: Record<string, string> = { haken: 'Haken', wanne: 'Wanne', halter: 'Halter', klemme: 'Klemme' };
 const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
 const WUNSCH_AUFPREIS_RAPPEN = 800;                  // Wunsch-Sujet: +CHF 8.— -> 20.— je Set (Machbarkeit wird geprüft)
 const GEWINDE_LABEL: Record<string, string> = { schrader: 'Schrader', presta: 'Presta' };
@@ -70,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (posRoh.length > MAX_POSITIONEN) fehler.push(`Maximal ${MAX_POSITIONEN} Positionen pro Bestellung.`);
 
   // ---- Positionen validieren + Preise serverseitig aus dem 3MF -----------
-  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
+  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
   const positionen: Pos[] = [];
   posRoh.forEach((p: any, i: number) => {
     const nr = i + 1;
@@ -128,6 +130,54 @@ export const POST: APIRoute = async ({ request }) => {
         const masse = konfig.masse ? `${konfig.masse}` : '';
         const titel = `Schubladen-Organizer${masse ? ` · ${masse} mm` : ''} · ${module} Teil${module > 1 ? 'e' : ''}`;
         positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText, zapfen, spezialFaecher, textFaecher, textMmUeber4 }, menge: 1, preis, titel, dateien: bufs });
+      } else if (typ === 'lochwand') {
+        // Lochwand-Planer: ein Set (ganze Wand) oder ein einzelnes Modul —
+        // in beiden Fällen EINE Position mit einer Druckdatei je Modul
+        // (modul_1.3mf …), damit in der Produktion alles zusammen sichtbar
+        // ist (Brief §9). Preis aus dem gemessenen Gewicht + Modulzahl.
+        // Die Modulliste (Familie, Parameter, Farbe, Loch) kommt aus dem
+        // Browser und dient Manolo zur Kontrolle gegen die Druckdateien —
+        // preisrelevant ist nur, was gemessen wird.
+        const dateienObj = p?.dateien ?? {};
+        const modulBufs = Object.entries(dateienObj)
+          .filter(([k]) => /^modul_\d{1,3}$/.test(k))
+          .map(([k, v]) => ({ name: `pos${nr}_${k}.3mf`, buf: buf(v, `${nr}/${k}`) }));
+        // Schilder (aufgesetzte Textplatten): eigene Dateien schild_n.3mf,
+        // gezaehlt und gewogen — je Modul hoechstens eines.
+        const schildBufs = Object.entries(dateienObj)
+          .filter(([k]) => /^schild_\d{1,3}$/.test(k))
+          .map(([k, v]) => ({ name: `pos${nr}_${k}.3mf`, buf: buf(v, `${nr}/${k}`) }));
+        if (modulBufs.length === 0) { fehler.push(`Position ${nr}: keine Druckdatei.`); return; }
+        if (modulBufs.length > 60) { fehler.push(`Position ${nr}: mehr als 60 Module — bitte in zwei Bestellungen aufteilen.`); return; }
+        const schilder = Math.min(modulBufs.length, schildBufs.length);
+        const bufs = [...modulBufs, ...schildBufs.slice(0, schilder)];
+        const gramm = grammAus(bufs.map((d) => d.buf));
+        const textModule = Number(konfig.textModule) || 0;
+        const textMmUeber4 = Number(konfig.textMmUeber4) || 0;
+        const preis = lochwandPreisRappen({ gramm, module: modulBufs.length, textModule, textMmUeber4, schilder });
+        const platte = typeof konfig.platte === 'string' ? konfig.platte.slice(0, 20) : '';
+        const moduleRoh = Array.isArray(konfig.module) ? konfig.module.slice(0, 60) : [];
+        const module = moduleRoh.map((m: any) => ({
+          familie: LOCHWAND_FAMILIEN[m?.familie] ? m.familie : 'unbekannt',
+          params: (m?.params && typeof m.params === 'object') ? m.params : {},
+          farbe: typeof m?.farbe === 'string' ? m.farbe.slice(0, 7) : '',
+          loch: typeof m?.loch === 'string' ? m.loch.slice(0, 30) : '',
+          text: typeof m?.text === 'string' ? m.text.slice(0, 20) : '',
+          textArt: m?.textArt === 'ebene' || m?.textArt === 'schild' ? m.textArt : '',
+          textGroesse: Number(m?.textGroesse) || 0,
+          textFarbe: typeof m?.textFarbe === 'string' ? m.textFarbe.slice(0, 7) : '',
+        }));
+        const zaehl: Record<string, number> = {};
+        for (const m of module) zaehl[m.familie] = (zaehl[m.familie] || 0) + 1;
+        const zusammensetzung = Object.entries(zaehl).map(([f, n]) => `${n}× ${LOCHWAND_FAMILIEN[f] ?? f}`).join(', ');
+        // Testphase (bis Manolo den Planer freigibt): der Browser meldet
+        // test=true, der Titel traegt "TEST" — so ist die Bestellung im Admin,
+        // in der Mail und auf dem Pi als Testbestellung erkennbar.
+        const test = konfig.test === true;
+        const titel = (test ? 'TEST · ' : '') + (modulBufs.length === 1
+          ? `Lochwand-Modul · ${zusammensetzung || '1 Modul'} · für IKEA Skådis`
+          : `Lochwand-Set · ${modulBufs.length} Module (${zusammensetzung}) · für IKEA Skådis${platte ? ` ${platte}` : ''}`) + (schilder ? ` · ${schilder} Schild${schilder > 1 ? 'er' : ''}` : '');
+        positionen.push({ typ, konfig: { test, platte, module, anzahl: modulBufs.length, schilder, gramm: Math.round(gramm), textModule: Math.min(modulBufs.length, Math.max(0, Math.round(textModule))), textMmUeber4: Math.min(2000, Math.max(0, textMmUeber4)) }, menge: 1, preis, titel, dateien: bufs });
       } else {
         fehler.push(`Position ${nr}: unbekannter Typ.`);
       }
