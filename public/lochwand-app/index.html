@@ -332,8 +332,18 @@ function textArten(m) {
 function textArtVon(m) { const a = textArten(m); if (!a.length) return null; return a.includes(m.textArt) ? m.textArt : a[0]; }
 function etikettVon(m) { return (m.text && textArtVon(m) === 'ebene') ? etikett(familie(m.familie), m.params, m.text, m.textGroesse || 0, textFarbeVon(m), m.farbe) : null; }
 // Schild: Textfarbe wie gewaehlt, Schildfarbe = Modulfarbe (ein Teil mehr in derselben Farbe)
-function schildVon(m) { return (m.text && textArtVon(m) === 'schild') ? schild(familie(m.familie), m.params, m.text, m.textGroesse || 0, textFarbeVon(m), m.farbe) : null; }
+function schildVon(m) { tafelSync(m); return (m.text && textArtVon(m) === 'schild') ? schild(familie(m.familie), m.params, m.text, m.textGroesse || 0, textFarbeVon(m), m.farbe) : null; }
+// Tafelhalter am Modul (Parameter `tafel`) genau dann, wenn Text als Tafel
+// gewaehlt ist — die Familie baut den Halter in geometrie(), die Tafel selbst
+// kommt aus schild(). Wird vor jedem Geometrieaufbau abgeglichen.
+function tafelSync(m) {
+  const f = familie(m.familie);
+  if (!f.parameter.tafel) return;
+  const soll = (m.text && textArtVon(m) === 'schild') ? 1 : 0;
+  if (m.params.tafel !== soll) m.params.tafel = soll;
+}
 function baueModulMesh(m) {
+  tafelSync(m);
   const alt = meshes.get(m.id);
   if (alt) { modulGruppe.remove(alt); alt.traverse((o) => { if (o.isMesh && !o.userData.etikett) o.geometry?.dispose?.(); }); }
   const f = familie(m.familie);
@@ -381,6 +391,7 @@ function zeichneAlle() { for (const m of zustand.module) baueModulMesh(m); marki
 //      Loecher). Fehlt eines, ist das Modul nicht aufhaengbar -> rot.
 const LUFT = 0.5;   // mm Toleranz: Kante an Kante ist keine Kollision
 function quader(m) {
+  tafelSync(m);
   const l = lochVon(m); if (!l) return null;
   const a = ankerVon(l), u = umriss(familie(m.familie), m.params);
   return { x1: a.x + u.links, x2: a.x + u.rechts, y1: a.y + u.oben, y2: a.y + u.unten, z: u.tiefe };
@@ -480,6 +491,7 @@ function baueDetail(m) {
   $('detailName').textContent = `${f.name} #${m.id}`;
   const box = $('params'); box.innerHTML = '';
   for (const [k, def] of Object.entries(f.parameter)) {
+    if (def.versteckt) continue;                       // z. B. tafel: setzt die App selbst
     const row = document.createElement('div'); row.className = 'row';
     if (def.schalter) {
       row.innerHTML = `<label>${def.name}</label><input type="checkbox" ${m.params[k] ? 'checked' : ''}><span class="val"></span>`;
@@ -499,21 +511,25 @@ function baueDetail(m) {
     b.addEventListener('click', () => { merke(); m.farbe = hex; sw.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b)); if (m.text) baueModulMesh(m); markiere(); hashSchreiben(); });
     sw.appendChild(b);
   });
-  // Beschriftung
+  // Beschriftung. Die Felder sind fix im HTML — sie werden je Aufbau durch
+  // Klone ersetzt, sonst haengen die Listener des VORHER gewaehlten Moduls
+  // noch dran und die Eingabe schreibt in mehrere Module (Manolo, 18.08.,
+  // Testphase: "die Schrift zaehlt nur fuer das aktuell angewaehlte Modul").
+  for (const id of ['modText', 'modTextGr']) { const alt = $(id); alt.replaceWith(alt.cloneNode(true)); }
   const tIn = $('modText'), tGr = $('modTextGr'), tGrVal = $('modTextGrVal'), tOpt = $('textOpt'), tHin = $('textHinweis');
   tIn.value = m.text || '';
   tGr.value = m.textGroesse || 0; tGrVal.textContent = m.textGroesse ? `${m.textGroesse} mm` : 'auto';
   const arten = textArten(m);
   $('textZeile').style.display = (f.schildflaeche || f.beschriftung) ? '' : 'none';
   const artBox = $('modTextArt'); artBox.innerHTML = '';
-  const ARTNAME = { schild: 'Schild (aufsetzen)', ebene: f.id === 'wanne' ? 'im Boden innen' : 'in der Konsole' };
+  const ARTNAME = { schild: 'Tafel (einschieben)', ebene: f.id === 'wanne' ? 'im Boden innen' : 'in der Konsole' };
   const textStand = () => {
     tOpt.style.display = m.text ? 'block' : 'none';
     if (!m.text) { tHin.textContent = ''; return; }
     if (!arten.length) { tHin.textContent = 'Auf diesem Modul ist kein Platz für eine Beschriftung.'; return; }
     artBox.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.art === textArtVon(m)));
     const et = etikettVon(m), sc = schildVon(m);
-    if (sc) tHin.textContent = `Schild ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes Druckteil in Modulfarbe, zum Aufkleben (${f.id === 'wanne' ? 'Front' : 'Rückwand'}). + ${chf(PREIS.schild)}`;
+    if (sc) tHin.textContent = `Tafel ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes flaches Druckteil in Modulfarbe, wird von oben in den Tafelhalter am Modul geschoben (${f.id === 'wanne' ? 'Front' : 'Rückwand'}); zum Wechseln herausziehen. + ${chf(PREIS.schild)}`;
     else if (et) tHin.textContent = `Bündig im Material, ${et.groesse} mm hoch — ${ARTNAME.ebene}. + ${chf(PREIS.textJeModul + Math.max(0, et.groesse - 4) * PREIS.textJeMm)}`;
     else tHin.textContent = 'Passt nicht — kürzer schreiben oder das Modul grösser machen.';
   };
@@ -550,6 +566,7 @@ $('undo').addEventListener('click', rueckgaengig);
 
 // ---------------------------------------------------------------- Liste + Preis
 function modulGramm(m) {
+  tafelSync(m);
   // Inklusive Abbrechstuetzen (stehende Familien): sie werden gedruckt und
   // der Server misst dieselbe Datei — Anzeige und Rechnung stimmen ueberein.
   const f = familie(m.familie);
@@ -738,6 +755,7 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http
  * Wir drehen so, dass die -x-Kante des Moduls (Hakenkante) auf z=0 liegt.
  */
 function modulDreiecke(m) {
+  tafelSync(m);
   const f = familie(m.familie);
   // Abbrechstuetzen (nur stehende Familien) kommen NUR hier dazu — nicht auf
   // die Buehne, nicht ins Gewicht. Siehe module.js, abbrechstuetzen().

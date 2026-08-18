@@ -265,6 +265,7 @@ const WANNE = {
     neigung: { name: 'Neigung',       min: -30, max: 30,  schritt: 5,  einheit: '°',  start: 0 },
     rundung: { name: 'Rundung',       min: 0,   max: 15,  schritt: 1,  einheit: 'mm', start: 4 },
     boden:   { name: 'Boden offen',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true },
+    tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
   masse(p) {
     // Aussenbreite: (n-1) Raster zwischen den Haken + je 20 mm Rand = n x 40.
@@ -391,6 +392,7 @@ const WANNE = {
     // ist Betrachter-links (siehe Kopf), also wandert die Kante x1 auf +20.
     const schub = RASTER / 2 - x1;
     for (const g of teile) g.translate(schub, 0, 0);
+    if (p.tafel) teile.push(...tafelhalter(this, p));      // Tafelhalter (schildflaeche liegt schon im Ursprungs-Rahmen)
 
     // Haken: einer je Loch, oben, Halsunterkante bei y=0; dx nach rechts
     // = Modul -x.
@@ -452,6 +454,7 @@ const HALTER = {
     reihen:      { name: 'Reihen',          min: 1,  max: 3,  schritt: 1, einheit: '',       start: 1 },
     schlitze:    { name: 'Schlitze (vorne offen)', min: 0, max: 1, schritt: 1, einheit: '', start: 0, schalter: true },
     rundung:     { name: 'Rundung',         min: 0,  max: 15, schritt: 1, einheit: 'mm',     start: 4 },
+    tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
   RUECKWAND_HOEHE: 30,
   BRETT: 5,
@@ -539,6 +542,7 @@ const HALTER = {
     // Verschieben: erster Haken (Betrachter links) im Ursprung
     const schub = RASTER / 2 - x1;
     for (const g of teile) g.translate(schub, 0, 0);
+    if (p.tafel) teile.push(...tafelhalter(this, p));      // Tafelhalter (schildflaeche liegt schon im Ursprungs-Rahmen)
     for (const h of this.haken(p)) {
       const hg = hakenGeometrie();
       hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
@@ -579,6 +583,7 @@ const KLEMME = {
     durchmesser: { name: 'Innendurchmesser', min: 15, max: 90, schritt: 1, einheit: 'mm', start: 66 },
     klemmweite:  { name: 'Klemmweite (Öffnung)', min: 10, max: 80, schritt: 1, einheit: 'mm', start: 50 },
     hoehe:       { name: 'Höhe',             min: 10, max: 60, schritt: 5, einheit: 'mm', start: 25 },
+    tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
   ARM: 3.0,          // Armstaerke (Manolo 17.08.: 2.0 war zu duenn)
   HAKENZONE: 12,     // Rueckwand ueber dem Ring
@@ -654,6 +659,7 @@ const KLEMME = {
     // Verschieben: erster Haken (Betrachter links) im Ursprung
     const schub = RASTER / 2 - x1;
     for (const g of teile) g.translate(schub, 0, 0);
+    if (p.tafel) teile.push(...tafelhalter(this, p));      // Tafelhalter (schildflaeche liegt schon im Ursprungs-Rahmen)
     for (const h of this.haken(p)) {
       const hg = hakenGeometrie();
       hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
@@ -794,62 +800,138 @@ function etikettBauen(f, p, txt, groesse, farbeText, farbeModul) {
   return { geo, farben, groesse: h };
 }
 
-// ---------------------------------------------------------------- Schild
+// ---------------------------------------------------------------- Tafelhalter + Einschub-Tafel
 //
-// Manolo (18.08.2026): "Schilder, die man drucken und auf den Modulen
-// platzieren kann." Eine flache Platte, SCHILD_DICKE mm, gerundete Ecken,
-// Text buendig auf der Oberseite (Zellfarben wie das Etikett) — FLACH
-// gedruckt: die Farbe liegt in den obersten Schichten, wenige Wechsel.
-// Auf der Buehne liegt es auf der Flaeche, auf der es angebracht wird
-// (Wanne: Front, Halter/Klemme: Rueckwand) und ragt SCHILD_DICKE vor. Es
-// wird eine EIGENE Druckdatei (schild_n.3mf) — die Kundschaft klebt es auf
-// (doppelseitiges Klebeband / Sekundenkleber; Halterungen am Modul kommen
-// spaeter, wenn sich zeigt, dass Kleben nicht reicht).
+// Manolo (18.08.2026): die Beschriftungs-Tafel soll NICHT geklebt, sondern
+// ins Modul EINGESCHOBEN werden. Loesung wie beim IKEA-eigenen Skadis-
+// Etikettenhalter, nur direkt am Modul angeformt:
 //
-// Rueckgabe { geo, farben, groesse, breite, hoehe, o, u, v, n }:
-//   geo im MODULRAUM (aufgesetzt) fuer die Buehne; der Export legt es ueber
-//   schildFlach() flach hin (u -> x, v -> y, n -> z).
-const SCHILD_DICKE = 1.2, SCHILD_RAND = 1.5, SCHILD_ECKE = 1.5;
+//   * TAFELHALTER am Modul: zwei senkrechte C-Schienen (links/rechts) mit
+//     Lippe nach innen, unten ein Auflagesteg mit 45-Grad-Fase — OBEN OFFEN.
+//     Alles senkrecht extrudiert bzw. gefast: stehend gedruckt kein Ueberhang.
+//     Fester Halter je Modul (volle nutzbare Breite, bis 14 mm hoch) —
+//     unabhaengig vom Text; eine neue Tafel passt spaeter immer.
+//   * TAFEL: flache Platte 1.0 mm (0.2 Spiel in der 1.2-mm-Tasche), Text
+//     buendig auf der Vorderseite (Zellfarben), FLACH gedruckt; steht auf dem
+//     Steg, ragt 1.5 mm ueber die Schienen (Griff zum Herausziehen). Eigene
+//     Druckdatei schild_n.3mf.
+//
+// Der Halter gehoert zur Modulgeometrie (Parameter `tafel` = 1, wird von der
+// App gesetzt, sobald Text mit Art "Tafel" da ist) — so sehen Export,
+// Waechter, Gewicht und Kollision dasselbe. Koordinaten: Rahmen der
+// schildflaeche() der Familie: a = Leserichtung u, b = hoch v, c = Normale
+// n (nach aussen); c = 0 ist die Wandflaeche.
+const TAFEL = {
+  dicke: 1.0, spiel: 0.2,        // Tafel und Spiel in der Tasche (Tasche = 1.2)
+  wand: 1.0, lippe: 1.0,         // C-Schiene: Seitenwand, Lippe nach innen
+  lippeDicke: 0.6, vor: 1.8,     // Lippe (vorne) 0.6 dick, Halter ragt 1.8 vor
+  steg: 1.5, griff: 1.5,         // Auflagesteg unten, Ueberstand der Tafel oben
+  maxHoehe: 14, rand: 1,         // Halterhoehe (Schienen), Rand zur schildflaeche
+  in: 0.3,                       // Halter greift 0.3 mm in die Wand (kein gemeinsames Eck)
+};
+
+/** Rahmen + Masse des Tafelhalters eines Moduls, oder null (kein Platz). */
+export function tafelMasse(f, p) {
+  if (!f.schildflaeche) return null;
+  const pl = f.schildflaeche(p);
+  if (!pl) return null;
+  const Wh = pl.breite - 2 * TAFEL.rand;
+  const Hh = Math.min(TAFEL.maxHoehe, pl.hoehe - TAFEL.griff - 1);
+  if (Wh < 16 || Hh < 7) return null;
+  const u = new THREE.Vector3(...pl.u).normalize(), v = new THREE.Vector3(...pl.v).normalize(), n = new THREE.Vector3(...pl.n).normalize();
+  if (new THREE.Vector3().crossVectors(u, v).dot(n) < 0) v.negate();
+  const o = new THREE.Vector3(...pl.o);
+  const M = new THREE.Matrix4().makeBasis(u, v, n); M.setPosition(o);   // lokal (a,b,c) -> Modul
+  const b0 = -Hh / 2;                                                    // Halter-Unterkante
+  return {
+    pl, Wh, Hh, M, o: [o.x, o.y, o.z], u: [u.x, u.y, u.z], v: [v.x, v.y, v.z], n: [n.x, n.y, n.z],
+    tafelBreite: Wh - 2 * TAFEL.wand - 2 * TAFEL.spiel,
+    tafelHoehe: Hh - TAFEL.steg + TAFEL.griff,
+    tafelUnten: b0 + TAFEL.steg,                                          // Tafel steht auf dem Steg
+    sichtBreite: Wh - 2 * (TAFEL.wand + TAFEL.lippe) - 2,                 // was von der Tafel sichtbar ist (minus Rand)
+    sichtHoehe: Hh - TAFEL.steg + TAFEL.griff - 2,
+    b0,
+  };
+}
+
+/** Geometrien des Tafelhalters im Modulraum (Schienen, Lippen, Steg). */
+export function tafelhalter(f, p) {
+  const tm = tafelMasse(f, p);
+  if (!tm) return [];
+  const { Wh, Hh, M, b0 } = tm;
+  const teile = [];
+  const box = (a0, a1, bb0, bb1, c0, c1) => {
+    const g = new THREE.BoxGeometry(a1 - a0, bb1 - bb0, c1 - c0);
+    g.translate((a0 + a1) / 2, (bb0 + bb1) / 2, (c0 + c1) / 2);
+    return g;
+  };
+  const cIn = -TAFEL.in, cVor = TAFEL.vor;
+  for (const s of [-1, 1]) {
+    // Seitenwand (volle Tiefe) — Rand des Halters, Aussenkante bei s*Wh/2
+    const aA = s * Wh / 2, aI = s * (Wh / 2 - TAFEL.wand);
+    teile.push(box(Math.min(aA, aI), Math.max(aA, aI), b0, Hh / 2, cIn, cVor));
+    // Lippe vorne, nach innen ueber die Tafel (0.01 in die Seitenwand, keine gemeinsame Ecke)
+    const aL = s * (Wh / 2 - TAFEL.wand - TAFEL.lippe), aS = s * (Wh / 2 - TAFEL.wand + 0.01);
+    teile.push(box(Math.min(aL, aS), Math.max(aL, aS), b0 + 0.01, Hh / 2 - 0.01, cVor - TAFEL.lippeDicke, cVor));
+  }
+  // Steg unten mit 45-Grad-Fase: Querschnitt in (b, c), extrudiert ueber a.
+  // Shape (x=b, y=c) -> Extrusion z=a; danach zyklisch permutiert (Rotation).
+  const bs0 = b0, bs1 = b0 + TAFEL.steg;
+  const sh = new THREE.Shape();
+  sh.moveTo(bs1, cIn); sh.lineTo(bs1, cVor); sh.lineTo(bs0, cVor); sh.lineTo(bs0 - (cVor - cIn), cIn); sh.closePath();
+  const steg = new THREE.ExtrudeGeometry(sh, { depth: Wh - 2 * TAFEL.wand + 0.02, bevelEnabled: false });
+  // (x_s, y_s, z_e) -> (a, b, c) = (z_e, x_s, y_s): zyklische Permutation, det +1
+  steg.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
+  steg.translate(-(Wh / 2 - TAFEL.wand) - 0.01, 0, 0);
+  teile.push(steg);
+  for (const g of teile) g.applyMatrix4(M);
+  return teile;
+}
+
+/**
+ * Einschub-Tafel: { geo, farben, groesse, breite, hoehe, o, u, v, n } oder
+ * null. geo im MODULRAUM (in der Tasche sitzend); der Export legt sie ueber
+ * schildFlach() flach hin (u -> x, v -> y, n -> z), Text oben.
+ */
 export function schild(f, p, text, groesse, farbeText, farbeSchild) {
   const txt = (text || '').trim().slice(0, 20);
   if (!txt || !f.schildflaeche) return null;
   return gemerkt('S' + f.id + JSON.stringify(p) + '|' + txt + '|' + groesse + '|' + farbeText + '|' + farbeSchild, () => schildBauen(f, p, txt, groesse, farbeText, farbeSchild));
 }
 function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
-  const pl = f.schildflaeche(p);
-  if (!pl) return null;
-  const maxH = Math.min(12, pl.hoehe - 2 * SCHILD_RAND);
+  const tm = tafelMasse(f, p);
+  if (!tm) return null;
+  // 0.4 mm Luft zum Rand: liegt die Textkante genau auf der Hoehe der
+  // Eckenrundung, kippt die Ring-Triangulation (207 offene Kanten bei h = 12).
+  const maxH = Math.min(12, tm.sichtHoehe - 0.4);
   let h = groesse > 0 ? Math.min(groesse, maxH) : maxH;
   let mk = null;
-  for (; h >= 4; h -= 0.5) { mk = textMaske(txt, h, Math.max(0.3, h / 22)); if (mk && mk.w + 2 * SCHILD_RAND <= pl.breite && mk.h + 2 * SCHILD_RAND <= pl.hoehe) break; mk = null; }
+  for (; h >= 4; h -= 0.5) { mk = textMaske(txt, h, Math.max(0.3, h / 22)); if (mk && mk.w <= tm.sichtBreite && mk.h <= tm.sichtHoehe - 0.4) break; mk = null; }
   if (!mk) return null;
-  const bw = mk.w + 2 * SCHILD_RAND, bh = mk.h + 2 * SCHILD_RAND;
-  const u = new THREE.Vector3(...pl.u).normalize(), v = new THREE.Vector3(...pl.v).normalize(), n = new THREE.Vector3(...pl.n).normalize();
-  if (new THREE.Vector3().crossVectors(u, v).dot(n) < 0) v.negate();
-  const o = new THREE.Vector3(...pl.o);
+  const bw = tm.tafelBreite, bh = tm.tafelHoehe;
+  const bM = tm.tafelUnten + bh / 2;                       // Tafelmitte (b); Text darum zentriert
+  const c0 = 0.1, c1 = 0.1 + TAFEL.dicke;                  // 0.1 vor der Wand, in der Tasche (0..1.2)
+  const o = new THREE.Vector3(...tm.o), u = new THREE.Vector3(...tm.u), v = new THREE.Vector3(...tm.v), n = new THREE.Vector3(...tm.n);
   const P = (a, b, c) => [o.x + a * u.x + b * v.x + c * n.x, o.y + a * u.y + b * v.y + c * n.y, o.z + a * u.z + b * v.z + c * n.z];
   const pos = [], farben = [];
   const tri = (A, B, C, farbe) => { pos.push(...A, ...B, ...C); farben.push(farbe); };
-  const c0 = 0, c1 = SCHILD_DICKE;
-  // Oberseite: Rand als grosse Zellen, Text als Raster; die Randzellen an
-  // den vier Ecken lassen wir gerundet aussehen, indem die Kontur der
-  // Platte (Rand-Ring + Seiten) als gerundetes Rechteck gebaut wird und die
-  // Textflaeche als Raster darin liegt. Einfach und wasserdicht: der
-  // Rand-Ring wird ueber die Randpunkte des Rasters und die Konturpunkte
-  // trianguliert (ShapeUtils, Loch = Rasterrechteck).
+  // Vorderseite: Textraster (zentriert), Rest als Ring um das Raster
+  const tb = bM + (TAFEL.griff - TAFEL.steg) / 2 * 0;      // Text mittig auf der Tafel
   const xs = [-mk.w / 2]; for (let i = 1; i <= mk.cols; i++) xs.push(-mk.w / 2 + i * mk.res);
-  const ys = [-mk.h / 2]; for (let j = 1; j <= mk.rows; j++) ys.push(-mk.h / 2 + j * mk.res);
+  const ys = [tb - mk.h / 2]; for (let j = 1; j <= mk.rows; j++) ys.push(tb - mk.h / 2 + j * mk.res);
   for (let j = 0; j < mk.rows; j++) for (let i = 0; i < mk.cols; i++) {
     const farbe = mk.drin(i, j) ? farbeText : farbeSchild;
     tri(P(xs[i], ys[j], c1), P(xs[i + 1], ys[j], c1), P(xs[i + 1], ys[j + 1], c1), farbe);
     tri(P(xs[i], ys[j], c1), P(xs[i + 1], ys[j + 1], c1), P(xs[i], ys[j + 1], c1), farbe);
   }
-  // Aussenkontur (gerundetes Rechteck) als Punktliste, gegen den Uhrzeigersinn
+  // Aussenkontur: unten gerundet (Einfuehren), oben eckig; gegen den Uhrzeigersinn
   const kontur = [];
-  const R = Math.min(SCHILD_ECKE, SCHILD_RAND - 0.1), seg = 5;
+  const R = 1.0, seg = 5;
+  const bU = tm.tafelUnten, bO = tm.tafelUnten + bh;
   const ecke = (cx, cy, a0) => { for (let k = 0; k <= seg; k++) { const a = a0 + (k / seg) * Math.PI / 2; kontur.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]); } };
-  ecke(bw / 2 - R, -bh / 2 + R, -Math.PI / 2); ecke(bw / 2 - R, bh / 2 - R, 0); ecke(-bw / 2 + R, bh / 2 - R, Math.PI / 2); ecke(-bw / 2 + R, -bh / 2 + R, Math.PI);
-  // Loch = Rasterrand (alle Randpunkte, gegen den Uhrzeigersinn)
+  ecke(bw / 2 - R, bU + R, -Math.PI / 2);                  // unten rechts
+  kontur.push([bw / 2, bO], [-bw / 2, bO]);                // oben rechts, oben links
+  ecke(-bw / 2 + R, bU + R, Math.PI);                      // unten links
   const loch = [];
   for (let i = 0; i < mk.cols; i++) loch.push([xs[i], ys[0]]);
   for (let j = 0; j < mk.rows; j++) loch.push([xs[mk.cols], ys[j]]);
@@ -859,8 +941,8 @@ function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
   const ringTris = THREE.ShapeUtils.triangulateShape(kontur.map(V2), [loch.map(V2)]);
   const alle = kontur.concat(loch);
   for (const [a, b, c] of ringTris) tri(P(alle[a][0], alle[a][1], c1), P(alle[b][0], alle[b][1], c1), P(alle[c][0], alle[c][1], c1), farbeSchild);
-  // Unterseite: gleiche Kontur, ohne Loch, Faecher um die Mitte (Normale -n)
-  const M0 = P(0, 0, c0);
+  // Rueckseite: Faecher um die Tafelmitte (Normale -n)
+  const M0 = P(0, bM, c0);
   for (let i = 0; i < kontur.length; i++) { const a = kontur[i], b = kontur[(i + 1) % kontur.length]; tri(M0, P(b[0], b[1], c0), P(a[0], a[1], c0), farbeSchild); }
   // Mantel
   for (let i = 0; i < kontur.length; i++) {
@@ -875,14 +957,13 @@ function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
   farben.forEach((fb, i) => { cc.set(fb); for (let k = 0; k < 3; k++) { col[i * 9 + k * 3] = cc.r; col[i * 9 + k * 3 + 1] = cc.g; col[i * 9 + k * 3 + 2] = cc.b; } });
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
-  return { geo, farben, groesse: h, breite: bw, hoehe: bh, o: pl.o, u: [u.x, u.y, u.z], v: [v.x, v.y, v.z], n: [n.x, n.y, n.z] };
+  return { geo, farben, groesse: h, breite: bw, hoehe: bh, o: tm.o, u: tm.u, v: tm.v, n: tm.n };
 }
 
-/** Matrix, die ein Schild aus dem Modulraum FLACH aufs Bett legt: u -> +x,
- *  v -> +y, n -> +z, Unterseite auf z=0, Mitte bei (0,0). */
+/** Matrix, die eine Tafel aus dem Modulraum FLACH aufs Bett legt: u -> +x,
+ *  v -> +y, n -> +z (Text oben). */
 export function schildFlach(s) {
   const o = new THREE.Vector3(...s.o), u = new THREE.Vector3(...s.u), v = new THREE.Vector3(...s.v), n = new THREE.Vector3(...s.n);
-  // Basis (u v n) -> Welt: M = [u v n]; wir brauchen die Inverse (= Transponierte, orthonormal)
   const B = new THREE.Matrix4().makeBasis(u, v, n);          // Spalten u, v, n
   const Binv = B.clone().transpose();
   const T = new THREE.Matrix4().makeTranslation(-o.x, -o.y, -o.z);
