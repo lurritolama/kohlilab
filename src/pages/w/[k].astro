@@ -1,0 +1,22 @@
+---
+/**
+ * Empfehlungs-Link der Werber: kohlilab.ch/w/SENDEROS
+ *
+ * Kurz und merkbar, druckbar auf Karten und als QR. Leitet auf die
+ * Startseite mit ?w=<KUERZEL> weiter; dort merkt sich das BaseLayout das
+ * Kuerzel im Browser (30 Tage) und der Checkout traegt es vor. Bewusst
+ * eine Astro-Seite und keine Netlify-Redirect-Regel: so verhaelt es sich
+ * lokal und live gleich, und Reihenfolge-Fragen zwischen toml-Regeln und
+ * dem SSR-Catch-all stellen sich nicht.
+ *
+ * Es wird NICHT gezaehlt, wer klickt — bewusst kein Tracking; was zaehlt,
+ * ist die bezahlte Bestellung mit dem Kuerzel (werber.ts). Ein unbekanntes
+ * Kuerzel im Link schadet nicht: es landet als Text im Feld und die
+ * Bestellung geht trotzdem durch (Munsby-Admin zeigt "Unbekannte Kuerzel").
+ */
+export const prerender = false;
+
+const roh = (Astro.params.k ?? '').trim().toUpperCase();
+const kuerzel = /^[A-Z0-9]{2,20}$/.test(roh) ? roh : '';
+return Astro.redirect(kuerzel ? `/?w=${encodeURIComponent(kuerzel)}` : '/', 302);
+---

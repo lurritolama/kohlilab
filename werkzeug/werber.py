@@ -16,7 +16,9 @@ stehen in werber.json und sind ohne Deploy aenderbar; verguetet werden nur
 BEZAHLTE Bestellungen.
 
 Gebrauch:
-    python werber.py add EGLI --name "Egli"           # legt an, druckt den Link
+    python werber.py add EGLI --name "Egli"           # legt an, druckt Zugang + Empfehlungs-Link
+                                                      # Empfehlungs-Link: kohlilab.ch/w/EGLI (traegt das
+                                                      # Kuerzel im Checkout 30 Tage vor; Seite /w/[k])
     python werber.py liste
     python werber.py satz EGLI --ventilkappe 0.30 --standard 0.15
     python werber.py token-neu EGLI                   # alter Link wird ungueltig
@@ -28,6 +30,7 @@ from pathlib import Path
 BUCKET = "intern"                       # PRIVAT — enthaelt Zugangsschluessel
 PFAD = "werber.json"
 BASIS = "https://kohlilab.ch/werber"
+LINK = "https://kohlilab.ch/w/"           # oeffentlicher Empfehlungs-Link je Kuerzel (seit 17.08.2026)
 
 ENV_DATEIEN = [
     Path(__file__).resolve().parent.parent / ".env",
@@ -136,7 +139,8 @@ def cmd_add(a):
     speichern(d)
     print(f"OK: {k} angelegt.")
     _zeige_saetze(d, d["werber"][-1], "  ")
-    print(f"Persoenlicher Link (nur an {a.name or k} geben):\n  {BASIS}?k={token}")
+    print(f"Persoenlicher Zugang (nur an {a.name or k} geben):\n  {BASIS}?k={token}")
+    print(f"Empfehlungs-Link (darf oeffentlich sein, zum Teilen):\n  {LINK}{k}")
 
 
 def _zeige_saetze(d, w, einzug=""):
@@ -159,7 +163,8 @@ def cmd_liste(_):
         print(f"  {w['kuerzel']:8s} {w.get('name',''):16s} "
               f"{'aktiv' if w.get('aktiv') else 'AUS'}  seit {w.get('seit','?')}")
         _zeige_saetze(d, w, "           ")
-        print(f"           Link: {BASIS}?k={w['token']}\n")
+        print(f"           Zugang: {BASIS}?k={w['token']}")
+        print(f"           Empfehlungs-Link: {LINK}{w['kuerzel']}\n")
 
 
 def cmd_satz(a):

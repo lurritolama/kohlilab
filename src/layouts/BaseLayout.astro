@@ -49,6 +49,22 @@ const {
     </div>
     <script src="/kcart.js" is:inline></script>
     <script is:inline>
+      // Empfehlungs-Link der Werber (kohlilab.ch/w/KUERZEL -> /?w=KUERZEL):
+      // Kürzel 30 Tage im Browser merken, der Checkout trägt es dann vor.
+      // Der letzte Link gewinnt. Kein Cookie, kein Dritter, nur ein Kürzel im
+      // localStorage — braucht keinen Banner. Der Parameter wird aus der
+      // Adresszeile entfernt, damit er nicht in Lesezeichen und Teilen-Links
+      // weiterwandert.
+      window.KWerber = (function(){
+        const KEY = 'kl_werber', TAGE = 30;
+        function lies(){ try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (!d || !d.k) return ''; if (Date.now() - d.t > TAGE*86400e3) { localStorage.removeItem(KEY); return ''; } return d.k; } catch(e){ return ''; } }
+        function merke(k){ try { localStorage.setItem(KEY, JSON.stringify({ k: k, t: Date.now() })); } catch(e){} }
+        try {
+          const u = new URL(location.href), w = (u.searchParams.get('w') || '').trim().toUpperCase();
+          if (/^[A-Z0-9]{2,20}$/.test(w)) { merke(w); u.searchParams.delete('w'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); }
+        } catch(e){}
+        return { get: lies };
+      })();
       // Warenkorb-Zähler im Header live halten
       (function(){
         async function upd(){ try { const n = await window.KCart.count(); const b = document.querySelector('[data-cart-count]'); if(b){ b.textContent = n; b.style.display = n>0 ? 'inline-flex' : 'none'; } } catch(e){} }

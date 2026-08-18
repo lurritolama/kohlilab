@@ -39,7 +39,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
         <label>Empfehlungs-Kürzel (optional)
           <input type="text" name="werber" maxlength="20" placeholder="z. B. FRIDU" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase" />
-          <small class="co-hilfe">Hat dich jemand auf KohliLab aufmerksam gemacht? Trag sein Kürzel ein.</small>
+          <small class="co-hilfe" data-werber-hilfe>Hat dich jemand auf KohliLab aufmerksam gemacht? Trag sein Kürzel ein.</small>
         </label>
 
         <p class="co-pay">Wir drucken deine Teile und schicken sie per Post. Bezahlung per QR-Rechnung / TWINT – du bekommst nach dem Absenden eine Bestätigung per E-Mail.</p>
@@ -95,6 +95,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   const fehlerEl = document.querySelector('[data-fehler]') as HTMLElement | null;
   const submitBtn = document.querySelector('[data-submit]') as HTMLButtonElement | null;
   let items: any[] = [];
+
+  // Empfehlungs-Kürzel aus dem Werber-Link vortragen (BaseLayout merkt es
+  // 30 Tage). Nur wenn das Feld leer ist — was die Kundin tippt, gilt.
+  (function () {
+    const feld = form?.querySelector('input[name="werber"]') as HTMLInputElement | null;
+    const k = (window as any).KWerber?.get?.() || '';
+    if (feld && k && !feld.value) {
+      feld.value = k;
+      const h = document.querySelector('[data-werber-hilfe]');
+      if (h) h.textContent = 'Du bist über einen Empfehlungs-Link gekommen — das Kürzel ist eingetragen. Du kannst es ändern oder löschen.';
+    }
+  })();
 
   function versandRappen(): number {
     const r = document.querySelector('input[name="versandart"]:checked') as HTMLElement | null;

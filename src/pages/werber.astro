@@ -67,6 +67,9 @@ if (werber && daten) {
 }
 
 const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
+// Persoenlicher Empfehlungs-Link (kurz, druckbar, als QR): /w/KUERZEL
+const linkBasis = import.meta.env.PUBLIC_SITE_URL || 'https://kohlilab.ch';
+const empfehlungsLink = werber ? `${linkBasis.replace(/\/$/, '')}/w/${werber.kuerzel}` : '';
 ---
 <BaseLayout title="Deine Empfehlungen — KohliLab" description="Übersicht für KohliLab-Werber." noindex>
   <section class="block" style="padding-top:28px;max-width:640px">
@@ -87,8 +90,24 @@ const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
       <>
         <h2>Hoi {werber.name} 👋</h2>
         <p class="lead">
-          Das läuft über dein Kürzel <b>{werber.kuerzel}</b>.
+          Das läuft über dein Kürzel <b>{werber.kuerzel}</b> — und über deinen Link:
         </p>
+        <!-- Empfehlungs-Link: wer darüber kommt, hat das Kürzel im Checkout
+             schon eingetragen (30 Tage). Kopieren-Knopf und QR zum Weitergeben;
+             der QR entsteht hier im Browser (vendor/qrcode.js), kein Dienst. -->
+        <div class="w-link">
+          <div class="w-link-zeile">
+            <a class="w-link-url" href={empfehlungsLink} data-empfehlungslink>{empfehlungsLink}</a>
+            <button type="button" class="btn primary w-kopieren" data-kopieren>Link kopieren</button>
+          </div>
+          <div class="w-link-unten">
+            <div class="w-qr" data-qr aria-label="QR-Code zu deinem Empfehlungs-Link"></div>
+            <div class="w-link-text">
+              <p>Teile den Link oder den QR — auf WhatsApp, Instagram, einer Karte, am Stand. Wer darüber kommt, hat dein Kürzel beim Bestellen schon eingetragen und muss nichts tippen.</p>
+              <p class="w-fuss">Gilt 30 Tage ab Klick. Der Link kann öffentlich sein — er zeigt nichts von dir. Diese Seite hier (mit <code>?k=</code>) ist dein privater Zugang: nicht weitergeben.</p>
+            </div>
+          </div>
+        </div>
         <!-- Beide Rechenstufen ausschreiben: die kompakte Klammer "(1.0 % vom
              Warenwert)" hat sogar Manolo als Rechenfehler gelesen. -->
         <p class="lead">Deine Provision hängt vom Produkt ab — gerechnet auf den Gewinn:</p>
@@ -136,7 +155,36 @@ const chf = (r: number) => `CHF ${(r / 100).toFixed(2)}`;
   </section>
 </BaseLayout>
 
+<script is:inline src="/vendor/qrcode.js"></script>
+<script is:inline>
+  (function () {
+    const a = document.querySelector('[data-empfehlungslink]');
+    const btn = document.querySelector('[data-kopieren]');
+    const box = document.querySelector('[data-qr]');
+    if (!a) return;
+    const url = a.getAttribute('href') || '';
+    // QR als SVG in die Seite (M-Fehlerkorrektur reicht fuer eine kurze URL)
+    try { const qr = qrcode(0, 'M'); qr.addData(url); qr.make(); if (box) box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); } catch (e) {}
+    if (btn) btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(url); btn.textContent = 'Kopiert ✓'; }
+      catch (e) { // Ausweg ohne Clipboard-API: markieren
+        const r = document.createRange(); r.selectNodeContents(a); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = 'Markiert — Ctrl+C';
+      }
+      setTimeout(() => { btn.textContent = 'Link kopieren'; }, 2200);
+    });
+  })();
+</script>
+
 <style>
+  .w-link { background:var(--panel,#1d1e21); border:1px solid #ef7d1a; border-radius:12px; padding:16px; margin:14px 0 22px; }
+  .w-link-zeile { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .w-link-url { font-family:var(--mono, ui-monospace, monospace); font-size:16px; color:#ffb347; word-break:break-all; flex:1; min-width:200px; }
+  .w-kopieren { white-space:nowrap; }
+  .w-link-unten { display:flex; gap:16px; align-items:flex-start; margin-top:14px; flex-wrap:wrap; }
+  .w-qr { width:150px; height:150px; flex:0 0 150px; background:#fff; border-radius:8px; padding:6px; box-sizing:border-box; }
+  .w-qr svg { width:100%; height:100%; display:block; }
+  .w-link-text { flex:1; min-width:200px; font-size:14px; line-height:1.55; }
+  .w-link-text p { margin:0 0 8px; }
   .w-karten { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin:20px 0; }
   .w-karte { background:var(--panel,#1d1e21); border:1px solid rgba(236,239,240,.12); border-radius:10px; padding:14px; text-align:center; }
   .w-karte b { display:block; font-size:22px; }
