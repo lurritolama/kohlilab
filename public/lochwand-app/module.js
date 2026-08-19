@@ -65,10 +65,11 @@ const HAKEN = {
   kurz: 'für Werkzeug, Kabel, Taschen',
   drucklage: 'seite',     // auf der Seite: Modul-x wird Bauhoehe (Testkamm/Lasttest)
   parameter: {
-    laenge:  { name: 'Länge',        min: 20,  max: 120, schritt: 5,  einheit: 'mm', start: 50 },
-    winkel:  { name: 'Aufbiegung',   min: 0,   max: 45,  schritt: 5,  einheit: '°',  start: 15 },
-    staerke: { name: 'Armstärke',    min: 5,   max: 12,  schritt: 1,  einheit: 'mm', start: 7 },
-    kappe:   { name: 'Endkappe',     min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 1, schalter: true },
+    // Manolo 18.08.2026: Laenge max 60, Armstaerke min 8; die Endkappe ist weg —
+    // die Nase ist jetzt Teil des geschwungenen Profils.
+    laenge:  { name: 'Länge',        min: 20,  max: 60,  schritt: 5,  einheit: 'mm', start: 40 },
+    winkel:  { name: 'Aufbiegung',   min: 0,   max: 60,  schritt: 5,  einheit: '°',  start: 30 },
+    staerke: { name: 'Armstärke',    min: 8,   max: 12,  schritt: 1,  einheit: 'mm', start: 8 },
   },
   // DRUCKREGEL (Etappe 0, Lasttest; hier beim ersten Export gleich wieder
   // gestolpert): In der Seitenlage steht das Modul auf seiner -x-Kante.
@@ -79,7 +80,7 @@ const HAKEN = {
   // (das groessere von beiden), und beide liegen an derselben Kante an.
   masse(p) {
     const plattenB = Math.max(HALS_BREITE, p.staerke);   // so breit wie noetig
-    const plattenH = 30;
+    const plattenH = 34;                                  // 34 (statt 30): Platz fuer Arm + Fusskehle bei 12 mm Armstaerke
     return { plattenB, plattenH, plattenT: 5 };
   },
   haken(p) {
@@ -109,32 +110,43 @@ const HAKEN = {
     unten.translate(kante + plattenB / 2, HALS_HOEHE - hakenZoneH + 2 - untenH / 2 + 0.01, -plattenT / 2);
     teile.push(unten);
 
-    const armY = HALS_HOEHE - plattenH + p.staerke / 2 + 4;
-    const winkel = THREE.MathUtils.degToRad(p.winkel);
-    const geradeL = Math.max(8, p.laenge - (p.winkel > 0 ? p.staerke * 1.2 : 0));
-    const arm = new THREE.BoxGeometry(p.staerke, p.staerke, geradeL);
-    arm.translate(kante + p.staerke / 2, armY, -plattenT - geradeL / 2);
-    teile.push(arm);
-
-    if (p.winkel > 0) {
-      const spitzeL = p.staerke * 1.6;
-      const sp = new THREE.BoxGeometry(p.staerke, p.staerke, spitzeL);
-      sp.translate(0, 0, -spitzeL / 2 + p.staerke * 0.35);
-      sp.applyMatrix4(new THREE.Matrix4().makeRotationX(-winkel));
-      sp.translate(kante + p.staerke / 2, armY, -plattenT - geradeL + p.staerke * 0.35);
-      teile.push(sp);
-    }
-
-    // Endkappe: statt Kugel (rund = Ueberhang in jeder Lage) ein flacher
-    // Wulst mit gefaster Vorderkante — liegt in der Seitenlage mit auf.
-    if (p.kappe) {
-      const kappeH = p.staerke * 1.5, kappeT = p.staerke * 0.6;
-      const k = new THREE.BoxGeometry(p.staerke, kappeH, kappeT);
-      const tipZ = -plattenT - p.laenge;
-      const tipY = armY + (p.winkel > 0 ? Math.sin(winkel) * p.staerke * 1.6 : 0);
-      k.translate(kante + p.staerke / 2, tipY + kappeH / 2 - p.staerke / 2, tipZ + kappeT / 2);
-      teile.push(k);
-    }
+    // ARM (Neugestaltung 18.08.2026, Manolo: "sieht unfoermig aus"): statt
+    // Kastenarm + gekipptem Klotz + Wulst ein EIN Profil in der (s, y)-Ebene,
+    // als Flaeche entlang x extrudiert — in der Seitenlage steht das Profil
+    // senkrecht, also kein Ueberhang, egal wie geschwungen es ist:
+    //   * Mittellinie: gerade nach vorne, dann ein Bogen (Radius 1.3 t) um
+    //     `winkel` nach oben, dann eine kurze Nase — Gesamtausladung = laenge
+    //   * Dicke t an der Wurzel, zur Spitze auf 0.75 t verjuengt, Spitze halbrund
+    //   * Fusskehle: 45-Grad-Keil unter der Wurzel (0.5 t) — traegt und wirkt ruhig
+    const t = p.staerke, L = p.laenge;
+    const w = THREE.MathUtils.degToRad(p.winkel);
+    const R = 1.3 * t, nase = 0.5 * t;
+    const armY = -7 - t / 2;                              // Armmitte, unter der Hakenzone (Oberkante -6)
+    const Lg = Math.max(0.6 * t, L - R * Math.sin(w) - nase * Math.cos(w));   // gerader Teil
+    const s0 = -0.4;                                      // 0.4 mm in der Platte
+    // Mittellinie abtasten: [s, y, richtung]
+    const mitte = [];
+    const nG = 6, nB = Math.max(2, Math.round(p.winkel / 5)), nN = 3;
+    for (let i = 0; i <= nG; i++) mitte.push([s0 + (Lg - s0) * i / nG, armY, 0]);
+    for (let i = 1; i <= nB; i++) { const th = w * i / nB; mitte.push([Lg + R * Math.sin(th), armY + R * (1 - Math.cos(th)), th]); }
+    const eb = mitte[mitte.length - 1];
+    for (let i = 1; i <= nN; i++) mitte.push([eb[0] + Math.cos(w) * nase * i / nN, eb[1] + Math.sin(w) * nase * i / nN, w]);
+    // Bogenlaenge fuer die Verjuengung
+    const laengen = [0]; for (let i = 1; i < mitte.length; i++) laengen.push(laengen[i - 1] + Math.hypot(mitte[i][0] - mitte[i - 1][0], mitte[i][1] - mitte[i - 1][1]));
+    const gesamt = laengen[laengen.length - 1];
+    const dicke = (i) => t * (1 - 0.25 * laengen[i] / gesamt);
+    const obenP = [], untenP = [];
+    mitte.forEach((m, i) => { const h = dicke(i) / 2, nx = -Math.sin(m[2]), ny = Math.cos(m[2]); obenP.push([m[0] + nx * h, m[1] + ny * h]); untenP.push([m[0] - nx * h, m[1] - ny * h]); });
+    const arm = new THREE.Shape();
+    arm.moveTo(s0, armY - t / 2 - 0.5 * t);                // Fusskehle unten (in der Platte)
+    arm.lineTo(0.5 * t, armY - t / 2);                     // 45 Grad hoch zur Armunterseite
+    for (let i = 1; i < untenP.length; i++) if (untenP[i][0] > 0.5 * t) arm.lineTo(untenP[i][0], untenP[i][1]);
+    // Spitze: Halbkreis um den Endpunkt der Mittellinie
+    const e = mitte[mitte.length - 1], he = dicke(mitte.length - 1) / 2;
+    for (let k = 1; k < 8; k++) { const a = -Math.PI / 2 + Math.PI * k / 8 + e[2]; arm.lineTo(e[0] + he * Math.cos(a), e[1] + he * Math.sin(a)); }
+    for (let i = obenP.length - 1; i >= 0; i--) arm.lineTo(obenP[i][0], obenP[i][1]);
+    arm.closePath();
+    teile.push(extrudiertQuer(arm, t, kante));             // Breite t, buendig an der Kante
 
     for (const h of this.haken(p)) {
       const hg = hakenGeometrie();                          // zentriert um x=0, Breite 4.5
@@ -450,25 +462,38 @@ const HALTER = {
     breite:      { name: 'Breite',          min: 1,  max: 5,  schritt: 1, einheit: 'Löcher', start: 2 },
     tiefe:       { name: 'Tiefe',           min: 20, max: 80, schritt: 5, einheit: 'mm',     start: 40 },
     durchmesser: { name: 'Lochdurchmesser', min: 3,  max: 30, schritt: 1, einheit: 'mm',     start: 8 },
-    anzahl:      { name: 'Löcher je Reihe', min: 1,  max: 12, schritt: 1, einheit: '',       start: 4 },
+    anzahl:      { name: 'Löcher je Reihe', min: 1,  max: 20, schritt: 1, einheit: '',       start: 4 },
+    abstand:     { name: 'Lochabstand',     min: 0,  max: 50, schritt: 1, einheit: 'mm',     start: 0 },   // Mitte-Mitte; 0 = so eng wie moeglich
     reihen:      { name: 'Reihen',          min: 1,  max: 3,  schritt: 1, einheit: '',       start: 1 },
     schlitze:    { name: 'Schlitze (vorne offen)', min: 0, max: 1, schritt: 1, einheit: '', start: 0, schalter: true },
     rundung:     { name: 'Rundung',         min: 0,  max: 15, schritt: 1, einheit: 'mm',     start: 4 },
+    // Erweiterungen fuer die Vorlagen (Manolo 18.08.: Bits als Treppe, Bohrer-Satz)
+    dicke:       { name: 'Konsolen-Dicke',  min: 5,  max: 20, schritt: 1, einheit: 'mm',     start: 5 },
+    stufe:       { name: 'Stufe je Reihe',  min: 0,  max: 15, schritt: 1, einheit: 'mm',     start: 0 },   // hinten je Reihe hoeher (Treppe)
+    sackloch:    { name: 'Sackloch (Boden 2 mm)', min: 0, max: 1, schritt: 1, einheit: '', start: 0, schalter: true },
+    d2:          { name: 'Ø bis (gestaffelt)', min: 0, max: 30, schritt: 1, einheit: 'mm',    start: 0 },   // 0 = alle gleich
     tafel:   { name: 'Tafelhalter',   min: 0,   max: 1,   schritt: 1,  einheit: '',   start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
   },
   RUECKWAND_HOEHE: 36,   // 36 statt 30 (18.08.): Platz fuer die Einschub-Tafel (14 mm) ueber den Wangen
   BRETT: 5,
   masse(p) {
     const breiteMm = p.breite * RASTER;
-    return { breiteMm, tiefe: p.tiefe, hoehe: this.RUECKWAND_HOEHE, yUnten: HALS_HOEHE - this.RUECKWAND_HOEHE };
+    const hoehe = this.RUECKWAND_HOEHE;
+    const dicke = p.dicke || this.BRETT;
+    const reihen = p.schlitze ? 1 : p.reihen;
+    // Stufe: hinten je Reihe hoeher; die hoechste Stufe laesst mindestens 14 mm
+    // Rueckwand fuer die Tafel frei
+    const stufe = reihen > 1 ? Math.max(0, Math.min(p.stufe || 0, (hoehe - 14 - dicke) / (reihen - 1))) : 0;
+    const oben = dicke + (reihen - 1) * stufe;               // hoechste Konsolen-Oberkante ueber der Unterkante
+    return { breiteMm, tiefe: p.tiefe, hoehe, yUnten: HALS_HOEHE - hoehe, dicke, stufe, oben, reihen };
   },
   haken(p) { return Array.from({ length: p.breite }, (_, i) => ({ dx: i, dy: 0 })); },
   stuetzen(p) { return abbrechstuetzen(this.haken(p), this.masse(p).yUnten); },
-  /** SCHILD: Rueckwand vorne, ueber den Wangen (12 mm) bis unter die
-   *  Hakenzone — rund 11 mm hoch, ganze Breite minus Rand. */
+  /** SCHILD: Rueckwand vorne, ueber Wangen bzw. hoechster Stufe bis unter die
+   *  Hakenzone, ganze Breite minus Rand. */
   schildflaeche(p) {
-    const { breiteMm, yUnten } = this.masse(p);
-    const yA = yUnten + this.BRETT + 12 + 1, yB = HALS_HOEHE - 1.5;
+    const { breiteMm, yUnten, dicke, stufe, oben } = this.masse(p);
+    const yA = yUnten + (stufe > 0 ? oben : dicke + 12) + 1, yB = HALS_HOEHE - 1.5;
     const breite = breiteMm - 6, hoehe = yB - yA;
     if (breite < 12 || hoehe < 6) return null;
     const cx = RASTER / 2 - breiteMm / 2;
@@ -489,27 +514,38 @@ const HALTER = {
     const breite = breiteMm - 2 * WAND - 4 - (lb.schlitze ? 0 : 2 * lb.r);
     if (tief < 4 || breite < 12) return null;
     const cx = RASTER / 2 - breiteMm / 2;
-    return { o: [cx, yUnten + this.BRETT, -(sA + sB) / 2], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0], breite, hoehe: tief };
+    return { o: [cx, yUnten + this.masse(p).dicke, -(sA + sB) / 2], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0], breite, hoehe: tief };
   },
   /** Lochbild: Mittelpunkte in (x, s) und was davon Schlitze sind. So viele
    *  Loecher, wie mit 2 mm Steg Platz haben — die Zahl wird still gekuerzt. */
   lochbild(p) {
     const { breiteMm, tiefe } = this.masse(p);
-    const T = tiefe + WAND, d = p.durchmesser, steg = 2;
+    const T = tiefe + WAND, steg = 2;
+    // Gestaffelt (Bohrer-Satz): Ø laeuft von durchmesser bis d2 ueber die Reihe;
+    // Teilung und Reihenabstand richten sich nach dem groessten Loch.
+    const dA = p.durchmesser, dB = p.d2 > 0 ? p.d2 : p.durchmesser;
+    const d = Math.max(dA, dB);
     const r = Math.max(0, Math.min(p.rundung, breiteMm / 2 - 1, tiefe / 2 - 1));
     const x0 = -breiteMm / 2, x1 = breiteMm / 2;
     // Nutzbare Breite: innerhalb der Wangen; Schlitze zusaetzlich innerhalb der Rundung
     const rand = WAND + steg + (p.schlitze ? r : 0);
     const nutz = breiteMm - 2 * rand;
-    const n = Math.max(1, Math.min(p.anzahl, Math.floor((nutz + steg) / (d + steg))));
+    // Teilung Mitte-Mitte: gewuenschter Lochabstand, mindestens Loch + Steg.
+    // So viele Loecher, wie damit Platz haben (still gekuerzt), mittig verteilt.
+    const teilung = Math.max(d + steg, p.abstand || 0);
+    const n = Math.max(1, Math.min(p.anzahl, Math.floor((nutz - d) / teilung) + 1));
     const reihen = p.schlitze ? 1 : p.reihen;
-    const xs = Array.from({ length: n }, (_, i) => x0 + rand + (nutz - n * d - (n - 1) * steg) / 2 + d / 2 + i * (d + steg));
+    const spann = (n - 1) * teilung + d;
+    const xs = Array.from({ length: n }, (_, i) => x0 + rand + (nutz - spann) / 2 + d / 2 + i * teilung);
+    // Ø je Loch: linear von dA (Betrachter links) bis dB (rechts). Modul +x ist
+    // Betrachter-links, xs steigt in +x -> Index n-1 ist links.
+    const dVon = (i) => n > 1 ? dB + (dA - dB) * i / (n - 1) : dA;
     // Reihen: gleichmaessig zwischen Rueckwand (+Steg) und Vorderkante (+Steg)
     const sMin = WAND + steg + d / 2, sMax = T - steg - d / 2;
     const ss = reihen === 1 ? [(sMin + sMax) / 2] : Array.from({ length: reihen }, (_, i) => sMin + (sMax - sMin) * i / (reihen - 1));
     const punkte = [];
-    for (const s of ss) for (const x of xs) punkte.push({ x, s });
-    return { punkte, d, schlitze: !!p.schlitze, r, T, x0, x1, n, reihen };
+    ss.forEach((s, j) => xs.forEach((x, i) => punkte.push({ x, s, d: dVon(i), reihe: j })));
+    return { punkte, d, schlitze: !!p.schlitze, r, T, x0, x1, n, reihen, ss };
   },
   geometrie(p) {
     const { breiteMm, tiefe, hoehe, yUnten } = this.masse(p);
@@ -524,20 +560,45 @@ const HALTER = {
     teile.push(rueck);
 
     // Konsole: Kontur ab 0.4 mm IN der Rueckwand bis T, gerundete Vorderecken,
-    // Loecher als Ausschnitte bzw. Schlitze als Kerben der Frontkante.
-    const kerben = lb.schlitze ? lb.punkte.map((q) => ({ x: q.x, s: q.s, breite: d })) : [];
-    const brett = kontur(x0, x1, T, r, 0, kerben, WAND - 0.4);
-    if (!lb.schlitze) for (const q of lb.punkte) { const h = new THREE.Path(); h.absarc(q.x, q.s, d / 2, 0, Math.PI * 2, false); brett.holes.push(h); }
-    teile.push(extrudiert(brett, this.BRETT, yUnten));
+    // Loecher als Ausschnitte (je Loch eigener Ø) bzw. Schlitze als Kerben.
+    // TREPPE (stufe > 0): je Reihe ein eigener Block, hinten hoeher; die
+    // Bloecke stossen an den Reihengrenzen aneinander und greifen 0.2 mm
+    // ineinander (keine gemeinsamen Ecken). Vorne Rundung, hinten eckig.
+    const { dicke, stufe } = this.masse(p);
+    const kerben = lb.schlitze ? lb.punkte.map((q) => ({ x: q.x, s: q.s, breite: q.d })) : [];
+    const lochPfade = (punkte, sh) => { for (const q of punkte) { const h = new THREE.Path(); h.absarc(q.x, q.s, q.d / 2, 0, Math.PI * 2, false); sh.holes.push(h); } };
+    const treppe = stufe > 0 && lb.reihen > 1;
+    if (treppe) {
+      // Reihengrenzen: Mitte zwischen den Reihen (ss laeuft von hinten nach vorne)
+      const grenzen = [];
+      for (let j = 0; j < lb.ss.length - 1; j++) grenzen.push((lb.ss[j] + lb.ss[j + 1]) / 2);
+      for (let j = 0; j < lb.reihen; j++) {
+        const hinten = j === 0 ? WAND - 0.4 : grenzen[j - 1] - 0.1;
+        const vorn = j === lb.reihen - 1 ? T : grenzen[j] + 0.1;
+        const hoehe = dicke + (lb.reihen - 1 - j) * stufe;   // hinten (j=0) am hoechsten
+        const sh = kontur(x0, x1, vorn, j === lb.reihen - 1 ? r : 0, 0, [], hinten);
+        lochPfade(lb.punkte.filter((q) => q.reihe === j), sh);
+        teile.push(extrudiert(sh, hoehe, yUnten));
+      }
+    } else {
+      const brett = kontur(x0, x1, T, r, 0, kerben, WAND - 0.4);
+      if (!lb.schlitze) lochPfade(lb.punkte, brett);
+      teile.push(extrudiert(brett, dicke, yUnten));
+    }
+    // Sackloch: 2-mm-Boden unter allen Loechern — eigene Platte, 0.3 eingerueckt
+    // und 0.01 ueber dem Bett, damit sie keine Ecken mit den Bloecken teilt
+    if (p.sackloch && !lb.schlitze) teile.push(extrudiert(kontur(x0, x1, T, r, 0.3, [], WAND - 0.1), 2 - 0.01, yUnten + 0.01));
 
-    // Wangen: Dreiecksprofil (s, y) auf dem Brett, links und rechts, bis vor
-    // die Rundung. Greifen 0.4 in Rueckwand und Brett.
-    const yS = yUnten + this.BRETT - 0.4;
-    const s0 = WAND - 0.4, s1 = Math.max(s0 + 4, T - r - 0.4);
-    const wange = new THREE.Shape();
-    wange.moveTo(s0, yS); wange.lineTo(s1, yS); wange.lineTo(s1, yS + 3); wange.lineTo(s0, yS + 12); wange.closePath();
-    teile.push(extrudiertQuer(wange, WAND, x0 + 0.01));            // 0.01: keine Ecke faellt mit dem Brett zusammen
-    teile.push(extrudiertQuer(wange, WAND, x1 - WAND - 0.01));
+    // Wangen (nur ohne Treppe): Dreiecksprofil (s, y) auf dem Brett, links und
+    // rechts, bis vor die Rundung. Greifen 0.4 in Rueckwand und Brett.
+    if (!treppe) {
+      const yS = yUnten + dicke - 0.4;
+      const s0 = WAND - 0.4, s1 = Math.max(s0 + 4, T - r - 0.4);
+      const wange = new THREE.Shape();
+      wange.moveTo(s0, yS); wange.lineTo(s1, yS); wange.lineTo(s1, yS + 3); wange.lineTo(s0, yS + 12); wange.closePath();
+      teile.push(extrudiertQuer(wange, WAND, x0 + 0.01));            // 0.01: keine Ecke faellt mit dem Brett zusammen
+      teile.push(extrudiertQuer(wange, WAND, x1 - WAND - 0.01));
+    }
 
     // Verschieben: erster Haken (Betrachter links) im Ursprung
     const schub = RASTER / 2 - x1;
@@ -1112,18 +1173,46 @@ export function schildFlach(s) {
 // das Gewicht zaehlt sie nicht (0.6 g je Stuetze zulasten von Manolo — im
 // Preis nicht abgebildet, bewusst), nur der 3MF-Export enthaelt sie.
 export function abbrechstuetzen(hakenListe, yUnten) {
+  // Fassung 2 (Manolo 18.08.: erster Druck — Saeule 4.5 x 3 auf 37 mm war zu
+  // duenn und zu hoch, wackelte, oben Spaghetti). Jetzt:
+  //   * Saeule 6 x 6 mm durchgehend, mittig unter der Zunge (z 3.65..9.65),
+  //     steht direkt auf dem Bett; ein schmaler Fuss (6 x 0.6) bindet sie
+  //     unten an die Rueckwand (Manolo 18.08.: der breite 12x12-Fuss war
+  //     uebertrieben — wieder weg)
+  //   * hoechstens ZWEI 45-Grad-Streben 0.8 x 2 mm (bei 1/3 und 2/3 der Hoehe)
+  //     zwischen Rueckwand-Ruecken und Saeule: seitlich gehalten, mit den
+  //     Fingern zu brechen, Reste hinten gegen die Platte (Manolo: max. 2)
+  //   * oben wie bisher 0.3 mm in die Zungenspitze verschmolzen (Sollbruch)
+  // Kostet ~2 g je Haken statt 0.6 — zaehlt im Gewicht mit (Preis ~5 Rp).
   const teile = [];
   const zN = HAKEN_TIEFE - 3.0, zH = HAKEN_TIEFE;          // Zunge: z 5.15..8.15
+  const zM = (zN + zH) / 2;                                 // 6.65, Zungenmitte
+  const S = 6.0;                                            // Saeule
   const ySpitze = -7.0;                                     // ZUNGE_LAENGE
   for (const h of hakenListe) {
     const x = -h.dx * RASTER, y0 = yUnten;
     const yTop = ySpitze + 0.3 + h.dy * REIHEN_TEILUNG;
-    const saeule = new THREE.BoxGeometry(HALS_BREITE, yTop - y0, zH - zN);
-    saeule.translate(x, (yTop + y0) / 2, (zN + zH) / 2);
+    const saeule = new THREE.BoxGeometry(S, yTop - y0, S);
+    saeule.translate(x, (yTop + y0) / 2, zM);               // steht auf dem Bett
     teile.push(saeule);
-    const fuss = new THREE.BoxGeometry(HALS_BREITE, 0.6, zH + 0.2);
-    fuss.translate(x, y0 + 0.3, (zH - 0.2) / 2);
+    // Fuss: schmaler Steg von der Rueckwand (0.2 drin) bis 0.2 in die Saeule, 0.6 hoch, 0.01 ueber dem Bett
+    const zS = zM - S / 2;                                  // Saeulen-Vorderseite 3.65
+    const fuss = new THREE.BoxGeometry(S - 0.02, 0.6, zS + 0.4);
+    fuss.translate(x, y0 + 0.31, (zS + 0.2 - 0.2) / 2);
     teile.push(fuss);
+    // Streben zur Rueckwand: 45 Grad steigend von der Rueckwand (z -0.2) zur
+    // Saeule (z 3.85) — waagrechte Bruecken hatten je 3 mm2 Ueberhang, die
+    // Strebe hat keinen. Hoechstens zwei, bei 1/3 und 2/3 der Turmhoehe;
+    // unter 18 mm Turm eine, unter 10 mm keine.
+    const spann = zS + 0.4, L = spann * Math.SQRT2 + 1.0;   // Diagonale plus Ueberlappung
+    const hTurm = yTop - y0;
+    const lagen = hTurm >= 18 ? [y0 + hTurm / 3, y0 + 2 * hTurm / 3] : hTurm >= 10 ? [y0 + hTurm / 2] : [];
+    for (const y of lagen) {
+      const st = new THREE.BoxGeometry(0.8, 2.0, L);
+      st.rotateX(-Math.PI / 4);                             // lokale z-Achse -> (+y, +z), 45 Grad
+      st.translate(x, y + spann / 2, -0.2 + spann / 2);
+      teile.push(st);
+    }
   }
   return teile;
 }
@@ -1150,6 +1239,58 @@ export function umriss(f, p) {
   umrissCache.set(key, u);
   return u;
 }
+
+// ---------------------------------------------------------------- Vorlagen
+//
+// Fertige Einstellungen fuer haeufige Faelle (Manolo 18.08.: "ich haette
+// gerne Vorlagen, als erstes Schraubenzieher"). Eine Vorlage ist EIN Modul
+// mit gesetzten Parametern — die Kundschaft kann danach alles anpassen.
+//
+// Schraubenzieher (recherchiert 18.08.2026): Klingen bis ~8 mm (PZ3, grosse
+// Schlitz), Griffe 24-36 mm (Wera Kraftform Plus/VDE bis 36, Chiseldriver 40);
+// Halter-Racks setzen ~30 mm Teilung (Wera-Rack 190 mm fuer 6 Stueck) und
+// Loecher von 10 mm, durch die die Klinge faellt und der Griff aufsitzt.
+// Also: Loch 10 mm, Abstand 30 mm; Griffe bis 30 mm beruehren sich nicht.
+// Kategorien fuer die Bibliothek (Manolo 18.08.: "Kategorie Werkstatt,
+// uebersichtlicher"): Grundformen stehen fuer sich, Vorlagen sind nach
+// Einsatz gruppiert.
+export const KATEGORIEN = [
+  { id: 'werkstatt', name: 'Werkstatt' },
+  { id: 'buero', name: 'Büro & Bastel' },
+  { id: 'kueche', name: 'Küche & Bad' },
+];
+export const VORLAGEN = [
+  { id: 'schraubenzieher-6', kategorie: 'werkstatt', familie: 'halter', name: 'Schraubenzieher · 6', kurz: 'Ø 10 mm, Abstand 30 mm, 200 mm breit',
+    params: { breite: 5, tiefe: 40, durchmesser: 10, anzahl: 6, abstand: 30, reihen: 1, schlitze: 0, rundung: 6 } },
+  { id: 'schraubenzieher-3', kategorie: 'werkstatt', familie: 'halter', name: 'Schraubenzieher · 3', kurz: 'Ø 10 mm, Abstand 30 mm, 120 mm breit',
+    params: { breite: 3, tiefe: 40, durchmesser: 10, anzahl: 3, abstand: 30, reihen: 1, schlitze: 0, rundung: 6 } },
+  // Bits 1/4" (Sechskant 6.35 -> Loch 7): Treppe, hinten je Reihe 8 mm hoeher,
+  // Sackloecher (Bits fallen sonst durch), Konsole 12 mm dick (Loch 10 tief)
+  { id: 'bits-2', kategorie: 'werkstatt', familie: 'halter', name: 'Bits · 2 Reihen', kurz: '14 Bits, Ø 7 mm, Treppe, 80 mm breit',
+    params: { breite: 2, tiefe: 30, durchmesser: 7, anzahl: 7, abstand: 10, reihen: 2, stufe: 8, dicke: 12, sackloch: 1, schlitze: 0, rundung: 4 } },
+  { id: 'bits-3', kategorie: 'werkstatt', familie: 'halter', name: 'Bits · 3 Reihen', kurz: '21 Bits, Ø 7 mm, Treppe, 80 mm breit',
+    params: { breite: 2, tiefe: 45, durchmesser: 7, anzahl: 7, abstand: 10, reihen: 3, stufe: 7, dicke: 12, sackloch: 1, schlitze: 0, rundung: 4 } },
+  // Bohrer-Satz 1-10 mm: Loecher Ø 2..11 (Bohrer + 1 mm Luft), links klein,
+  // rechts gross, Sackloecher, 12 mm dick
+  { id: 'bohrer-10', kategorie: 'werkstatt', familie: 'halter', name: 'Bohrer 1–10 mm', kurz: '10 Löcher Ø 2–11 gestaffelt, 120 mm breit',
+    params: { breite: 3, tiefe: 30, durchmesser: 2, d2: 11, anzahl: 10, abstand: 11, reihen: 1, dicke: 12, sackloch: 1, schlitze: 0, rundung: 4 } },
+  // Zangen: Schlitze 15 mm, Teilung 36 (Griffe durch den Schlitz, Kopf sitzt auf)
+  { id: 'zangen-4', kategorie: 'werkstatt', familie: 'halter', name: 'Zangen · 4', kurz: 'Schlitze 15 mm, Abstand 36, 160 mm breit',
+    params: { breite: 4, tiefe: 40, durchmesser: 15, anzahl: 4, abstand: 36, reihen: 1, schlitze: 1, rundung: 6, dicke: 6 } },
+  // Stiftebecher: schmale, hohe Wanne mit Boden
+  { id: 'stifte', kategorie: 'buero', familie: 'wanne', name: 'Stiftebecher', kurz: '40 × 40 mm, 90 hoch, geschlossen',
+    params: { breite: 1, tiefe: 40, hoehe: 90, trenner: 0, neigung: 0, rundung: 12, boden: 0 } },
+  { id: 'kleinteile', kategorie: 'werkstatt', familie: 'wanne', name: 'Kleinteile-Box', kurz: '80 mm, 3 Fächer, geneigt',
+    params: { breite: 2, tiefe: 50, hoehe: 40, trenner: 2, neigung: 15, rundung: 6, boden: 0 } },
+  { id: 'spraydose', kategorie: 'werkstatt', familie: 'klemme', name: 'Sprühdose', kurz: 'Klemme Ø 66, Öffnung 50',
+    params: { durchmesser: 66, klemmweite: 50, hoehe: 25 } },
+  { id: 'kabel', kategorie: 'buero', familie: 'halter', name: 'Kabel · 4', kurz: 'Schlitze 8 mm, Abstand 20',
+    params: { breite: 2, tiefe: 30, durchmesser: 8, anzahl: 4, abstand: 20, reihen: 1, schlitze: 1, rundung: 6, dicke: 5 } },
+  { id: 'papierrolle', kategorie: 'kueche', familie: 'haken', name: 'Rollenhalter', kurz: 'Haken 60 mm, 10 mm stark',
+    params: { laenge: 60, winkel: 20, staerke: 10 } },
+  { id: 'gewuerze', kategorie: 'kueche', familie: 'wanne', name: 'Gewürz-Ablage', kurz: '120 mm, flach, geneigt',
+    params: { breite: 3, tiefe: 45, hoehe: 30, trenner: 0, neigung: 10, rundung: 6, boden: 0 } },
+];
 
 // ---------------------------------------------------------------- Registry
 export const FAMILIEN = [HAKEN, WANNE, HALTER, KLEMME];

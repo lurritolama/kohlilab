@@ -43,7 +43,7 @@ function modulDreiecke(fam, params, extra = []) {
 const H = M.familie('haken'), W = M.familie('wanne'), HA = M.familie('halter'), KL = M.familie('klemme');
 const faelle = [
   { fam: H, name: 'Haken-Standard', params: M.startParameter(H) },
-  { fam: H, name: 'Haken-Lang-Winkel', params: { ...M.startParameter(H), laenge: 100, winkel: 30, staerke: 9 } },
+  { fam: H, name: 'Haken-Lang-Winkel', params: { ...M.startParameter(H), laenge: 60, winkel: 45, staerke: 10 } },
   { fam: W, name: 'Wanne-2L-Standard', params: M.startParameter(W) },
   { fam: W, name: 'Wanne-3L-Trenner-Neigung', params: { ...M.startParameter(W), breite: 3, trenner: 2, neigung: 15, tiefe: 80, rundung: 11 } },
   { fam: W, name: 'Wanne-2L-Neigung-minus', params: { ...M.startParameter(W), neigung: -20, rundung: 8 } },
@@ -56,6 +56,8 @@ const faelle = [
   // Beschriftung: Modul mit Tafelhalter (tafel: 1) + Tafel als eigenes Objekt; Ebene-Text auf der Konsole
   { fam: W, name: 'Wanne-2L-Tafelhalter', params: { ...M.startParameter(W), tafel: 1 }, tafel: 'Nägel & Ösen' },
   { fam: HA, name: 'Halter-2L-Konsolentext', params: M.startParameter(HA), ebene: 'Bohrer Ø6' },
+  // alle Vorlagen (module.js VORLAGEN) — jede ein Modul mit fertigen Parametern
+  ...M.VORLAGEN.map((v) => ({ fam: M.familie(v.familie), name: 'Vorlage-' + v.id, params: { ...M.startParameter(M.familie(v.familie)), ...v.params } })),
 ];
 // Aufruf: node lochwand-export-test.mjs [familie] [zieldatei]
 //   ohne Argumente: alle Faelle -> Projekt-Daten/kohlilab-skadis/lochwand-test.3mf
