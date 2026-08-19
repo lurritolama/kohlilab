@@ -1,23 +1,26 @@
 ---
 /**
- * Konfigurator-Rahmen mit Mobil-Hinweis.
+ * Konfigurator-Rahmen (iframe) mit Mobil-Verhalten.
  *
  * Die Konfiguratoren brauchen Platz: das Bedienfeld ist 340 px breit, daneben
- * die 3D-Ansicht. Auf einem 375-px-Handy bleiben der Vorschau ganze 35 px —
- * die Visualisierung ist damit praktisch weg. Statt eine kaputte Ansicht zu
- * zeigen, blenden wir unter 900 px einen deutlichen Hinweis ein. Wer trotzdem
- * will, kann den Konfigurator per Knopf öffnen (niemandem etwas wegnehmen).
+ * die 3D-Ansicht. Auf einem 375-px-Handy bleiben der Vorschau ganze 35 px.
+ *
+ * mobil="ansehen" (Standard, alle Konfiguratoren seit 19.08.2026): unter
+ * 900 px wird der Konfigurator gezeigt — die App schaltet intern in den
+ * Mobil-Modus nach dem Konzept des Schubladen-Organizers (public/konfig-
+ * mobil.js): Vollbild-3D, Leiste unten mit «Drehen / Bearbeiten», Preis,
+ * 🔗-Link an sich selbst, ⚙️ Menü = Bedienfeld als Bottom-Sheet. Alles geht,
+ * auch bestellen; der Rechner-Tipp kommt als Start-Meldung.
+ *
+ * mobil="hinweis" (Altlast): statt der App ein Hinweis «Am Computer öffnen»
+ * mit «Trotzdem hier öffnen» — für Apps ohne eigenen Mobil-Modus.
  *
  * Der ?v=-Stempel ist der Cache-Buster pro Deploy; Export-Schlüssel und
- * #k=-Konfigurations-Fragment werden clientseitig angehängt, damit die Seite
- * statisch bleiben kann.
- *
- * mobil="ansehen" (Organizer): unter 900 px wird das 3D trotzdem gezeigt —
- * die App schaltet intern in den Ansichts-Modus (drehen, Vorlagen, Preis,
- * Link an sich selbst senden); bearbeitet wird am Rechner weiter.
+ * #k=-/#c=-Konfigurations-Fragment werden clientseitig angehängt, damit die
+ * Seite statisch bleiben kann.
  */
 interface Props { app: string; titel: string; mobil?: 'hinweis' | 'ansehen' }
-const { app, titel, mobil = 'hinweis' } = Astro.props;
+const { app, titel, mobil = 'ansehen' } = Astro.props;
 const v = Date.now();
 ---
 <div class={`konfig-frame konfig-frame--${mobil}`}>
@@ -82,8 +85,8 @@ const v = Date.now();
     .mobil-hinweis { display: block; }
     .konfig-frame.zeig-trotzdem iframe { display: block; }
     .konfig-frame.zeig-trotzdem .mobil-hinweis { display: none; }
-    /* Modus "ansehen": 3D zeigen — die App schaltet selbst in den
-       Ansichts-Modus mit eigener Bedienleiste (Stufe B). */
+    /* Modus "ansehen": App zeigen — sie schaltet selbst in den Mobil-Modus
+       mit eigener Bedienleiste (konfig-mobil.js). */
     .konfig-frame--ansehen { padding: 0 10px 30px; }
     .konfig-frame--ansehen iframe { display: block; height: 82vh; min-height: 480px; }
     .konfig-frame--ansehen .mobil-hinweis { display: none; }

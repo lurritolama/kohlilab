@@ -110,7 +110,7 @@
   </div>
 
   <div class="grp"><h2>Bestellen</h2>
-    <div class="exp"><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
+    <div class="exp"><button id="teilen" class="ghost" title="Link zu diesem Schild kopieren — am anderen Gerät weitermachen">🔗 Teilen</button><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
     <div class="note">Legt dein Schild mit dem Live-Preis in den Warenkorb. Bezahlt wird bequem per QR-Rechnung nach der Bestellung.</div>
   </div>
 
@@ -135,6 +135,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mobilModus } from '/konfig-mobil.js';
+let mobil = null;      // Mobil-Modus (unter 900 px), wird unten vor resize() gesetzt
 
 // ---------- Konfiguration ----------
 // Beide Rollen (Platte / Druck) waehlen aus DERSELBEN Palette — damit ist
@@ -836,6 +838,8 @@ function preisAnzeigen(){
     (pi.n>1?` + ${pi.n-1} × ${f(pi.weitere)}`:'')+
     (pi.rab<1?` <span style="color:var(--acc2)">(Set-Rabatt −${Math.round((1-pi.rab)*100)} %)</span>`:'')+
     `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`;
+  if(mobil) mobil.setPreis(`Total CHF ${f(pi.total)}`);
+  hashSchreiben();
 }
 
 // ---------- Drag & Drop auf der Platte ----------
@@ -868,6 +872,7 @@ function pickMm(ev){
   return { x:hit.point.x, y:hit.point.y };
 }
 renderer.domElement.addEventListener('pointerdown', ev=>{
+  if(mobil && !mobil.bearbeiten()) return;          // Handy, Modus «Drehen»: 1 Finger = nur Kamera
   const p = pickMm(ev); if(!p) return;
   const el = elementAt(p.x, p.y);
   if(el){ drag = { el, dx:P[el+'X']-p.x, dy:P[el+'Y']-p.y }; controls.enabled=false; }
@@ -984,6 +989,9 @@ function bausteinUI(){
     d.appendChild(b);
   });
   sel.parentElement.appendChild(d);
+  sel.value = P.bausteinIdx===BAUSTEINE.length && !P.freitext ? -1 : P.bausteinIdx;
+  $('freitextWrap').style.display = P.bausteinIdx===BAUSTEINE.length && P.freitext ? 'block' : 'none';
+  $('freitext').value = P.freitext;
   $('freitext').addEventListener('input',()=>{ P.freitext=$('freitext').value; rebuild(); });
 }
 function farbUI(hostId, liste, key){
@@ -1044,6 +1052,44 @@ function modusUI(){
     const el=$(id); if(el) el.style.display = jet ? 'none' : '';
   }
 }
+// ---------- Teilen-Link (#k=) ----------
+// Der Stand (alle Werte in P ausser dem Logo — dessen Pixel sprengen jede URL)
+// steckt als Base64-JSON im #k=-Fragment der SEITEN-URL, wie beim Organizer.
+// Jede Aenderung schreibt ihn nach (replaceState): Link an sich selbst mailen,
+// am anderen Geraet weitermachen; auch ein Reload verliert nichts. Gelesen
+// wird synchron VOR dem UI-Aufbau, damit Knoepfe und Regler aus P entstehen.
+const b64u = (s)=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const b64uLesen = (s)=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+let hashTimer=null;
+function hashSchreiben(){
+  clearTimeout(hashTimer);
+  hashTimer=setTimeout(()=>{
+    try{
+      const o={ v:1, P:Object.assign({}, P, { logo:null }) };
+      (window.top||window).history.replaceState(null,'','#k=j'+b64u(JSON.stringify(o)));
+    }catch(e){}
+  },250);
+}
+function hashLesen(){
+  try{
+    const m2=((window.top||window).location.hash||location.hash).match(/#k=j(.+)/);
+    if(!m2) return false;
+    const o=JSON.parse(b64uLesen(m2[1]));
+    if(o.v!==1 || !o.P) return false;
+    for(const k of Object.keys(P)) if(k!=='logo' && k in o.P) P[k]=o.P[k];
+    return true;
+  }catch(e){ return false; }
+}
+async function linkTeilen(){
+  await new Promise(r=>setTimeout(r,300));               // ausstehendes hashSchreiben abwarten
+  const url=(window.top||window).location.href;
+  if(navigator.share){ try{ await navigator.share({title:'Mein QR-Schild — KohliLab', url}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  try{ await navigator.clipboard.writeText(url); const b=$('teilen'); b.textContent='✓ Link kopiert'; setTimeout(()=>{ b.textContent='🔗 Teilen'; },2200); }
+  catch(e){ prompt('Link zu deinem Schild:', url); }
+}
+hashLesen();
+$('teilen').addEventListener('click', linkTeilen);
+
 mkBtns('formBtns', FORMEN, 'form');
 mkBtns('aufbauBtns', AUFBAUTEN, 'aufbau');
 mkBtns('lochBtns', LOECHER, 'loecher');
@@ -1096,6 +1142,22 @@ $('cart').addEventListener('click', ()=>busy($('cart'), async ()=>{
 
 window.__geoPos = () => geomPos(currentGeo);   // Debug-Haken für Manifold-Checks
 window.__geoCol = () => geomCol(currentGeo);
+// ---------- Mobil-Modus ----------
+// Konzept 1:1 vom Schubladen-Organizer (konfig-mobil.js): Vollbild-3D,
+// Leiste unten mit «Drehen / Bearbeiten», Preis, 🔗, ⚙️ Menue = Bedienfeld
+// als Bottom-Sheet. Muss VOR resize() stehen (Leinwandgroesse).
+mobil = mobilModus({
+  view, controls, titel: 'QR-Schild', linkTeilen,
+  bearbeiten: {
+    tippDreh: '🔄 1 Finger drehen · 2 Finger zoomen',
+    tippEdit: '✏️ QR, Text oder Logo mit dem Finger auf der Platte verschieben · 2 Finger = zoomen',
+  },
+  tipps: [
+    '<b>🔄 Drehen</b> — 1 Finger dreht das Schild, 2 Finger zoomen.',
+    '<b>✏️ Bearbeiten</b> — QR-Code, Text und Logo mit dem Finger direkt auf der Platte verschieben.',
+    '<b>⚙️ Menü</b> — Form, Masse, QR-Inhalt, Text, Logo, Farben, Menge, Preis und <b>In den Warenkorb</b>.',
+  ],
+});
 function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 rebuild();

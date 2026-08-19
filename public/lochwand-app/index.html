@@ -171,8 +171,10 @@ import { PLATTEN, PLATTENFARBEN, loecher, rasterInfo, naechstesLoch,
 import { FAMILIEN, VORLAGEN, KATEGORIEN, familie, startParameter, parameterRastern, volumenMm3, DICHTE_G_CM3, drucklageMatrix, umriss, etikett, schild, schildFlach, setzeSchrift, schriftBereit, SCHRIFT_MIN, SCHRIFT_MAX } from './module.js';
 import { HAKEN_TIEFE } from './haken.js';
 import { wandPreis, modulAnteil, chf, PREIS } from './preis.js';
+import { mobilModus } from '/konfig-mobil.js';
 
 const $ = (id) => document.getElementById(id);
+let mobil = null;      // Mobil-Modus (unter 900 px), wird unten vor resize() gesetzt
 // TESTPHASE (Manolo, 18.08.2026): bis Drucke und Bestellablauf abgenommen
 // sind, traegt der Planer eine TEST-Marke und jede Warenkorb-Position
 // "TEST" im Titel — so ist eine Testbestellung im Admin und in der Mail
@@ -695,6 +697,7 @@ function aktualisiereListe() {
   const ta = textAngaben(zustand.module);
   const p = wandPreis(gramm, ta.texte, ta.schilder);
   $('preis').textContent = zustand.module.length ? chf(p.total) : 'CHF —';
+  if (mobil) mobil.setPreis(zustand.module.length ? `Total ${chf(p.total)}` : '');
   $('preisD').textContent = zustand.module.length ? `${zustand.module.length} Modul${zustand.module.length > 1 ? 'e' : ''} · ${p.gramm.toFixed(0)} g · Grund ${chf(p.grund)}` : '';
   $('ex3mf').disabled = !zustand.module.length;
   $('cart').disabled = !zustand.module.length;
@@ -750,10 +753,12 @@ function ansichtRan(id) {
   controls.update();
 }
 
+let tippStart = null;   // Mobil «Bearbeiten»: Tipp ohne Ziehen auf ein Modul oeffnet dessen Einstellungen
 renderer.domElement.addEventListener('pointerdown', (ev) => {
   // Zweiter Finger waehrend eines Modul-Zugs (Tablet): der Zug endet, die
   // Kamera bekommt die Finger — sonst blieben Pinch und Drehen tot.
   if (ev.pointerType === 'touch' && zieht != null) { ziehenEnde(); return; }
+  if (mobil && !mobil.bearbeiten()) return;          // Handy, Modus «Drehen»: 1 Finger = nur Kamera
   if (ev.button === 2) {
     const idR = unterMaus(ev);
     rechtsAufModul = idR;
@@ -765,6 +770,7 @@ renderer.domElement.addEventListener('pointerdown', (ev) => {
   if (id == null) return;
   merke();
   waehle(id); zieht = id; controls.enabled = false;
+  tippStart = { x: ev.clientX, y: ev.clientY, id };
   renderer.domElement.setPointerCapture(ev.pointerId);
   // Greifpunkt merken: das Modul soll unter der Maus bleiben, nicht mit dem
   // Anker unter die Maus springen (bei einer 200-mm-Wanne 100 mm Sprung).
@@ -786,7 +792,13 @@ renderer.domElement.addEventListener('pointermove', (ev) => {
   if (l && m && (l.reihe !== m.reihe || l.spalte !== m.spalte || l.brett !== m.brett)) { m.reihe = l.reihe; m.spalte = l.spalte; m.brett = l.brett; baueModulMesh(m); markiere(); aktualisiereListe(); baueDetail(m); }
 });
 function ziehenEnde(ev) { zieht = null; if (!(ev && ev.button === 2 && rechtsAufModul != null)) controls.enabled = true; }
-renderer.domElement.addEventListener('pointerup', ziehenEnde);
+renderer.domElement.addEventListener('pointerup', (ev) => {
+  // Handy, «Bearbeiten»: kurzer Tipp (kein Zug) auf ein Modul -> Bedienfeld
+  // bei dessen Einstellungen aufklappen (Ersatz fuer das Detail-Feld rechts).
+  if (mobil && tippStart && zieht === tippStart.id && Math.hypot(ev.clientX - tippStart.x, ev.clientY - tippStart.y) < 8) mobil.sheetAuf('detail');
+  tippStart = null;
+  ziehenEnde(ev);
+});
 renderer.domElement.addEventListener('pointercancel', ziehenEnde);
 addEventListener('pointerup', ziehenEnde);          // Maus ausserhalb losgelassen
 addEventListener('blur', ziehenEnde);               // Fenster verloren
@@ -972,6 +984,22 @@ function aktualisierePlatte(neuePlatte) {
   }
   zeichneAlle(); aktualisiereListe();
 }
+// ---------------------------------------------------------------- Mobil-Modus
+// Konzept 1:1 vom Schubladen-Organizer (konfig-mobil.js): Vollbild-3D,
+// Leiste unten mit «Drehen / Bearbeiten», Preis, 🔗, ⚙️ Menue = Bedienfeld
+// als Bottom-Sheet. Muss VOR resize() stehen (Leinwandgroesse).
+mobil = mobilModus({
+  view, controls, titel: 'Lochwand', linkTeilen,
+  bearbeiten: {
+    tippDreh: '🔄 1 Finger drehen · 2 Finger zoomen',
+    tippEdit: '✏️ Modul ziehen = versetzen · antippen = einstellen · 2 Finger = zoomen',
+  },
+  tipps: [
+    '<b>🔄 Drehen</b> — 1 Finger dreht die Wand, 2 Finger zoomen.',
+    '<b>✏️ Bearbeiten</b> — Modul mit dem Finger ziehen, es rastet auf dem nächsten Loch ein. Antippen öffnet seine Einstellungen (Masse, Farbe, Beschriftung, Entfernen).',
+    '<b>⚙️ Menü</b> — Platte, Module dazulegen, Vorlagen, Preis und <b>In den Warenkorb</b>.',
+  ],
+});
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 hashLesen().then((ok) => { aktualisierePlatte(true); if (ok) hud(); });

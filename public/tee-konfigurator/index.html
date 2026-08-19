@@ -204,6 +204,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mobilModus } from '/konfig-mobil.js';
+let mobil = null;      // Mobil-Modus (unter 900 px), wird unten vor resize() gesetzt
 
 const COLORS = [
   ['Schwarz', '#1c1c1c'], ['Weiss', '#eceff0'], ['Rot', '#d8332f'], ['Orange', '#ef7d1a'],
@@ -428,6 +430,7 @@ function rebuild() {
 
   const triCount = g => g.attributes.position.count / 3;
   updateStats(triCount(lower) + triCount(upper), signedVolume(lower) + signedVolume(upper));
+  hashSchreiben();
  } catch (err) {
   document.getElementById('badge').textContent = '⚠ Fehler – bitte Einstellung ändern';
   document.getElementById('badge').className = 'bad';
@@ -607,6 +610,7 @@ function refreshPreis() {
   const mv = $('mengeVal'); if (mv) mv.textContent = menge + ' Stück';
   const spEl = $('stueckPreis'); if (spEl) spEl.textContent = fmtChf(sp);
   const tpEl = $('totalPreis'); if (tpEl) tpEl.textContent = fmtChf(sp * menge);
+  if (mobil) mobil.setPreis(`${menge} Stk · ${fmtChf(sp * menge)}`);
 }
 function setMenge(v) {
   menge = Math.max(10, Math.round(v / 10) * 10);   // auf 10er runden, min 10
@@ -683,12 +687,24 @@ function configLink() {
   // Als #c=-Fragment: der KonfigFrame der Seite reicht es ans iframe weiter.
   return location.origin + '/golf-tees#c=' + btoa(encodeURIComponent(JSON.stringify(P)));
 }
-$('speichern').addEventListener('click', async () => {
+// Jede Aenderung schreibt den Stand als #c= in die SEITEN-URL (replaceState) —
+// wie beim Organizer: Link an sich selbst senden, am anderen Geraet
+// weitermachen; auch ein Reload verliert nichts.
+let hashTimer = null;
+function hashSchreiben() {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => {
+    try { (window.top || window).history.replaceState(null, '', '#c=' + btoa(encodeURIComponent(JSON.stringify(P)))); } catch (e) {}
+  }, 250);
+}
+async function linkTeilen() {
   const link = configLink(), hint = $('speichernHint');
+  if (navigator.share) { try { await navigator.share({ title: 'Mein Golf-Tee — KohliLab', url: link }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   try { await navigator.clipboard.writeText(link); hint.textContent = '✓ Link kopiert! Damit kommst du jederzeit zu diesem Design zurück – auch zum späteren Bestellen.'; }
   catch { hint.textContent = link; }
   hint.hidden = false;
-});
+}
+$('speichern').addEventListener('click', linkTeilen);
 
 // ----- „Diese Konfiguration bestellen" -> Druckdateien erzeugen, Entwurf ablegen, zur Bestellseite -----
 function blobBase64(blob) {
@@ -748,6 +764,20 @@ function syncControlsFromP() {
 })();
 
 // ---------- Resize & loop ----------
+// ---------- Mobil-Modus ----------
+// Konzept 1:1 vom Schubladen-Organizer (konfig-mobil.js): Vollbild-3D,
+// Leiste unten mit Preis, 🔗 und ⚙️ Menue = Bedienfeld als Bottom-Sheet.
+// Beim Tee gibt es im 3D nichts zu bearbeiten — darum kein Modus-Schalter.
+// Muss VOR resize() stehen (Leinwandgroesse).
+mobil = mobilModus({
+  view, controls, titel: 'Golf-Tee', linkTeilen,
+  bearbeiten: null,
+  statisch: '🔄 1 Finger drehen · 2 Finger zoomen',
+  tipps: [
+    '<b>🔄 Drehen</b> — 1 Finger dreht das Tee, 2 Finger zoomen.',
+    '<b>⚙️ Menü</b> — Grundform, Masse, Farben, Menge, Preis und <b>In den Warenkorb</b>.',
+  ],
+});
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 window.addEventListener('resize', resize);
 resize(); refreshLabels(); rebuild();
