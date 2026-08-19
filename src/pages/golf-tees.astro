@@ -1,0 +1,29 @@
+---
+// Golf-Tee-Konfigurator — uebernommen aus TeeLab (teelab.ch laeuft parallel
+// weiter; Manolo 19.08.2026: nur Tees, Name "Golf-Tees", Preise 1:1).
+// Die App liegt unter public/tee-konfigurator, der Warenkorb ist der
+// gemeinsame KCart, die Kasse kennt den Typ `tee`.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KonfigFrame from '../components/KonfigFrame.astro';
+---
+<BaseLayout
+  title="Golf-Tees — KohliLab"
+  description="Dein Golf-Tee millimetergenau: Länge, Kopfform, Schaft, Steckverbindung und Farben — 3D-gedruckt in Bühler AR, ab 10 Stück."
+>
+  <section class="block" style="padding-top:28px">
+    <h2>Golf-Tees</h2>
+    <p class="lead">
+      Stell Länge, Kopfform, Schaft und Farben nach deinem Geschmack ein — die
+      3D-Vorschau aktualisiert sich live. Wenn's passt, wähl die Menge (ab 10,
+      in 10er-Schritten) und leg die Konfiguration in den Warenkorb: Wir drucken
+      deine Tees zweiteilig gesteckt und schicken sie per Post.
+    </p>
+    <p class="hinweis-klein">Preis je Tee: 1.40 bei einer Farbe, 1.70 bei zwei, 2.— bei drei Farben (Auge immer drei).</p>
+  </section>
+  <KonfigFrame app="tee-konfigurator" titel="Golf-Tee-Konfigurator" mobil="hinweis" />
+</BaseLayout>
+
+<style>
+  .hinweis-klein { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; color: var(--muted);
+    border: 1px dashed var(--line); border-radius: 6px; padding: 8px 12px; display: inline-block; margin-top: 4px; }
+</style>

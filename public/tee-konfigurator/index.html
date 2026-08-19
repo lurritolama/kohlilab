@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KohliLab — Golf-Tee-Konfigurator</title>
+<style>
+  :root {
+    /* KohliLab-Farbschema (wie Organizer/Lochwand); uebernommen aus TeeLab am 19.08.2026 */
+    --bg: #141517; --panel: #1c1e21; --panel2: #232629; --line: #33373c;
+    --text: #e8e6e1; --muted: #9a9a93; --accent: #ffb347; --accent-d: #ff6b1a; --warn: #e2483d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: grid; grid-template-columns: 340px 1fr; height: 100vh; overflow: hidden;
+  }
+  #panel { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 40px; }
+  #panel h1 { font-size: 17px; margin: 0 0 2px; letter-spacing: .3px; }
+  #panel .sub { color: var(--muted); font-size: 12px; margin: 0 0 18px; }
+  .group { border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 6px; margin-bottom: 14px; background: var(--panel2); }
+  .group h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin: 0 0 10px; }
+  .row { margin-bottom: 12px; }
+  .row label { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 5px; }
+  .row label .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent-d); }
+  .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+  .seg button { flex: 1 1 auto; padding: 7px 6px; font-size: 12px; cursor: pointer; background: #17181b; color: var(--muted); border: 1px solid var(--line); border-radius: 7px; transition: .12s; }
+  .seg button.active { background: var(--accent-d); color: #141517; border-color: var(--accent-d); font-weight: 600; }
+  .presets { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+  .presets button { flex: 1 1 40px; padding: 6px 2px; font-size: 11px; background:#17181b; color:var(--muted); border:1px solid var(--line); border-radius:6px; cursor:pointer; }
+  .presets button:hover { border-color: var(--accent-d); color: var(--text); }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .swatches button { aspect-ratio: 1; border-radius: 6px; border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .swatches button.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,107,26,.3); }
+  .warn { display:none; background: rgba(245,158,11,.12); border:1px solid var(--warn); color:#fcd48a; font-size:11.5px; padding:8px 10px; border-radius:7px; margin-top:4px; }
+  .warn.show { display:block; }
+  .testnote { font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+  .check { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); cursor:pointer; }
+  .check input { accent-color: var(--accent-d); width:15px; height:15px; }
+  .btn-alt { width:100%; padding:9px; margin-top:6px; font-size:12.5px; cursor:pointer; border:1px solid var(--line); border-radius:8px; background:#17181b; color:var(--text); }
+  .btn-alt:hover { border-color: var(--accent-d); }
+  #view { position: relative; }
+  #stats { position:absolute; left:14px; bottom:12px; font-size:11px; color:var(--muted); background:rgba(20,21,23,.75); padding:6px 9px; border-radius:6px; font-variant-numeric:tabular-nums; }
+  #badge { position:absolute; right:14px; bottom:12px; font-size:11px; padding:6px 9px; border-radius:6px; background:rgba(20,21,23,.75); }
+  #badge.ok { color:#ffb347; } #badge.bad { color:#fca5a5; }
+  #hint { position:absolute; right:14px; top:12px; font-size:11px; color:var(--muted); }
+  #reset { position:absolute; left:14px; top:12px; font-size:11px; color:var(--muted); background:rgba(20,21,23,.75); border:1px solid var(--line); border-radius:6px; padding:5px 9px; cursor:pointer; }
+  .disabled { opacity:.35; pointer-events:none; }
+</style>
+</head>
+<body>
+  <div id="panel">
+    <h1>Golf-Tee-Konfigurator</h1>
+    <p class="sub">KohliLab · Stell dein Tee ein — wir drucken es zweiteilig, gesteckt</p>
+
+    <div class="group">
+      <h2>Grundform</h2>
+      <div class="row">
+        <label>Kopf-Typ</label>
+        <div class="seg" id="headType">
+          <button data-v="cup" class="active">Cup</button>
+          <button data-v="flat">Flat</button>
+          <button data-v="eye">Auge</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Länge <span class="val" id="lengthVal"></span></label>
+        <div class="presets" id="lengthPresets">
+          <button data-v="38">38</button><button data-v="54">54</button>
+          <button data-v="70">70</button><button data-v="83">83</button><button data-v="101">101</button>
+        </div>
+        <input type="range" id="length" min="30" max="101" step="1" value="70" />
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Kopf</h2>
+      <div class="row" id="cupDiaRow">
+        <label>Ø Auflage / Cup <span class="val" id="cupDiaVal"></span></label>
+        <input type="range" id="cupDia" min="10" max="18" step="0.5" value="12" />
+      </div>
+      <div class="row" id="cupDepthRow">
+        <label>Cup-Tiefe <span class="val" id="cupDepthVal"></span></label>
+        <input type="range" id="cupDepth" min="0.5" max="5" step="0.25" value="3" />
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Schaft & Spitze</h2>
+      <div class="row">
+        <label>Ø Schaft <span class="val" id="shaftDiaVal"></span></label>
+        <input type="range" id="shaftDia" min="4" max="8" step="0.25" value="5" />
+        <div class="warn" id="shaftWarn">Dünner Schaft: mehr Distanz, aber bruchgefährdet. Für Druck PETG/Nylon empfohlen.</div>
+      </div>
+      <div class="row">
+        <label>Schaftprofil</label>
+        <div class="seg" id="shaftProfile">
+          <button data-v="straight" class="active">Gerade</button>
+          <button data-v="taper">Konisch</button>
+          <button data-v="waisted">Tailliert</button>
+          <button data-v="stepped">Stufen</button>
+          <button data-v="belly">Bauch</button>
+          <button data-v="trumpet">Trompete</button>
+          <button data-v="doublebelly">Doppelbauch</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Spitze <span class="val" id="tipVal"></span></label>
+        <input type="range" id="tipSharp" min="0" max="1" step="0.05" value="0.5" />
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Würfel (Steckverbindung, gefast)</h2>
+      <div class="row">
+        <label>Würfel-Grösse <span class="val" id="cubeSizeVal"></span></label>
+        <input type="range" id="cubeSize" min="5" max="14" step="0.5" value="9" />
+      </div>
+      <div class="row">
+        <label>Würfel-Position <span class="val" id="cubePosVal"></span></label>
+        <input type="range" id="cubePos" min="0.28" max="0.68" step="0.01" value="0.45" />
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="explode" /> Teile getrennt anzeigen</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Farben (nach Höhe)</h2>
+      <div class="row" id="numColorsRow">
+        <label>Anzahl Farben</label>
+        <div class="seg" id="numColors">
+          <button data-v="1" class="active">1</button>
+          <button data-v="2">2</button>
+          <button data-v="3">3</button>
+        </div>
+      </div>
+      <div id="bandRows"></div>
+      <div class="row" id="stop1Row">
+        <label>Grenze 1 <span class="val" id="stop1Val"></span></label>
+        <input type="range" id="stop1" min="0.05" max="0.95" step="0.01" value="0.33" />
+      </div>
+      <div class="row" id="stop2Row">
+        <label>Grenze 2 <span class="val" id="stop2Val"></span></label>
+        <input type="range" id="stop2" min="0.05" max="0.95" step="0.01" value="0.66" />
+      </div>
+    </div>
+
+    <div class="group" id="bestellGroup">
+      <h2>Menge &amp; Preis</h2>
+      <div class="row">
+        <label>Menge <span class="val" id="mengeVal">10 Stück</span></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn-alt" type="button" id="mengeMinus" style="width:auto;padding:8px 12px;">−10</button>
+          <input type="number" id="mengeInput" min="10" step="10" value="10"
+                 style="flex:1;text-align:center;padding:8px;background:#0b0f0d;color:#eaf1ec;border:1px solid #2d3a32;border-radius:7px;font-size:15px;" />
+          <button class="btn-alt" type="button" id="mengePlus" style="width:auto;padding:8px 12px;">+10</button>
+        </div>
+      </div>
+      <div id="preisbox" style="margin:10px 0;padding:12px;background:#0b0f0d;border:1px solid #2d3a32;border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;color:#9fb0a5;font-size:13px;">
+          <span>Pro Stück</span><b id="stueckPreis" style="color:#eaf1ec;">–</b>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:17px;">
+          <span>Total</span><b id="totalPreis" style="color:#45f08a;">–</b>
+        </div>
+      </div>
+      <button id="bestellen" type="button"
+              style="width:100%;padding:13px;margin-bottom:8px;background:#45f08a;color:#08110b;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;">
+        🛒 In den Warenkorb
+      </button>
+      <button class="btn-alt" id="speichern" type="button">🔗 Konfiguration speichern</button>
+      <p class="testnote" id="speichernHint" hidden></p>
+    </div>
+
+    <div class="group" id="exportGroup" hidden>
+      <h2>Test-Export <span style="font-size:11px;color:#7a8a80;">(intern)</span></h2>
+      <button class="btn-alt" id="export3mf">3MF herunterladen (2 Teile)</button>
+      <button class="btn-alt" id="exportStl">STL herunterladen (2 Teile)</button>
+    </div>
+
+  </div>
+
+  <div id="view">
+    <button id="reset">Ansicht zurücksetzen</button>
+    <div id="hint">Ziehen zum Drehen · Scroll zum Zoomen</div>
+    <div id="stats"></div>
+    <div id="badge"></div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/three.module.js",
+    "three/addons/": "/vendor/three/addons/"
+  }
+}
+</script>
+<script src="/vendor/jszip.min.js"></script>
+<script src="/kcart.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const COLORS = [
+  ['Schwarz', '#1c1c1c'], ['Weiss', '#eceff0'], ['Rot', '#d8332f'], ['Orange', '#ef7d1a'],
+  ['Gelb', '#f5c518'], ['Grün', '#37a24a'], ['Blau', '#2f6fd6'], ['Pink', '#e5459b'],
+];
+
+const P = {
+  headType: 'cup', length: 70, cupDia: 12, cupDepth: 3,
+  shaftDia: 5, shaftProfile: 'straight', tipSharp: 0.5, cubeSize: 9, cubePos: 0.45,
+  explode: false,
+  numColors: 1, bandColors: ['#37a24a', '#2f6fd6', '#eceff0'], stop1: 0.33, stop2: 0.66,
+};
+
+// ---------- Scene ----------
+const view = document.getElementById('view');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0f0d);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 3000);
+const CAM_START = new THREE.Vector3(70, 60, 92);
+const TARGET = new THREE.Vector3(0, 33, 0);
+camera.position.copy(CAM_START);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });   // preserve: Vorschaubilder (Titelbild, Tests) per toDataURL
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.copy(TARGET);
+controls.minDistance = 40;
+controls.maxDistance = 220;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x445544, 1.1));
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(60, 120, 80); scene.add(key);   // folgt der Kamera (siehe Loop) -> Produkt immer klar ausgeleuchtet
+const fill = new THREE.DirectionalLight(0xbfefd0, 0.35); fill.position.set(-80, 30, -40); scene.add(fill);
+scene.add(new THREE.GridHelper(160, 16, 0x2d3a32, 0x1c2620));
+
+let lowerMesh = null, upperMesh = null, currentParts = { lower: null, upper: null };
+// DoubleSide: Slicing nutzt die Geometrie, nicht die Normalen -> Wicklung egal, Rendern bleibt korrekt.
+const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide });
+
+// ---------- Signed volume (mm^3) ----------
+function signedVolume(geo) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const p = g.attributes.position.array; let v = 0;
+  for (let i = 0; i < p.length; i += 9) {
+    const ax=p[i],ay=p[i+1],az=p[i+2], bx=p[i+3],by=p[i+4],bz=p[i+5], cx=p[i+6],cy=p[i+7],cz=p[i+8];
+    v += (ax*(by*cz-bz*cy) - ay*(bx*cz-bz*cx) + az*(bx*cy-by*cx)) / 6;
+  }
+  return Math.abs(v);
+}
+
+// ================= GARANTIERT wasserdichter Ring-Mesh-Bau (kein CSG) =================
+const NSEG = 32;
+const CIRCLE = Array.from({ length: NSEG }, (_, i) => { const a = i / NSEG * Math.PI * 2; return [Math.cos(a), Math.sin(a)]; });
+// gefaste Quadrat-Kontur (Halbmaß 1), Fasen-Anteil cr; NSEG Punkte
+function chamSquare(cr) {
+  const c = Math.max(0, Math.min(0.49, cr));
+  const cor = [[1,1-c],[1-c,1],[-(1-c),1],[-1,1-c],[-1,-(1-c)],[-(1-c),-1],[1-c,-1],[1,-(1-c)]];
+  const per = NSEG / 8, pts = [];
+  for (let k = 0; k < 8; k++) { const a = cor[k], b = cor[(k+1)%8]; for (let j = 0; j < per; j++) { const t = j/per; pts.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]); } }
+  return pts;
+}
+const ringC = (y, r) => CIRCLE.map(u => [u[0]*r, y, u[1]*r]);
+const ringS = (y, half, cr) => chamSquare(cr).map(u => [u[0]*half, y, u[1]*half]);
+
+function TeeMesh() {
+  const pos = [];
+  const tri = (a, b, c) => pos.push(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2]);
+  const quad = (a, b, c, d) => { tri(a,b,c); tri(a,c,d); };
+  // verbindet zwei gleich lange Ringe (geteilte Vertices -> dicht)
+  const strip = (r0, r1) => { for (let i = 0; i < NSEG; i++) { const j = (i+1)%NSEG; quad(r0[i], r0[j], r1[j], r1[i]); } };
+  const fan = (r, apex) => { for (let i = 0; i < NSEG; i++) { const j = (i+1)%NSEG; tri(r[i], r[j], apex); } };
+  const geometry = () => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
+    return g;
+  };
+  return { strip, fan, geometry };
+}
+
+function buildTee() {
+  const L = P.length, rs = P.shaftDia / 2;
+  const tipH = 2 + P.tipSharp * 6;
+  const rCup = P.cupDia / 2, headTopY = L;
+  const cupLike = P.headType === 'cup' || P.headType === 'eye';
+  const headBaseY = cupLike ? L - Math.max(P.cupDia * 0.35, P.cupDepth + 2) : L - 2.5;
+  const s = P.cubeSize, half = s / 2, cubeC = P.cubePos * L, cubeBottom = cubeC - half, cubeTop = cubeC + half;
+  const cham = Math.min(s * 0.10, 1.1), vcr = cham / half;
+  const sockHalf = Math.max(1.4, Math.min(half - 1, s * 0.25));   // Steckloch (halbe Kantenlänge)
+  const sockD = Math.min(s * 0.45, 6);                            // Lochtiefe
+  const scr = Math.min(0.18, 0.6 / sockHalf);                     // kleine Fase an Loch/Zapfen
+  const clr = 0.04, pegHalf = Math.max(0.8, sockHalf - clr);      // Zapfen mit bewährtem Passungsspiel 0.04
+  const pegLen = Math.max(1.2, sockD - 1.0);                      // Steck-Länge (mit Bodenspiel)
+  const shaftRad = (y) => { const t = Math.max(0, Math.min(1, (y - tipH) / (headBaseY - tipH)));
+    if (P.shaftProfile === 'taper') return rs * (0.8 + 0.35 * t);
+    if (P.shaftProfile === 'waisted') return rs * (1 - 0.28 * Math.sin(Math.PI * t));
+    if (P.shaftProfile === 'stepped') return rs * (1 + 0.12 * Math.abs(Math.sin(Math.PI * 4 * t)));   // geriffelt (4 sanfte Rippen, druckbar)
+    if (P.shaftProfile === 'belly') return rs * (1 + 0.5 * Math.sin(Math.PI * Math.pow(t, 0.7)));       // Baluster-Bauch (unten-mittig, schlanker Hals oben)
+    if (P.shaftProfile === 'trumpet') return rs * (1 + 0.45 * t * t);                                   // Trompete: sanfte Aufweitung zum Kopf (druckbar, <45°)
+    if (P.shaftProfile === 'doublebelly') return rs * (1 + 0.22 * Math.abs(Math.sin(Math.PI * 2 * t))); // zwei sanfte Bäuche
+    return rs; };
+
+  // ---------- UNTEN: Spitze + Schaft + gefaster Würfel + Steckloch ----------
+  const Lo = TeeMesh();
+  let prev = ringC(tipH, rs * 0.98);
+  Lo.fan(prev, [0, 0, 0]);                                        // Spitze
+  const nSh = Math.max(6, Math.round((cubeBottom - tipH) / 1.8));   // dichter für weiche Farbübergänge
+  for (let i = 1; i <= nSh; i++) { const y = tipH + (cubeBottom - tipH) * (i / nSh); const r = ringC(y, shaftRad(y)); Lo.strip(prev, r); prev = r; }
+  const sBotIn = ringS(cubeBottom, half - cham, vcr);
+  Lo.strip(prev, sBotIn);                                         // flacher Boden-Kranz Schaft->Würfelkante
+  const sBot = ringS(cubeBottom + cham, half, vcr);
+  Lo.strip(sBotIn, sBot);                                         // untere Fase
+  const sTop = ringS(cubeTop, half, vcr);
+  Lo.strip(sBot, sTop);                                           // Würfelkörper bis Oberkante VOLL (Klebefläche = flach aufs Bett, kein Überhang)
+  const sockOpen = ringS(cubeTop, sockHalf, scr);
+  Lo.strip(sTop, sockOpen);                                       // flacher Deckelkranz -> Lochrand
+  const sockBot = ringS(cubeTop - sockD, sockHalf, scr);
+  Lo.strip(sockOpen, sockBot);                                    // gerade Lochwände (Zapfen steckt hier)
+  Lo.fan(sockBot, [0, Math.max(cubeBottom + 0.6, cubeTop - sockD - sockHalf * 1.6), 0]);  // steile Spitze (~30° v. Senkrechten) statt flachem Boden -> selbsttragend (Loch zeigt beim Druck nach unten)
+  const lower = Lo.geometry();
+
+  // ---------- OBEN: Zapfen + Schaft + Cup/Flat ----------
+  const Up = TeeMesh();
+  const pegBottomY = cubeTop - pegLen;
+  const pBot = ringS(pegBottomY, pegHalf, scr);
+  const pTop = ringS(cubeTop, pegHalf, scr);
+  Up.fan(pBot, [0, pegBottomY, 0]);                               // Zapfenboden
+  Up.strip(pBot, pTop);                                           // Zapfenkörper
+  const shBot = ringC(cubeTop, shaftRad(cubeTop));
+  Up.strip(pTop, shBot);                                          // Kranz Zapfen -> Schaftunterkante
+  prev = shBot;
+  const nSh2 = Math.max(6, Math.round((headBaseY - cubeTop) / 1.8));   // dichter für weiche Farbübergänge
+  for (let i = 1; i <= nSh2; i++) { const y = cubeTop + (headBaseY - cubeTop) * (i / nSh2); const r = ringC(y, shaftRad(y)); Up.strip(prev, r); prev = r; }
+  if (cupLike) {
+    const rimY = headTopY;
+    const rimWall = Math.max(1.5, rCup * 0.3);                    // dicke, druckbare Auflage-Randbreite
+    const rBowl = Math.max(1.4, rCup - rimWall);                  // runde Mulden-Öffnung (Ball-Auflage bleibt IMMER rund)
+    if (P.headType === 'eye') {
+      // ---- Augenform: mandelförmiger Umriss aussen (breiter als hoch, spitze Ecken), runde Mulde innen ----
+      const ah = Math.max(rCup * 0.95, rBowl + 0.9), aw = ah * 1.6;   // Halb-Höhe / Halb-Breite
+      const cy = (ah*ah - aw*aw) / (2*ah), R = Math.hypot(aw, cy);
+      const eyeR = (c, s) => { const disc = Math.sqrt(Math.max(1e-9, R*R - cy*cy*c*c)); return (s >= 0 ? cy : -cy) * s + disc; };
+      const nFl = 5;
+      for (let i = 1; i <= nFl; i++) {                             // Flare morpht Kreis(Schaft) -> Auge(Rand)
+        const t = i / nFl, y = headBaseY + (rimY - headBaseY) * t, baseR = rs + (rCup - rs) * t;
+        const ring = CIRCLE.map(u => { const c = u[0], s = u[1], r = baseR * (1 - t) + eyeR(c, s) * t; return [c * r, y, s * r]; });
+        Up.strip(prev, ring); prev = ring;
+      }
+      const rimIn = ringC(rimY, rBowl); Up.strip(prev, rimIn); prev = rimIn;   // flacher Augen-Rand (Auge->runde Mulde)
+    } else {
+      const flare = ringC(headBaseY + (rimY - headBaseY) * 0.4, (rs + rCup) * 0.5); Up.strip(prev, flare); prev = flare;
+      const rimOut = ringC(rimY, rCup); Up.strip(prev, rimOut); prev = rimOut;
+      const rimIn = ringC(rimY, rBowl); Up.strip(prev, rimIn); prev = rimIn;
+    }
+    // runde Mulde (Ball-Auflage) + Boden — für Cup UND Auge identisch (Ball hält rund)
+    for (let i = 1; i <= 12; i++) { const a = i / 14; const r = ringC(rimY - P.cupDepth * Math.sin(a * Math.PI * 0.5), rBowl * Math.cos(a * Math.PI * 0.5)); Up.strip(prev, r); prev = r; }
+    Up.fan(prev, [0, rimY - P.cupDepth, 0]);
+  } else {
+    const rFlat = Math.max(rCup * 0.75, rs + 1.2);
+    const f1 = ringC(headBaseY + 1.0, rFlat); Up.strip(prev, f1);
+    const f2 = ringC(headTopY - 0.6, rFlat); Up.strip(f1, f2);
+    const f3 = ringC(headTopY, rFlat - 0.6); Up.strip(f2, f3);
+    Up.fan(f3, [0, headTopY, 0]);
+  }
+  const upper = Up.geometry();
+
+  return { lower, upper };
+}
+
+// ---------- Farb-Bänder nach Höhe (f: 0 = Spitze, 1 = Cup-Oberkante) ----------
+function bandIndexFor(f) {
+  if (P.numColors <= 1) return 0;
+  if (P.numColors === 2) return f < P.stop1 ? 0 : 1;
+  const lo = Math.min(P.stop1, P.stop2), hi = Math.max(P.stop1, P.stop2);
+  return f < lo ? 0 : (f < hi ? 1 : 2);
+}
+// setzt Vertex-Farbe (Vorschau) + Band-Index (Export) je Höhe
+function applyBandColors(geo) {
+  const pos = geo.attributes.position.array, n = pos.length / 3;
+  const col = new Float32Array(pos.length), bi = new Float32Array(n);
+  const c = new THREE.Color();
+  const eye = P.headType === 'eye';
+  const rc = P.cupDia / 2;
+  const rBowlE = Math.max(1.4, rc - Math.max(1.5, rc * 0.3));     // runde Mulde = Iris-Fläche
+  const eyeR0 = rBowlE * 0.40, eyeR1 = rBowlE * 1.02;             // Pupille / Iris-Grenzen
+  const cupBaseY = P.length - Math.max(P.cupDia * 0.35, P.cupDepth + 2);
+  for (let i = 0; i < n; i++) {
+    const x = pos[i*3], y = pos[i*3 + 1], z = pos[i*3 + 2];
+    let idx;
+    if (eye) {
+      // Auge: runde Mulde = Iris/Pupille (0=Pupille schwarz Mitte, 1=Iris blau), alles ausserhalb = Weiss(2, mandelförmig)
+      if (y >= cupBaseY - 0.01) { const r = Math.hypot(x, z); idx = r < eyeR0 ? 0 : (r < eyeR1 ? 1 : 2); }
+      else idx = 2;
+    } else {
+      idx = bandIndexFor(Math.max(0, Math.min(1, y / P.length)));
+    }
+    bi[i] = idx; c.set(P.bandColors[idx]);
+    col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('bandIdx', new THREE.BufferAttribute(bi, 1));
+}
+// nur Farben neu setzen (ohne Geometrie-Neubau) für Farb-/Grenzen-Regler
+function recolor() {
+  if (currentParts.lower) applyBandColors(currentParts.lower);
+  if (currentParts.upper) applyBandColors(currentParts.upper);
+}
+
+function rebuild() {
+ try {
+  const { lower, upper } = buildTee();
+  applyBandColors(lower); applyBandColors(upper);
+  currentParts = { lower, upper };
+
+  if (lowerMesh) { scene.remove(lowerMesh); lowerMesh.geometry.dispose(); }
+  if (upperMesh) { scene.remove(upperMesh); upperMesh.geometry.dispose(); }
+  lowerMesh = new THREE.Mesh(lower, material); scene.add(lowerMesh);
+  upperMesh = new THREE.Mesh(upper, material); scene.add(upperMesh);
+  upperMesh.position.y = P.explode ? 18 : 0;
+
+  const triCount = g => g.attributes.position.count / 3;
+  updateStats(triCount(lower) + triCount(upper), signedVolume(lower) + signedVolume(upper));
+ } catch (err) {
+  document.getElementById('badge').textContent = '⚠ Fehler – bitte Einstellung ändern';
+  document.getElementById('badge').className = 'bad';
+  console.error('rebuild error:', err);
+ }
+}
+
+function updateStats(tri, vol) {
+  document.getElementById('stats').textContent =
+    `L ${P.length} mm · Ø Schaft ${P.shaftDia} mm · ${P.headType} · 2 Teile · ${tri|0} △ · ~${(vol/1000).toFixed(2)} cm³`;
+  const badge = document.getElementById('badge');
+  const solid = vol > 1;
+  badge.textContent = solid ? '● 2 druckfertige Teile' : '● Geometrie prüfen';
+  badge.className = solid ? 'ok' : 'bad';
+}
+
+// ---------- Export: zwei Teile (unten + oben) als ZIP ----------
+// Druckfertig ausrichten: Modell ist Y-hoch. Slicer nutzen Z-hoch.
+//  unten: RotX(-90) -> Würfel(+Steckloch)-Fläche flach aufs Bett, Spitze zeigt hoch
+//  oben:  RotX(+90) -> flacher Zapfenboden aufs Bett, Cup zeigt hoch (Fase ~34° = stützenfrei)
+// Alle Dreiecke konsistent NACH AUSSEN wickeln (3MF verlangt das; STL ist egal).
+// Flood-Fill: Nachbarn müssen geteilte Kante gegenläufig durchlaufen; danach global
+// per Vorzeichen des Volumens nach aussen drehen.
+function orientConsistent(geo) {
+  const p = (geo.index ? geo.toNonIndexed() : geo).attributes.position.array;
+  const nt = p.length / 9;
+  const key = i => `${Math.round(p[i]*1000)},${Math.round(p[i+1]*1000)},${Math.round(p[i+2]*1000)}`;
+  const tk = [];
+  for (let t = 0; t < nt; t++) { const b = t*9; tk.push([key(b), key(b+3), key(b+6)]); }
+  const ue = (u,v) => u < v ? u+'|'+v : v+'|'+u;
+  const edgeMap = new Map();
+  for (let t = 0; t < nt; t++) { const k = tk[t]; for (let e = 0; e < 3; e++) { const em = ue(k[e], k[(e+1)%3]); (edgeMap.get(em) || edgeMap.set(em, []).get(em)).push(t); } }
+  const flip = t => { const b = t*9; for (let j = 0; j < 3; j++) { const tmp = p[b+3+j]; p[b+3+j] = p[b+6+j]; p[b+6+j] = tmp; } const s = tk[t][1]; tk[t][1] = tk[t][2]; tk[t][2] = s; };
+  const visited = new Array(nt).fill(false);
+  for (let seed = 0; seed < nt; seed++) {
+    if (visited[seed]) continue;
+    const stack = [seed]; visited[seed] = true;
+    while (stack.length) {
+      const t = stack.pop(), k = tk[t];
+      for (let e = 0; e < 3; e++) {
+        const u = k[e], v = k[(e+1)%3];
+        for (const nbt of (edgeMap.get(ue(u,v)) || [])) {
+          if (nbt === t || visited[nbt]) continue;
+          const nk = tk[nbt];
+          let same = false;
+          for (let ee = 0; ee < 3; ee++) if (nk[ee] === u && nk[(ee+1)%3] === v) { same = true; break; }
+          if (same) flip(nbt);
+          visited[nbt] = true; stack.push(nbt);
+        }
+      }
+    }
+  }
+  let vol = 0;
+  for (let i = 0; i < p.length; i += 9) { const ax=p[i],ay=p[i+1],az=p[i+2],bx=p[i+3],by=p[i+4],bz=p[i+5],cx=p[i+6],cy=p[i+7],cz=p[i+8]; vol += (ax*(by*cz-bz*cy)-ay*(bx*cz-bz*cx)+az*(bx*cy-by*cx))/6; }
+  if (vol < 0) for (let t = 0; t < nt; t++) flip(t);
+}
+
+function printOriented(geo, kind) {
+  const g = geo.clone();
+  g.applyMatrix4(new THREE.Matrix4().makeRotationX(kind === 'lower' ? -Math.PI / 2 : Math.PI / 2));
+  g.computeBoundingBox();
+  const bb = g.boundingBox;
+  // in den positiven Oktanten: Grundfläche auf Z=0, alles bei x,y >= 0 (3MF-konform, kein Slicer-Offset)
+  g.translate(-bb.min.x, -bb.min.y, -bb.min.z);
+  orientConsistent(g);   // konsistente Aussen-Wicklung -> 3MF druckt korrekt
+  return g;
+}
+function geomPos(geo) { const g = geo.index ? geo.toNonIndexed() : geo; return g.attributes.position.array; }
+function fileBase() { return `kohlilab_tee_${P.headType}_${P.length}mm`; }
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function stlString(geo) {
+  const p = geomPos(geo); let s = 'solid tee\n';
+  for (let i = 0; i < p.length; i += 9) {
+    s += 'facet normal 0 0 0\n outer loop\n';
+    for (let j = 0; j < 9; j += 3) s += `  vertex ${p[i+j].toFixed(4)} ${p[i+j+1].toFixed(4)} ${p[i+j+2].toFixed(4)}\n`;
+    s += ' endloop\nendfacet\n';
+  }
+  return s + 'endsolid tee\n';
+}
+const CT_3MF = `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+ <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+ <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+</Types>`;
+const RELS_3MF = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+</Relationships>`;
+function make3mfBlob(geo) {
+  // 3MF ist ein INDIZIERTES Format: Slicer verschweissen NICHT nach Position (anders als bei STL),
+  // sondern vertrauen den Indizes. Also Vertices deduplizieren und Dreiecke auf gemeinsame
+  // Indizes zeigen lassen — sonst ist jedes Dreieck lose und der Slicer sieht offenes Chaos.
+  const p = geomPos(geo);
+  const bAttr = geo.attributes.bandIdx;   // Band pro Vertex (überlebt printOriented)
+  const map = new Map(), verts = [], idx = [], vBand = [];
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i].toFixed(4), y = p[i+1].toFixed(4), z = p[i+2].toFixed(4);
+    const k = x + ',' + y + ',' + z;
+    let id = map.get(k);
+    if (id === undefined) { id = verts.length; verts.push(`<vertex x="${x}" y="${y}" z="${z}"/>`); map.set(k, id); vBand[id] = bAttr ? Math.round(bAttr.array[i/3]) : 0; }
+    idx.push(id);
+  }
+  const palette = P.bandColors.slice(0, Math.max(1, P.numColors));
+  let vertsXml = verts.join(''), tris = '';
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t], b = idx[t+1], c = idx[t+2];
+    if (a === b || b === c || a === c) continue;   // nach dem Verschweissen kollabierte Dreiecke überspringen
+    const bi = Math.min(palette.length - 1, vBand[a] || 0);
+    tris += `<triangle v1="${a}" v2="${b}" v3="${c}" p1="${bi}"/>`;
+  }
+  // 3MF-Material-Erweiterung (optional -> Slicer ohne Support ignorieren die Farbe, Geometrie bleibt gültig)
+  const colorGroup = `<m:colorgroup id="2">${palette.map(h => `<m:color color="${h.toUpperCase()}FF"/>`).join('')}</m:colorgroup>`;
+  const model = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">
+ <metadata name="Application">KohliLab Golf-Tee-Konfigurator</metadata>
+ <resources>${colorGroup}<object id="1" type="model" pid="2" pindex="0"><mesh>
+   <vertices>${vertsXml}</vertices><triangles>${tris}</triangles>
+ </mesh></object></resources>
+ <build><item objectid="1"/></build>
+</model>`;
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', CT_3MF);
+  zip.folder('_rels').file('.rels', RELS_3MF);
+  zip.folder('3D').file('3dmodel.model', model);
+  return zip.generateAsync({ type: 'blob', mimeType: 'model/3mf', compression: 'DEFLATE' });   // 3MF = normales ZIP, DEFLATE ist spec-konform
+}
+async function export3MF() {
+  const base = fileBase(), zip = new JSZip();
+  zip.file(base + '_1-unten.3mf', await make3mfBlob(printOriented(currentParts.lower, 'lower')));
+  zip.file(base + '_2-oben.3mf', await make3mfBlob(printOriented(currentParts.upper, 'upper')));
+  download(await zip.generateAsync({ type: 'blob' }), base + '_2teile.zip');
+}
+async function exportSTL() {
+  const base = fileBase(), zip = new JSZip();
+  zip.file(base + '_1-unten.stl', stlString(printOriented(currentParts.lower, 'lower')));
+  zip.file(base + '_2-oben.stl', stlString(printOriented(currentParts.upper, 'upper')));
+  download(await zip.generateAsync({ type: 'blob' }), base + '_2teile.zip');
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const fmt = {
+  lengthVal: () => P.length + ' mm', cupDiaVal: () => P.cupDia.toFixed(1) + ' mm',
+  cupDepthVal: () => P.cupDepth.toFixed(2) + ' mm', shaftDiaVal: () => P.shaftDia.toFixed(2) + ' mm',
+  tipVal: () => P.tipSharp < .33 ? 'stumpf' : P.tipSharp > .66 ? 'scharf' : 'mittel',
+  cubeSizeVal: () => P.cubeSize.toFixed(1) + ' mm',
+  cubePosVal: () => Math.round(P.cubePos * P.length) + ' mm',
+  stop1Val: () => Math.round(P.stop1 * P.length) + ' mm',
+  stop2Val: () => Math.round(P.stop2 * P.length) + ' mm',
+};
+function refreshLabels() {
+  for (const k in fmt) { const el = $(k); if (el) el.textContent = fmt[k](); }
+  $('shaftWarn').classList.toggle('show', P.shaftDia < 4);
+  $('cupDiaRow').classList.toggle('disabled', P.headType === 'flat');
+  $('cupDepthRow').classList.toggle('disabled', P.headType === 'flat');
+  const eye = P.headType === 'eye';
+  $('numColorsRow').style.display = eye ? 'none' : '';
+  $('stop1Row').style.display = (!eye && P.numColors >= 2) ? '' : 'none';
+  $('stop2Row').style.display = (!eye && P.numColors >= 3) ? '' : 'none';
+  refreshPreis();
+}
+
+// ----- Menge & Preis -----
+// Preisformel (fix mit dem Kunden): min(1.10 + 0.30 × Anzahl Farben, 2.00) pro Stück.
+// Das Auge setzt intern numColors=3 -> 2.00 (= Deckel). Menge in 10er-Schritten, min. 10.
+let menge = 10;
+// Preis wie bei TeeLab (Manolo 19.08.: 1:1 uebernehmen): 1.10 + 0.30 je Farbe, Deckel 2.00;
+// das Auge hat drei feste Farben. Der Server rechnet dasselbe nach (preis.ts teeStueckRappen).
+function stueckPreisRappen() { const farben = P.headType === 'eye' ? 3 : Math.max(1, P.numColors); return Math.min(110 + 30 * farben, 200); }
+function fmtChf(rappen) { return 'CHF ' + (rappen / 100).toFixed(2); }
+function refreshPreis() {
+  const sp = stueckPreisRappen();
+  const mv = $('mengeVal'); if (mv) mv.textContent = menge + ' Stück';
+  const spEl = $('stueckPreis'); if (spEl) spEl.textContent = fmtChf(sp);
+  const tpEl = $('totalPreis'); if (tpEl) tpEl.textContent = fmtChf(sp * menge);
+}
+function setMenge(v) {
+  menge = Math.max(10, Math.round(v / 10) * 10);   // auf 10er runden, min 10
+  const inp = $('mengeInput'); if (inp) inp.value = menge;
+  refreshPreis();
+}
+function bindRange(id, key, isFloat = true) {
+  $(id).addEventListener('input', e => { P[key] = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value); refreshLabels(); rebuild(); });
+}
+['cupDia','cupDepth','shaftDia','tipSharp','cubeSize','cubePos'].forEach(k => bindRange(k, k));
+bindRange('length', 'length', false);
+function bindSeg(id, key) {
+  $(id).querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    $(id).querySelectorAll('button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); P[key] = b.dataset.v; refreshLabels(); rebuild();
+  }));
+}
+bindSeg('shaftProfile', 'shaftProfile');
+$('headType').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  $('headType').querySelectorAll('button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); P.headType = b.dataset.v;
+  if (P.headType === 'eye') {
+    P.numColors = 3; P.bandColors = ['#1c1c1c', '#2f6fd6', '#eceff0'];   // Pupille schwarz, Iris blau, Weiss
+    $('numColors').querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.v === '3'));
+  }
+  buildBandRows(); refreshLabels(); rebuild();
+}));
+$('lengthPresets').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  P.length = parseInt(b.dataset.v); $('length').value = P.length; refreshLabels(); rebuild();
+}));
+
+// ----- Farb-Bänder UI -----
+const bandRowsEl = $('bandRows');
+const bandLabel = (i, n) => P.headType === 'eye' ? ['Pupille', 'Iris', 'Weiss'][i] : (n === 1 ? 'Ganzes Tee' : (n === 2 ? ['Unten', 'Oben'][i] : ['Unten', 'Mitte', 'Oben'][i]));
+function buildBandRows() {
+  bandRowsEl.innerHTML = '';
+  for (let i = 0; i < P.numColors; i++) {
+    const row = document.createElement('div'); row.className = 'row';
+    const lab = document.createElement('label'); lab.textContent = bandLabel(i, P.numColors); row.appendChild(lab);
+    const swz = document.createElement('div'); swz.className = 'swatches';
+    COLORS.forEach(([name, hex]) => {
+      const b = document.createElement('button'); b.style.background = hex; b.title = name;
+      if (hex === P.bandColors[i]) b.classList.add('active');
+      b.addEventListener('click', () => {
+        P.bandColors[i] = hex;
+        swz.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active'); recolor();
+      });
+      swz.appendChild(b);
+    });
+    row.appendChild(swz); bandRowsEl.appendChild(row);
+  }
+}
+$('numColors').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  $('numColors').querySelectorAll('button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); P.numColors = parseInt(b.dataset.v);
+  buildBandRows(); refreshLabels(); recolor();
+}));
+function bindRecolor(id, key) { $(id).addEventListener('input', e => { P[key] = parseFloat(e.target.value); refreshLabels(); recolor(); }); }
+bindRecolor('stop1', 'stop1'); bindRecolor('stop2', 'stop2');
+buildBandRows();
+
+$('explode').addEventListener('change', e => { P.explode = e.target.checked; if (upperMesh) upperMesh.position.y = P.explode ? 18 : 0; });
+$('reset').addEventListener('click', () => { camera.position.copy(CAM_START); controls.target.copy(TARGET); controls.update(); });
+
+// ----- Menge-Stepper -----
+$('mengeMinus').addEventListener('click', () => setMenge(menge - 10));
+$('mengePlus').addEventListener('click', () => setMenge(menge + 10));
+$('mengeInput').addEventListener('change', e => setMenge(parseInt(e.target.value) || 10));
+
+// ----- Konfiguration speichern -> teilbarer Link (konfigurieren ohne zu bestellen) -----
+function configLink() {
+  // Auf die eingebettete Seite zeigen (mit Header/Rahmen), nicht auf das nackte iframe.
+  // Als #c=-Fragment: der KonfigFrame der Seite reicht es ans iframe weiter.
+  return location.origin + '/golf-tees#c=' + btoa(encodeURIComponent(JSON.stringify(P)));
+}
+$('speichern').addEventListener('click', async () => {
+  const link = configLink(), hint = $('speichernHint');
+  try { await navigator.clipboard.writeText(link); hint.textContent = '✓ Link kopiert! Damit kommst du jederzeit zu diesem Design zurück – auch zum späteren Bestellen.'; }
+  catch { hint.textContent = link; }
+  hint.hidden = false;
+});
+
+// ----- „Diese Konfiguration bestellen" -> Druckdateien erzeugen, Entwurf ablegen, zur Bestellseite -----
+function blobBase64(blob) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+}
+$('bestellen').addEventListener('click', async () => {
+  const btn = $('bestellen'), alt = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Wird vorbereitet …';
+  try {
+    const untenBlob = await make3mfBlob(printOriented(currentParts.lower, 'lower'));
+    const obenBlob = await make3mfBlob(printOriented(currentParts.upper, 'upper'));
+    const kopfLabel = { cup: 'Cup', flat: 'Flat', eye: 'Auge' };
+    const farben = P.headType === 'eye' ? 3 : P.numColors;
+    // KohliLab-Warenkorb: gesamtRappen ist Pflicht (Warenkorb/Kasse summieren
+    // darueber); der Konfig-Link wandert in die Konfiguration, damit er die
+    // Kasse ueberlebt (die reicht nur typ/konfig/menge/dateien weiter).
+    await KCart.add({
+      typ: 'tee',
+      titel: `Golf-Tee · ${kopfLabel[P.headType] ?? P.headType} · ${P.length} mm · ${farben} Farbe${farben > 1 ? 'n' : ''} · ${menge} Stück`,
+      menge,
+      stueckRappen: stueckPreisRappen(),
+      gesamtRappen: stueckPreisRappen() * menge,
+      konfig: { headType: P.headType, numColors: farben, length: P.length, params: P, link: configLink() },
+      dateien: { unten: await blobBase64(untenBlob), oben: await blobBase64(obenBlob) },
+      konfigLink: configLink(),
+    });
+    (window.top || window).location.href = '/warenkorb';
+  } catch (e) {
+    console.error('[warenkorb]', e);
+    btn.disabled = false; btn.textContent = alt;
+    alert('Konnte die Konfiguration nicht in den Warenkorb legen. Bitte nochmal versuchen.');
+  }
+});
+
+// ----- Versteckter Test-Modus: ?test=1 blendet den Export ein (nur intern) -----
+if (new URLSearchParams(location.search).get('test') === '1') {
+  $('exportGroup').hidden = false;
+  $('export3mf').addEventListener('click', export3MF);
+  $('exportStl').addEventListener('click', exportSTL);
+}
+
+// ----- Konfiguration aus ?c=… wiederherstellen -----
+function syncControlsFromP() {
+  const setSeg = (id, val) => { const g = $(id); if (g) g.querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.v == String(val))); };
+  setSeg('headType', P.headType); setSeg('shaftProfile', P.shaftProfile); setSeg('numColors', P.numColors);
+  ['length','cupDia','cupDepth','shaftDia','tipSharp','cubeSize','cubePos','stop1','stop2'].forEach(k => { const el = $(k); if (el && P[k] != null) el.value = P[k]; });
+  const ex = $('explode'); if (ex) ex.checked = !!P.explode;
+  buildBandRows();
+}
+(function restoreConfig() {
+  // gespeicherte Konfiguration: ?c= (direkt) oder #c= (von der Seite durchgereicht)
+  const hash = ((window.top || window).location.hash || location.hash || '');
+  const c = new URLSearchParams(location.search).get('c') || (hash.indexOf('#c=') === 0 ? hash.slice(3) : null);
+  if (!c) return;
+  try { Object.assign(P, JSON.parse(decodeURIComponent(atob(c)))); syncControlsFromP(); }
+  catch (e) { console.warn('Konfig-Link ungültig', e); }
+})();
+
+// ---------- Resize & loop ----------
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', resize);
+resize(); refreshLabels(); rebuild();
+(function loop(){ requestAnimationFrame(loop); controls.update(); key.position.copy(camera.position); renderer.render(scene, camera); })();
+// Fuer Pruefungen und Vorschaubilder von aussen (wie __lochwand)
+window.__tee = { renderer, scene, camera, controls, P, rebuild, syncControlsFromP, key };
+</script>
+</body>
+</html>

@@ -49,7 +49,7 @@ const v = Date.now();
     if (s) src += '&export=' + encodeURIComponent(s);
     // gespeicherte Konfiguration (#k=...) ans iframe weiterreichen —
     // so laesst sich ein am Handy begonnener Stand am Rechner fortsetzen
-    if (location.hash.indexOf('#k=') === 0) src += location.hash;
+    if (location.hash.indexOf('#k=') === 0 || location.hash.indexOf('#c=') === 0) src += location.hash;   // #c= = Golf-Tee-Konfiguration
     if (f && src !== f.getAttribute('src')) f.src = src;
 
     // "Trotzdem öffnen" hebt die Sperre für diese Seite auf

@@ -14,7 +14,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { SHOP_ID, VERSANDARTEN, VERSANDART_IDS, LIEFERLAENDER, type VersandartId, type Lieferland } from '../../lib/config';
-import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen } from '../../lib/preis';
+import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen, teeStueckRappen, teeFarben, teeMengeGueltig } from '../../lib/preis';
 import { grammAus, farbAnzahl } from '../../lib/server/dreimf';
 import { getPaymentProvider } from '../../lib/payments';
 import { supabaseAdmin } from '../../lib/server/supabase-admin';
@@ -25,7 +25,9 @@ const ANKER: Record<string, string> = {
   organizer: 'c0111ab0-0000-4000-8000-000000000002',
   ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
   lochwand: 'c0111ab0-0000-4000-8000-000000000005',      // Ankerprodukt (SQL: lochwand-anker.sql)
+  tee: 'c0111ab0-0000-4000-8000-000000000006',           // Golf-Tee (SQL: 20260819_golf-tees.sql)
 };
+const TEE_KOPF: Record<string, string> = { cup: 'Cup', flat: 'Flat', eye: 'Auge' };
 const LOCHWAND_FAMILIEN: Record<string, string> = { haken: 'Haken', wanne: 'Wanne', halter: 'Halter', klemme: 'Klemme' };
 const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
 const WUNSCH_AUFPREIS_RAPPEN = 800;                  // Wunsch-Sujet: +CHF 8.— -> 20.— je Set (Machbarkeit wird geprüft)
@@ -72,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (posRoh.length > MAX_POSITIONEN) fehler.push(`Maximal ${MAX_POSITIONEN} Positionen pro Bestellung.`);
 
   // ---- Positionen validieren + Preise serverseitig aus dem 3MF -----------
-  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
+  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand' | 'tee'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
   const positionen: Pos[] = [];
   posRoh.forEach((p: any, i: number) => {
     const nr = i + 1;
@@ -130,6 +132,20 @@ export const POST: APIRoute = async ({ request }) => {
         const masse = konfig.masse ? `${konfig.masse}` : '';
         const titel = `Schubladen-Organizer${masse ? ` · ${masse} mm` : ''} · ${module} Teil${module > 1 ? 'e' : ''}`;
         positionen.push({ typ, konfig: { ...konfig, gramm: Math.round(gramm), module, hatText, zapfen, spezialFaecher, textFaecher, textMmUeber4 }, menge: 1, preis, titel, dateien: bufs });
+      } else if (typ === 'tee') {
+        // Golf-Tee (aus TeeLab): zwei Druckdateien (unten/oben), Stueckpreis aus
+        // Kopfform/Farben, Menge ab 10 in 10er-Schritten. `preis` ist der
+        // GESAMTpreis der Position (Stueck x Menge) — wie bei den anderen Typen.
+        const menge = Math.round(Number(p?.menge));
+        if (!teeMengeGueltig(menge) || menge > 500) { fehler.push(`Position ${nr}: Tee-Menge muss mindestens 10 sein, in 10er-Schritten (höchstens 500).`); return; }
+        const unten = buf(p?.dateien?.unten, `${nr}/unten`), oben = buf(p?.dateien?.oben, `${nr}/oben`);
+        const farben = teeFarben(konfig);
+        const stueck = teeStueckRappen(konfig);
+        const laenge = Number(konfig.length) || 0;
+        const titel = `Golf-Tee · ${TEE_KOPF[konfig.headType] ?? String(konfig.headType ?? '?')} · ${laenge} mm · ${farben} Farbe${farben > 1 ? 'n' : ''} · ${menge}×`;
+        const link = typeof konfig.link === 'string' ? konfig.link.slice(0, 2000) : (typeof p?.konfigLink === 'string' ? p.konfigLink.slice(0, 2000) : '');
+        positionen.push({ typ, konfig: { headType: konfig.headType, numColors: farben, length: laenge, params: konfig.params ?? null, link, stueckRappen: stueck }, menge, preis: stueck * menge, titel,
+          dateien: [{ name: `pos${nr}_tee_1-unten.3mf`, buf: unten }, { name: `pos${nr}_tee_2-oben.3mf`, buf: oben }] });
       } else if (typ === 'lochwand') {
         // Lochwand-Planer: ein Set (ganze Wand) oder ein einzelnes Modul —
         // in beiden Fällen EINE Position mit einer Druckdatei je Modul

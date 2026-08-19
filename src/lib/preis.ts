@@ -54,6 +54,25 @@ export function lochwandPreisRappen(o: { gramm: number; module: number; textModu
   return Math.max(1200, Math.ceil(roh / 50) * 50);
 }
 
+/**
+ * Golf-Tee (aus TeeLab uebernommen, Manolo 19.08.2026: Preise 1:1):
+ * Stueckpreis = min(1.10 + 0.30 x Farben, 2.00); das Auge hat drei feste
+ * Farben. Menge ab 10 in 10er-Schritten.
+ */
+export const TEE_MIN_MENGE = 10, TEE_MENGE_SCHRITT = 10;
+export function teeFarben(konfig: { headType?: string; numColors?: number }): number {
+  if (konfig.headType === 'eye') return 3;
+  const n = Number(konfig.numColors);
+  return Number.isFinite(n) ? Math.min(3, Math.max(1, Math.round(n))) : 1;
+}
+export function teeStueckRappen(konfig: { headType?: string; numColors?: number }): number {
+  return Math.min(110 + 30 * teeFarben(konfig), 200);
+}
+export function teeMengeGueltig(menge: unknown): menge is number {
+  const m = Number(menge);
+  return Number.isInteger(m) && m >= TEE_MIN_MENGE && m % TEE_MENGE_SCHRITT === 0;
+}
+
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
 export function organizerPreisRappen(o: {
   gramm: number; module: number; hatText: boolean;
