@@ -143,6 +143,7 @@
     <div class="row"><label title="Höhe der Fachwände — darf niedriger sein als die Schublade">Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
     <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.8" max="3" step="0.2"><span class="val" id="wandV"></span></div>
     <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
+    <div class="row"><label title="Rundet alle oberen Kanten der Wände ab — 0 = scharfe Kanten. Höchstens halbe Wandstärke.">Kanten oben</label><input type="range" id="kante" min="0" max="1.5" step="0.1"><span class="val" id="kanteV"></span></div>
   </div>
 
   <div class="grp"><h2>3 · Vorlage</h2>
@@ -296,6 +297,7 @@ const PREIS = {
 const P = {
   sb:400, st:300, sh:60, tol:1.5,
   eh:40, wand:1.8, boden:1.8,
+  kante:0,                       // Rundung der oberen Wandkanten (0 = scharf), max. halbe Wandstaerke
   farbe:'#c9cfd2',
 };
 
@@ -966,6 +968,39 @@ function organizerGeometrien(){
     if(t.axis==='x'){ for(const d of tief) xs.add(t.c+d); ys.add(t.m-tipHwG); ys.add(t.m+tipHwG); }
     else { for(const d of tief) ys.add(t.c+d); xs.add(t.m-tipHwG); xs.add(t.m+tipHwG); }
   }
+  // ---- Abgerundete Oberkanten (P.kante, Manolo 19.08.2026) ----
+  // Die Deckflaeche der Waende wird zum Hoehenfeld: d(p) = Abstand zum Rand
+  // des Wand-Grundrisses (Aussenkante oder Fachausschnitt); innerhalb von
+  // rK Abstand folgt die Hoehe dem Viertelkreis, tiefster Punkt kZ am Rand.
+  // Damit alle Flaechen buendig bleiben, werden die Stuetzstellen des
+  // Viertelkreises als GLOBALE Rasterlinien eingezogen — Boeden, Deckel,
+  // Seiten und Beschriftungs-Zips teilen sie dann automatisch.
+  const rK=Math.min(P.kante, P.wand/2), kZ=P.eh-rK;
+  const leafR=L.leaves.map(lf=>lf.r);
+  if(rK>0){
+    const K_OFF=[0.15,0.5,1.0];                        // Sehnenfehler < 0.06 mm
+    const bx=[L.x0, L.x0+L.W, ...leafR.flatMap(rc=>[rc.x0,rc.x1])];
+    const by=[L.y0, L.y0+L.D, ...leafR.flatMap(rc=>[rc.y0,rc.y1])];
+    for(const g of bx) for(const o of K_OFF) for(const s of [g+o*rK, g-o*rK])
+      if(s>L.x0+0.01 && s<L.x0+L.W-0.01) xs.add(s);
+    for(const g of by) for(const o of K_OFF) for(const s of [g+o*rK, g-o*rK])
+      if(s>L.y0+0.01 && s<L.y0+L.D-0.01) ys.add(s);
+  }
+  const dRand=(px,py)=>{
+    let d=Math.min(px-L.x0, L.x0+L.W-px, py-L.y0, L.y0+L.D-py);
+    for(const rc of leafR){
+      const dx=Math.max(rc.x0-px, px-rc.x1, 0), dy=Math.max(rc.y0-py, py-rc.y1, 0);
+      const dd=(dx>0&&dy>0)?Math.hypot(dx,dy):Math.max(dx,dy);
+      if(dd<d) d=dd;
+    }
+    return d;
+  };
+  const hK=(px,py)=>{
+    const dd=Math.max(0, Math.min(dRand(px,py), rK));
+    return kZ+Math.sqrt(Math.max(0, rK*rK-(rK-dd)*(rK-dd)));
+  };
+  const istWand=(zz)=>rK>0 && zz && zz.typ!=='k' && zz.zhi===P.eh;
+
   // Beinahe-Duplikate mergen (Float-Arithmetik): sonst entstehen Null-
   // Breite-Zellen -> deckungsgleiche Faces -> Mehrfach-Kanten im Mesh.
   const merge=arr=>{ const s=[...arr].sort((a,b)=>a-b), out=[];
@@ -1032,10 +1067,12 @@ function organizerGeometrien(){
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){
     const z=info[j*nx+i];
     if(z.mod<0) continue;
-    volMm3 += (X[i+1]-X[i])*(Y[j+1]-Y[j])*(z.zhi-z.zlo);
+    const zh = istWand(z) ? hK((X[i]+X[i+1])/2,(Y[j]+Y[j+1])/2) : z.zhi;
+    volMm3 += (X[i+1]-X[i])*(Y[j+1]-Y[j])*(zh-z.zlo);
   }
   const zSet=new Set();
   for(const z of info){ zSet.add(z.zlo); zSet.add(z.zhi); }
+  if(rK>0) zSet.add(kZ);
   const zB=(()=>{ const s=[...zSet].sort((a,b)=>a-b), out=[];
     for(const v of s){ if(!out.length || v-out[out.length-1]>0.004) out.push(v); } return out; })();
 
@@ -1051,13 +1088,34 @@ function organizerGeometrien(){
       const c=farbe(z);
       const xa=X[i],xb=X[i+1],ya=Y[j],yb=Y[j+1];
       quad([xa,ya,z.zlo],[xa,yb,z.zlo],[xb,yb,z.zlo],[xb,ya,z.zlo], cK);   // Unterseite (evtl. Taschendecke)
-      if(z.lbl<0)                                                          // Beschriftungs-Boxen: Deckel separat
-        quad([xa,ya,z.zhi],[xb,ya,z.zhi],[xb,yb,z.zhi],[xa,yb,z.zhi], c);  // Oberseite
+      if(z.lbl<0){                                                         // Beschriftungs-Boxen: Deckel separat
+        if(istWand(z)) quad([xa,ya,hK(xa,ya)],[xb,ya,hK(xb,ya)],[xb,yb,hK(xb,yb)],[xa,yb,hK(xa,yb)], c);   // Oberseite: Rundungs-Hoehenfeld
+        else quad([xa,ya,z.zhi],[xb,ya,z.zhi],[xb,yb,z.zhi],[xa,yb,z.zhi], c);   // Oberseite
+      }
       // Seiten: freiliegende Intervall-Teile (Ich minus Nachbar), in Lagen
       // an den globalen Höhenstufen geschnitten -> alle Kanten fluchten
       // (sonst T-Junctions, z.B. Taschendecke vs. voller Boden am Schnitt).
       const lagen=(l,h)=>{ const out=[]; for(let k=0;k<zB.length-1;k++){ const s=Math.max(l,zB[k]), e=Math.min(h,zB[k+1]); if(e-s>1e-6) out.push([s,e]); } return out; };
       const seite=(nz, a, b)=>{
+        if(istWand(z)){
+          // Wand mit gerundeter Oberkante: Nachbar-Wand derselben Platte ->
+          // die Deckflaeche laeuft durch, keine Naht. Sonst: senkrecht bis
+          // kZ (in Lagen, wie gehabt), darueber ein Trapez bis zur Rundung —
+          // an der Grundriss-Kante ist hK dort exakt kZ, das Trapez entfaellt.
+          if(nz && istWand(nz)) return;
+          const teile = !nz ? [[z.zlo,kZ]] : (()=>{
+            const out=[];
+            if(z.zlo<nz.zlo) out.push([z.zlo, Math.min(kZ,nz.zlo)]);
+            if(kZ>nz.zhi) out.push([Math.max(z.zlo,nz.zhi), kZ]);
+            return out;
+          })();
+          for(const [l,h] of teile) for(const [l2,h2] of lagen(l,h))
+            quad([a[0],a[1],l2],[b[0],b[1],l2],[b[0],b[1],h2],[a[0],a[1],h2], c);
+          const hA=hK(a[0],a[1]), hB=hK(b[0],b[1]);
+          if(hA>kZ+1e-6 || hB>kZ+1e-6)
+            quad([a[0],a[1],kZ],[b[0],b[1],kZ],[b[0],b[1],hB],[a[0],a[1],hA], c);
+          return;
+        }
         const teile = !nz ? [[z.zlo,z.zhi]] : (()=>{
           const out=[];
           if(z.zlo<nz.zlo) out.push([z.zlo, Math.min(z.zhi,nz.zlo)]);
@@ -1242,7 +1300,7 @@ function baueLade(){
 }
 
 function rebuild(){
-  P.eh=Math.min(P.eh, P.sh); syncUI(); syncTopbar();
+  P.eh=Math.min(P.eh, P.sh); P.kante=Math.min(P.kante, P.wand/2); syncUI(); syncTopbar();
   if(grp){ scene.remove(grp); grp.traverse(o=>o.geometry&&o.geometry.dispose()); }
   aktuelle=organizerGeometrien();
   grp=new THREE.Group();
@@ -1859,7 +1917,8 @@ const $=id=>document.getElementById(id);
 function slider(id,key){ $(id).value=P[key]; $(id).addEventListener('input',()=>{ P[key]=parseFloat($(id).value); rebuild(); }); }
 function syncUI(){
   $('eh').max=Math.min(120,P.sh);
-  for(const [id,key,einh] of [['sb','sb',' mm'],['st','st',' mm'],['sh','sh',' mm'],['tol','tol',' mm'],['eh','eh',' mm'],['wand','wand',' mm'],['boden','boden',' mm']]){
+  $('kante').max=(P.wand/2).toFixed(1);
+  for(const [id,key,einh] of [['sb','sb',' mm'],['st','st',' mm'],['sh','sh',' mm'],['tol','tol',' mm'],['eh','eh',' mm'],['wand','wand',' mm'],['boden','boden',' mm'],['kante','kante',' mm']]){
     if(parseFloat($(id).value)!==P[key]) $(id).value=P[key];
     $(id+'V').textContent=P[key]+einh;
   }
@@ -1875,7 +1934,7 @@ function farbUI(hostId,key){
   });
 }
 slider('sb','sb'); slider('st','st'); slider('sh','sh'); slider('tol','tol');
-slider('eh','eh'); slider('wand','wand'); slider('boden','boden');
+slider('eh','eh'); slider('wand','wand'); slider('boden','boden'); slider('kante','kante');
 
 // Zahl anklicken -> eintippen. Die Regler springen grob (und frueher in
 // 5-mm-Schritten): wer 438 mm gemessen hat, konnte sein Mass gar nicht
@@ -2137,7 +2196,7 @@ async function inWarenkorb(){
   await cart.add({
     typ:'organizer', titel:`Schubladen-Organizer · ${P.sb}×${P.st}×${P.eh} mm · ${n} Teil${n>1?'e':''}`,
     menge:1, gesamtRappen:rappen, stueckRappen:rappen,
-    konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, faecher:L.leaves.length,
+    konfig:{ masse:`${P.sb}×${P.st}×${P.eh}`, module:n, hatText, tol:P.tol, wand:P.wand, boden:P.boden, kante:P.kante, faecher:L.leaves.length,
              zapfen:a.zapfen, spezialFaecher:a.spezialFaecher,
              textFaecher, textMmUeber4:+textMmUeber4.toFixed(1),
              ...(a.stifte?{ steckstifte:a.stifte.gesamt, ersatzstifte:a.stifte.ersatz }:{}) },
@@ -2164,7 +2223,7 @@ const MOBIL = (() => { try { return (window.top.innerWidth || innerWidth) < 900;
 const b64u = (bytes)=>{ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
   return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
 const b64uLesen = (s)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
-function konfigObjekt(){ return { v:1, P:{sb:P.sb,st:P.st,sh:P.sh,spiel:P.spiel,eh:P.eh,wand:P.wand,boden:P.boden,farbe:P.farbe}, tree }; }
+function konfigObjekt(){ return { v:1, P:{sb:P.sb,st:P.st,sh:P.sh,tol:P.tol,eh:P.eh,wand:P.wand,boden:P.boden,kante:P.kante,farbe:P.farbe}, tree }; }
 let hashTimer=null;
 function hashSchreiben(){
   clearTimeout(hashTimer);
