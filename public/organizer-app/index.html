@@ -19,10 +19,6 @@
   .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
   .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
   /* "Erweitert" als eingeklappte Gruppe — der summary ist wie ein h2 gestylt */
-  .erwGrp summary{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;cursor:pointer;list-style:none}
-  .erwGrp summary::before{content:'▸ ';color:var(--mut)}
-  .erwGrp[open] summary{margin-bottom:9px}
-  .erwGrp[open] summary::before{content:'▾ '}
   /* Panel-Zahlen sind anklickbar (eintippen) — gleiche Optik wie die
      editierbaren Masszahlen im 3D-Bild */
   .val.tippbar{cursor:text;text-decoration:underline dotted rgba(255,107,26,.55);text-underline-offset:2px}
@@ -131,10 +127,10 @@
   <h1>SCHUBLADEN-<b>ORGANIZER</b></h1>
   <div class="sub">nach Mass · KohliLab · 3D-gedruckt</div>
 
-<!-- Reihenfolge nach dem UX-Durchgang vom 13.08.2026: Masse -> Vorlage ->
-     Faecher -> Farbe. Wandhoehe/Wandstaerke/Boden sind Expertendetails, die
-     kaum jemand anfasst — sie stecken eingeklappt unter "Erweitert", statt
-     als Gruppe 2 jeden Neuling auszubremsen. -->
+<!-- Reihenfolge nach dem UX-Durchgang vom 13.08.2026: Masse -> Einsatz ->
+     Vorlage -> Faecher -> Farbe. Wandhoehe/Wandstaerke/Boden steckten kurz
+     eingeklappt unter "Erweitert" — zurueckgebaut am 19.08.2026, Manolo:
+     "hoehe, dicke usw muss konfigurierbar sein im menuband". -->
   <div class="grp"><h2>1 · Deine Schublade (Innenmass)</h2>
     <div class="row"><label>Breite</label><input type="range" id="sb" min="90" max="800" step="1"><span class="val" id="sbV"></span></div>
     <div class="row"><label>Tiefe</label><input type="range" id="st" min="90" max="600" step="1"><span class="val" id="stV"></span></div>
@@ -143,33 +139,32 @@
     <div class="note"><b>Zahl anklicken und eintippen</b> — auf den Millimeter genau, der Regler ist fürs Grobe.</div>
   </div>
 
-  <div class="grp"><h2>2 · Vorlage</h2>
+  <div class="grp"><h2>2 · Einsatz</h2>
+    <div class="row"><label title="Höhe der Fachwände — darf niedriger sein als die Schublade">Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
+    <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.8" max="3" step="0.2"><span class="val" id="wandV"></span></div>
+    <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
+  </div>
+
+  <div class="grp"><h2>3 · Vorlage</h2>
     <div class="btns" id="vorlagen"></div>
     <div class="note">Vorlagen sind Startpunkte — danach frei umbauen.</div>
   </div>
 
-  <div class="grp"><h2>3 · Fächer</h2>
+  <div class="grp"><h2>4 · Fächer</h2>
     <div class="note" style="margin-top:0">In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Löschen, <b>Wand ziehen</b> zum Verschieben. Oben links: Draufsicht, Masse, Rückgängig.</div>
   </div>
 
-  <div class="grp"><h2>4 · Spezial-Einsätze</h2>
+  <div class="grp"><h2>5 · Spezial-Einsätze</h2>
     <div class="note" style="margin-top:0">Fertige Innenleben für einzelne Fächer. So geht's: <b>Fach in der Vorschau anklicken</b> → <b>„▦ Spezial-Einsatz"</b> wählen — dort steht auch, ob das Fach gross genug ist. Wieder weg: gleiches Menü → „Einsatz entfernen".</div>
     <div id="einsatzListe"></div>
   </div>
 
-  <div class="grp"><h2>5 · Farbe</h2>
+  <div class="grp"><h2>6 · Farbe</h2>
     <div class="feld"><label>Organizer (eine Druckfarbe)</label><div class="sw" id="swFarbe"></div></div>
     <div class="note">Der Organizer wird einfarbig gedruckt. Optional: Fächer über das Fach-Menü <b>beschriften</b> — die Schrift liegt bündig und farbig auf der Grundplatte.</div>
   </div>
 
-  <details class="grp erwGrp" id="erweitert">
-    <summary>Erweitert — Wandhöhe, Wandstärke, Boden</summary>
-    <div class="row"><label>Wandhöhe</label><input type="range" id="eh" min="20" max="120" step="2"><span class="val" id="ehV"></span></div>
-    <div class="row"><label>Wandstärke</label><input type="range" id="wand" min="1.8" max="3" step="0.2"><span class="val" id="wandV"></span></div>
-    <div class="row"><label>Boden</label><input type="range" id="boden" min="1.2" max="3" step="0.2"><span class="val" id="bodenV"></span></div>
-  </details>
-
-  <div class="grp"><h2>6 · Preis</h2>
+  <div class="grp"><h2>7 · Preis</h2>
     <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
     <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.50 + Zuschläge. In den Druckkosten stecken 8 % Reserve für misslungene Drucke. Versand separat.</div>
   </div>
@@ -2161,7 +2156,11 @@ addEventListener('resize',resize); resize();
 // der SEITEN-URL. Jede Änderung schreibt ihn nach (replaceState) — damit ist
 // der Link immer aktuell: an sich selbst senden, am anderen Gerät öffnen,
 // nahtlos weitermachen. Auch ein Browser-Reload verliert nichts mehr.
-const MOBIL = matchMedia('(max-width: 899px)').matches;
+// Breite des OBERSTEN Fensters, nicht des iframes: das iframe ist beim ersten
+// Skriptlauf u.U. noch 300 px breit (Standardmass, bevor das Eltern-CSS
+// greift) — dann startete am Desktop faelschlich die Smartphone-Ansicht
+// (Manolo 19.08.2026); Neuladen "half" nur, weil das CSS dann gecacht war.
+const MOBIL = (() => { try { return (window.top.innerWidth || innerWidth) < 900; } catch (e) { return innerWidth < 900; } })();
 const b64u = (bytes)=>{ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null, bytes.subarray(i,i+0x8000));
   return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
 const b64uLesen = (s)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));

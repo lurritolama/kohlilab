@@ -20,7 +20,13 @@
 // die Leinwand mit der Groesse des Desktop-Layouts (schwarzes Bild).
 // Erwartet im Dokument: #view (3D) und #panel (Bedienfeld).
 
-export const MOBIL = matchMedia('(max-width: 899px)').matches;
+// Massgeblich ist die Breite des OBERSTEN Fensters: das iframe selbst ist
+// beim ersten Skriptlauf u.U. noch 300 px breit (Standardmass, bevor das
+// Eltern-CSS greift) — matchMedia hier drin startete dann am Desktop
+// faelschlich die Smartphone-Ansicht (Manolo 19.08.2026); Neuladen "half",
+// weil das CSS dann aus dem Cache sofort da war.
+const KM_BREITE = (() => { try { return window.top.innerWidth || innerWidth; } catch (e) { return innerWidth; } })();
+export const MOBIL = KM_BREITE < 900;
 
 const CSS = `
 .mobil #view{ position:fixed; inset:0 0 var(--mb-h,112px) 0; width:100%; height:auto; }
