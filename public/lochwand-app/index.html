@@ -480,7 +480,7 @@ function zeigeVorlagen() {
     const f = familie(v.familie);
     b.innerHTML = `${v.name}<small>${f.name} · ${v.kurz}</small>`;
     b.title = 'Vorlage — danach frei anpassbar';
-    b.addEventListener('click', () => modulDazu(v.familie, { params: parameterRastern(f, { ...startParameter(f), ...v.params }), farbe: PALETTE[5] }));
+    b.addEventListener('click', () => modulDazu(v.familie, { params: parameterRastern(f, { ...startParameter(f), ...v.params }), farbe: PALETTE[5], text: v.text || '' }));
     box.appendChild(b);
   }
   $('katTabs').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.kat === aktiveKategorie));
@@ -515,7 +515,8 @@ function modulDazu(famId, vorlage) {
   const params = vorlage ? { ...vorlage.params } : startParameter(f);
   const l = freiesLoch(famId, params);
   const m = { id: naechsteId++, familie: famId, params,
-              reihe: l.reihe, spalte: l.spalte, brett: l.brett, farbe: vorlage ? vorlage.farbe : PALETTE[5] };
+              reihe: l.reihe, spalte: l.spalte, brett: l.brett, farbe: vorlage ? vorlage.farbe : PALETTE[5],
+              text: (vorlage && vorlage.text) || '' };      // Vorlagen duerfen einen Beispieltext mitbringen (Kabel-Schlaufe)
   zustand.module.push(m);
   baueModulMesh(m);
   waehle(m.id);
@@ -577,7 +578,7 @@ function baueDetail(m) {
     if (!schriftBereit()) { tHin.textContent = 'Schrift lädt …'; return; }
     artBox.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.art === textArtVon(m)));
     const et = etikettVon(m), sc = schildVon(m);
-    if (sc) tHin.textContent = `Tafel ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes flaches Druckteil in Modulfarbe, wird von oben in den Tafelhalter am Modul geschoben (${f.id === 'wanne' ? 'Front' : 'Rückwand'}); zum Wechseln herausziehen. + ${chf(PREIS.schild)}`;
+    if (sc) tHin.textContent = `Tafel ${sc.breite.toFixed(0)} × ${sc.hoehe.toFixed(0)} mm, Schrift ${sc.groesse} mm — eigenes flaches Druckteil in Modulfarbe, wird von oben in den Tafelhalter am Modul geschoben (${f.id === 'wanne' || f.id === 'kabel' ? 'Front' : 'Rückwand'})${f.id === 'kabel' ? ', Text quer — von unten nach oben lesbar' : ''}; zum Wechseln herausziehen. + ${chf(PREIS.schild)}`;
     else if (et) tHin.textContent = `Bündig im Material, ${et.groesse} mm hoch — ${ARTNAME.ebene}. + ${chf(PREIS.textJeModul + Math.max(0, et.groesse - 4) * PREIS.textJeMm)}`;
     else tHin.textContent = `Passt nicht (Schrift mindestens ${SCHRIFT_MIN} mm) — kürzer schreiben oder das Modul grösser machen.`;
   };

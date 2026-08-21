@@ -222,8 +222,8 @@ function kontur(ax0, ax1, sT, rr, einzug, kerben = [], sStart = null) {
  * rotateX(-90 Grad): (x, s, e) -> (x, e, -s) — eine echte Drehung, keine
  * Spiegelung; die Windung bleibt, wie ExtrudeGeometry sie liefert.
  */
-function extrudiert(shape, tiefeE, yStart) {
-  const g = new THREE.ExtrudeGeometry(shape, { depth: tiefeE, bevelEnabled: false, curveSegments: 10 });
+function extrudiert(shape, tiefeE, yStart, seg = 10) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth: tiefeE, bevelEnabled: false, curveSegments: seg });
   g.rotateX(-Math.PI / 2);
   g.translate(0, yStart, 0);
   return g;
@@ -408,6 +408,116 @@ const WANNE = {
 
     // Haken: einer je Loch, oben, Halsunterkante bei y=0; dx nach rechts
     // = Modul -x.
+    for (const h of this.haken(p)) {
+      const hg = hakenGeometrie();
+      hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
+      teile.push(hg);
+    }
+    return teile;
+  },
+};
+
+
+// ---------------------------------------------------------------- Familie: Ablage
+//
+// Regalboden (Manolo 19.08.2026: "ablage und becher bauen"): ein Brett fuer
+// alles, was STEHT — Flaschen, Dosen, Deko, Ersatzteile. Die groesste
+// Luecke der Bibliothek: bisher war nichts eine offene Flaeche. Breiter als
+// alles Bisherige (bis 7 Loecher = 280 mm; mehr traegt der H2D-Bauraum mit
+// zwei Duesen nicht). Optional eine AUFKANTE rundum (niedriger Rand als
+// Ring auf dem Brett), damit Rundes nicht wegrollt — der Ring versteift
+// das Brett zugleich wie ein Kastenprofil.
+//
+// AUFBAU wie beim Halter: Rueckwand 36 hoch, Brett an ihrer UNTERKANTE
+// (Drucklage stehend, Brett auf dem Bett — hoeher ginge nicht, die
+// Unterseite waere ein Ueberhang). Aussen je eine Wange als Versteifung;
+// die Brettdicke ist waehlbar (Biegesteifigkeit waechst mit der dritten
+// Potenz — tiefe Ablagen mit 8-10 mm bestellen).
+const ABLAGE = {
+  id: 'ablage',
+  name: 'Ablage',
+  kurz: 'Regalboden mit Rand — Flaschen, Dosen, Deko',
+  drucklage: 'stehend',
+  RUECKWAND_HOEHE: 36,   // wie Halter: Hakenzone + Platz fuer die Einschub-Tafel
+  AUFKANTE: 2.0,         // Wandstaerke des Rand-Rings
+  parameter: {
+    breite:  { name: 'Breite',   min: 2,  max: 7,   schritt: 1,  einheit: 'Löcher', start: 4 },
+    tiefe:   { name: 'Tiefe',    min: 40, max: 160, schritt: 10, einheit: 'mm', start: 100 },
+    dicke:   { name: 'Brettdicke', min: 5, max: 15, schritt: 1,  einheit: 'mm', start: 6 },
+    rand:    { name: 'Aufkante', min: 0,  max: 15,  schritt: 1,  einheit: 'mm', start: 6 },
+    rundung: { name: 'Rundung',  min: 0,  max: 15,  schritt: 1,  einheit: 'mm', start: 4 },
+    tafel:   { name: 'Tafelhalter', min: 0, max: 1, schritt: 1, einheit: '', start: 0, schalter: true, versteckt: true },
+  },
+  masse(p) {
+    const breiteMm = p.breite * RASTER;
+    // Aufkante ueber 12 schiebt die Rueckwand mit hoch — die Tafelzone
+    // zwischen Aufkante und Hakenzone bleibt so immer gleich gross.
+    const hoehe = this.RUECKWAND_HOEHE + Math.max(0, p.rand - 12);
+    return { breiteMm, tiefe: p.tiefe, hoehe, yUnten: HALS_HOEHE - hoehe, dicke: p.dicke };
+  },
+  haken(p) { return Array.from({ length: p.breite }, (_, i) => ({ dx: i, dy: 0 })); },
+  stuetzen(p) { return abbrechstuetzen(this.haken(p), this.masse(p).yUnten); },
+  /** SCHILD: Rueckwand, zwischen Wange/Aufkante und Hakenzone. */
+  schildflaeche(p) {
+    const { breiteMm, yUnten, dicke } = this.masse(p);
+    const yA = yUnten + dicke + Math.max(12, p.rand) + 1, yB = HALS_HOEHE - 1.5;
+    const breite = breiteMm - 6, hoehe = yB - yA;
+    if (breite < 12 || hoehe < 6) return null;
+    const cx = RASTER / 2 - breiteMm / 2;
+    return { o: [cx, (yA + yB) / 2, -WAND], u: [-1, 0, 0], v: [0, 1, 0], n: [0, 0, -1], breite, hoehe };
+  },
+  /** EBENE: die Brett-Oberseite — die freie Flaeche zwischen Aufkante bzw.
+   *  Wangen. Text liest von vorne, "oben" zeigt zur Platte (v = +z). */
+  beschriftung(p) {
+    const { breiteMm, tiefe, yUnten, dicke } = this.masse(p);
+    const T = tiefe + WAND;
+    const r = Math.max(0, Math.min(p.rundung, breiteMm / 2 - 1, tiefe / 2 - 1));
+    const randWand = p.rand > 0 ? 0.3 + this.AUFKANTE : 0;          // Aufkanten-Innenflaeche
+    const sA = WAND + 2, sB = T - 2 - Math.max(r, randWand);
+    const breite = breiteMm - 2 * (WAND + Math.max(WAND, randWand)) - 4;
+    if (sB - sA < 4 || breite < 12) return null;
+    const cx = RASTER / 2 - breiteMm / 2;
+    return { o: [cx, yUnten + dicke, -(sA + sB) / 2], u: [-1, 0, 0], v: [0, 0, 1], n: [0, 1, 0], breite, hoehe: sB - sA };
+  },
+  geometrie(p) {
+    const { breiteMm, tiefe, hoehe, yUnten, dicke } = this.masse(p);
+    const yOben = HALS_HOEHE;
+    const T = tiefe + WAND;
+    const r = Math.max(0, Math.min(p.rundung, breiteMm / 2 - 1, tiefe / 2 - 1));
+    const x0 = -breiteMm / 2, x1 = breiteMm / 2;
+    const teile = [];
+
+    // Rueckwand (z -WAND..0), volle Breite
+    const rueck = new THREE.BoxGeometry(breiteMm, hoehe, WAND);
+    rueck.translate(0, yOben - hoehe / 2, -WAND / 2);
+    teile.push(rueck);
+
+    // Brett: ab 0.4 in der Rueckwand bis zur Vorderkante, Ecken gerundet
+    teile.push(extrudiert(kontur(x0, x1, T, r, 0, [], WAND - 0.4), dicke, yUnten));
+
+    // Aufkante: Ring auf dem Brett (0.3 eingerueckt, greift 0.4 ins Brett,
+    // hinten 2.1 in die Rueckwand). Haelt Rollendes und versteift wie ein
+    // Kastenprofil. Bei rand = 0 entfaellt er.
+    if (p.rand > 0) {
+      const ring = kontur(x0, x1, T, r, 0.3);
+      ring.holes.push(kontur(x0, x1, T, r, 0.3 + this.AUFKANTE));
+      teile.push(extrudiert(ring, p.rand + 0.4, yUnten + dicke - 0.4));
+    }
+
+    // Wangen aussen (wie Halter): Dreiecksprofil, versteift Brett gegen
+    // Rueckwand. 0.31 eingerueckt und 0.3 statt 0.4 eingesenkt — keine
+    // gemeinsamen Ecken mit Brett oder Aufkante.
+    const yS = yUnten + dicke - 0.3;
+    const s0 = WAND - 0.4, s1 = Math.max(s0 + 4, T - r - 0.4);
+    const wange = new THREE.Shape();
+    wange.moveTo(s0, yS); wange.lineTo(s1, yS); wange.lineTo(s1, yS + 3); wange.lineTo(s0, yS + 12); wange.closePath();
+    teile.push(extrudiertQuer(wange, WAND, x0 + 0.31));
+    teile.push(extrudiertQuer(wange, WAND, x1 - WAND - 0.31));
+
+    // Verschieben: erster Haken (Betrachter links) im Ursprung
+    const schub = RASTER / 2 - x1;
+    for (const g of teile) g.translate(schub, 0, 0);
+    if (p.tafel) teile.push(...tafelhalter(this, p));
     for (const h of this.haken(p)) {
       const hg = hakenGeometrie();
       hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
@@ -721,6 +831,172 @@ const KLEMME = {
     const schub = RASTER / 2 - x1;
     for (const g of teile) g.translate(schub, 0, 0);
     if (p.tafel) teile.push(...tafelhalter(this, p));      // Tafelhalter (schildflaeche liegt schon im Ursprungs-Rahmen)
+    for (const h of this.haken(p)) {
+      const hg = hakenGeometrie();
+      hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
+      teile.push(hg);
+    }
+    return teile;
+  },
+};
+
+
+// ---------------------------------------------------------------- Familie: Becher
+//
+// Runder Koecher (Manolo 19.08.2026): Stifte, Pinsel, Kochloeffel, Buersten.
+// Die Wanne ist immer eckig — der Becher ist ein Zylinder an der Rueckwand.
+// Parameter: Innendurchmesser, Hoehe, Boden offen (dann umgreift er lange
+// Dinge wie ein Ring).
+//
+// AUFBAU wie die Klemme: schmale Rueckwand (1-3 Loecher, aus dem Durchmesser
+// abgeleitet), sie ragt 18 mm ueber den Rand fuer Haken und Einschub-Tafel.
+// Der Zylinder ist hinten FLACH ABGESCHNITTEN und taucht 0.6 mm in die
+// Rueckwand ein: er haengt an einer Sehnen-Flaeche (ca. 15 mm x Hoehe),
+// nicht an einer Beruehrlinie. Wand und Boden wie die Wanne (2.4 mm).
+//
+// DRUCKLAGE stehend, Boden am Bett: alle Waende senkrecht, null Ueberhang.
+const BECHER = {
+  id: 'becher',
+  name: 'Becher',
+  kurz: 'rund — Stifte, Pinsel, Kochlöffel',
+  drucklage: 'stehend',
+  HAKENZONE: 18,      // Rueckwand ueber dem Rand (Platz fuer die Einschub-Tafel)
+  EINTAUCH: 0.6,      // so tief steckt der Zylinder in der Rueckwand
+  parameter: {
+    durchmesser: { name: 'Innendurchmesser', min: 30, max: 100, schritt: 5, einheit: 'mm', start: 45 },
+    hoehe:       { name: 'Höhe',             min: 30, max: 120, schritt: 5, einheit: 'mm', start: 90 },
+    boden:       { name: 'Boden offen',      min: 0,  max: 1,   schritt: 1, einheit: '',   start: 0, schalter: true },
+    tafel:       { name: 'Tafelhalter',      min: 0,  max: 1,   schritt: 1, einheit: '',   start: 0, schalter: true, versteckt: true },
+  },
+  masse(p) {
+    const Ri = p.durchmesser / 2, Ro = Ri + WAND;
+    const breite = Math.max(1, Math.min(3, Math.round((2 * Ro) / RASTER)));
+    const breiteMm = breite * RASTER;
+    const hoeheRueck = p.hoehe + this.HAKENZONE;
+    return { Ri, Ro, breite, breiteMm, hoehe: p.hoehe, hoeheRueck, yUnten: HALS_HOEHE - hoeheRueck };
+  },
+  haken(p) { const { breite } = this.masse(p); return Array.from({ length: breite }, (_, i) => ({ dx: i, dy: 0 })); },
+  stuetzen(p) { return abbrechstuetzen(this.haken(p), this.masse(p).yUnten); },
+  /** SCHILD: Rueckwand ueber dem Rand, wie bei der Klemme. Keine Ebene —
+   *  der Boden liegt tief im Becher, dort liest niemand. */
+  schildflaeche(p) {
+    const { breiteMm, hoehe, yUnten } = this.masse(p);
+    const yA = yUnten + hoehe + 1, yB = HALS_HOEHE - 1.5;
+    const breite = breiteMm - 6, h = yB - yA;
+    if (breite < 12 || h < 4) return null;
+    const cx = RASTER / 2 - breiteMm / 2;
+    return { o: [cx, (yA + yB) / 2, -WAND], u: [-1, 0, 0], v: [0, 1, 0], n: [0, 0, -1], breite, hoehe: h };
+  },
+  geometrie(p) {
+    const { Ri, Ro, breiteMm, hoehe, hoeheRueck, yUnten } = this.masse(p);
+    const yOben = HALS_HOEHE;
+    const teile = [];
+    const x1 = breiteMm / 2;
+
+    const rueck = new THREE.BoxGeometry(breiteMm, hoeheRueck, WAND);
+    rueck.translate(0, yOben - hoeheRueck / 2, -WAND / 2);
+    teile.push(rueck);
+
+    // Zylinder in (x, s): Kreis um (0, sc), hinten an der Sehne s0 flach
+    // abgeschnitten (s0 liegt EINTAUCH in der Rueckwand). Bogen von rechts
+    // ueber vorne (+90 Grad) nach links, die Sehne schliesst die Kontur.
+    const e = this.EINTAUCH + 0.8;                        // Sehnentiefe im Kreis (0.8 Wand vor der Platte)
+    const s0 = WAND - this.EINTAUCH;
+    const sc = s0 + Ro - e;
+    const a0 = -Math.asin((Ro - e) / Ro);                  // rechte Sehnen-Ecke (cos > 0)
+    const wandRing = new THREE.Shape();
+    wandRing.moveTo(Ro * Math.cos(a0), sc + Ro * Math.sin(a0));
+    wandRing.absarc(0, sc, Ro, a0, Math.PI - a0, false);   // aussen, vorne herum
+    wandRing.closePath();                                  // Sehne
+    const loch = new THREE.Path();
+    loch.absarc(0, sc, Ri, 0, Math.PI * 2, false);         // Innenraum: Vollkreis, ganz vor der Sehne
+    wandRing.holes.push(loch);
+    teile.push(extrudiert(wandRing, hoehe, yUnten, 32));
+
+    // Boden: Scheibe, greift 0.4 in die Wand (Radius Ri + 0.4), buendig unten
+    if (!p.boden) {
+      const bo = new THREE.Shape();
+      bo.absarc(0, sc, Ri + 0.4, 0, Math.PI * 2, false);
+      teile.push(extrudiert(bo, WAND, yUnten, 32));
+    }
+
+    // Verschieben: erster Haken (Betrachter links) im Ursprung
+    const schub = RASTER / 2 - x1;
+    for (const g of teile) g.translate(schub, 0, 0);
+    if (p.tafel) teile.push(...tafelhalter(this, p));
+    for (const h of this.haken(p)) {
+      const hg = hakenGeometrie();
+      hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
+      teile.push(hg);
+    }
+    return teile;
+  },
+};
+
+// ---------------------------------------------------------------- Familie: Kabel
+//
+// Kabelhalter fuer aufgerollte Kabel (Manolo 19.08.2026, nach einer
+// Makerworld-Vorlage: Clips mit Etikett davor, ein Kabel pro Clip). Eigene
+// Fassung: eine SCHLAUFE — ein senkrechtes Rechteckrohr, oben und unten
+// offen. Das aufgerollte Kabel wird als Buendel von oben durchgesteckt,
+// die Schlingen haengen oben und unten heraus; die Front traegt die
+// Einschub-Tafel mit der Beschriftung QUER (von unten nach oben lesbar,
+// wie ein Buchruecken) — so bleibt der Clip schmal und die Schrift trotz-
+// dem gross. Parameter: Durchlass (Breite und Tiefe des Buendels), Hoehe.
+//
+// AUFBAU. Rueckwand liegt an der Platte (Teil des Rohrs) und ragt als Kopf
+// 10 mm ueber das Rohr fuer den Haken; das Rohr ist ein Ring aus Aussen-
+// und Innenkontur (vordere Ecken gerundet), ueber die Hoehe extrudiert —
+// ein Koerper, wasserdicht per Konstruktion. Ein Haken, mittig.
+//
+// DRUCKLAGE stehend wie Wanne/Halter/Klemme: Rohr auf dem Bett, alle Waende
+// senkrecht, null Ueberhang; Haken oben mit Abbrechstuetzen. Die
+// Tafelschienen laufen senkrecht (Tafel von oben einschieben), nur der
+// Text in der Tafel ist gedreht.
+const KABEL = {
+  id: 'kabel',
+  name: 'Kabelhalter',
+  kurz: 'Schlaufe für aufgerollte Kabel, Etikett vorne',
+  drucklage: 'stehend',
+  parameter: {
+    durchlass: { name: 'Durchlass Breite', min: 18, max: 40, schritt: 2, einheit: 'mm', start: 22 },
+    tiefe:     { name: 'Durchlass Tiefe',  min: 8,  max: 30, schritt: 2, einheit: 'mm', start: 14 },
+    hoehe:     { name: 'Höhe',             min: 30, max: 80, schritt: 5, einheit: 'mm', start: 70 },   // 70: «USB-C auf USB-C» passt quer mit 5.5 mm
+    tafel:     { name: 'Tafelhalter', min: 0, max: 1, schritt: 1, einheit: '', start: 0, schalter: true, versteckt: true },   // setzt die App bei Text als Tafel
+  },
+  KOPF: 10,          // Rueckwand ueber dem Rohr (Haken)
+  RUNDUNG: 2,        // vordere Aussenecken
+  masse(p) {
+    const x1 = p.durchlass / 2 + WAND;                   // halbe Aussenbreite
+    const sT = p.tiefe + 2 * WAND;                       // Aussentiefe (Rueckwand + Durchlass + Front)
+    const hoeheRohr = p.hoehe, hoeheRueck = hoeheRohr + this.KOPF;
+    const yUnten = HALS_HOEHE - hoeheRueck, yRohrOben = yUnten + hoeheRohr;
+    return { x1, sT, hoeheRohr, hoeheRueck, yUnten, yRohrOben };
+  },
+  haken(p) { return [{ dx: 0, dy: 0 }]; },
+  stuetzen(p) { return abbrechstuetzen(this.haken(p), this.masse(p).yUnten); },
+  /** SCHILD: Front des Rohrs, Tafel QUER (Text laeuft nach oben). Der flache
+   *  Teil der Front liegt zwischen den gerundeten Ecken. Keine Ebene. */
+  schildflaeche(p) {
+    const { x1, sT, hoeheRohr, yUnten } = this.masse(p);
+    const breite = 2 * x1 - 2 * this.RUNDUNG, hoehe = hoeheRohr - 2;
+    if (breite < 16 || hoehe < 12) return null;
+    return { o: [0, yUnten + hoeheRohr / 2, -sT], u: [-1, 0, 0], v: [0, 1, 0], n: [0, 0, -1], breite, hoehe, quer: true };
+  },
+  geometrie(p) {
+    const { x1, sT, hoeheRohr, yUnten, yRohrOben } = this.masse(p);
+    const teile = [];
+    // Rohr: Aussenkontur (gerundete Front) minus Innenkontur, ueber hoeheRohr
+    const aussen = kontur(-x1, x1, sT, this.RUNDUNG, 0);
+    aussen.holes.push(kontur(-x1, x1, sT, this.RUNDUNG, WAND));
+    teile.push(extrudiert(aussen, hoeheRohr, yUnten));
+    // Kopf: Rueckwand ueber dem Rohr, 0.4 ins Rohr (Ueberlappung, keine
+    // gemeinsamen Ecken: 0.01 schmaler und duenner)
+    const kopfH = this.KOPF + 0.4;
+    const kopf = new THREE.BoxGeometry(2 * x1 - 0.02, kopfH, WAND - 0.01);
+    kopf.translate(0, yRohrOben - 0.4 + kopfH / 2, -(WAND - 0.01) / 2);
+    teile.push(kopf);
+    if (p.tafel) teile.push(...tafelhalter(this, p));
     for (const h of this.haken(p)) {
       const hg = hakenGeometrie();
       hg.translate(-h.dx * RASTER, h.dy * REIHEN_TEILUNG, 0);
@@ -1054,7 +1330,9 @@ export function tafelMasse(f, p) {
   const pl = f.schildflaeche(p);
   if (!pl) return null;
   const Wh = pl.breite - 2 * TAFEL.rand;
-  const Hh = Math.min(TAFEL.maxHoehe, pl.hoehe - TAFEL.griff - 1);
+  // quer (Kabelhalter): Text laeuft in v-Richtung, die Tafel ist hoch statt
+  // breit — der Halter darf dann die ganze Flaechenhoehe nutzen.
+  const Hh = Math.min(pl.quer ? Infinity : TAFEL.maxHoehe, pl.hoehe - TAFEL.griff - 1);
   if (Wh < 16 || Hh < 7) return null;
   const u = new THREE.Vector3(...pl.u).normalize(), v = new THREE.Vector3(...pl.v).normalize(), n = new THREE.Vector3(...pl.n).normalize();
   if (new THREE.Vector3().crossVectors(u, v).dot(n) < 0) v.negate();
@@ -1062,7 +1340,7 @@ export function tafelMasse(f, p) {
   const M = new THREE.Matrix4().makeBasis(u, v, n); M.setPosition(o);   // lokal (a,b,c) -> Modul
   const b0 = -Hh / 2;                                                    // Halter-Unterkante
   return {
-    pl, Wh, Hh, M, o: [o.x, o.y, o.z], u: [u.x, u.y, u.z], v: [v.x, v.y, v.z], n: [n.x, n.y, n.z],
+    pl, Wh, Hh, M, quer: !!pl.quer, o: [o.x, o.y, o.z], u: [u.x, u.y, u.z], v: [v.x, v.y, v.z], n: [n.x, n.y, n.z],
     tafelBreite: Wh - 2 * TAFEL.wand - 2 * TAFEL.spiel,
     tafelHoehe: Hh - TAFEL.steg + TAFEL.griff,
     tafelUnten: b0 + TAFEL.steg,                                          // Tafel steht auf dem Steg
@@ -1119,19 +1397,36 @@ export function schild(f, p, text, groesse, farbeText, farbeSchild) {
 function schildBauen(f, p, txt, groesse, farbeText, farbeSchild) {
   const tm = tafelMasse(f, p);
   if (!tm) return null;
-  // 0.4 mm Luft zum Rand (Eckenrundung); sichtbar ist die Tafel oberhalb des Stegs, zwischen den Lippen
-  const maxH = Math.min(SCHRIFT_MAX, groesse > 0 ? groesse : SCHRIFT_MAX, tm.sichtHoehe - 0.4);
-  const tp = textPassend(txt, maxH, tm.sichtBreite, tm.sichtHoehe - 0.4);
-  if (!tp) return null;
   const bw = tm.tafelBreite, bh = tm.tafelHoehe;
   const bM = tm.tafelUnten + bh / 2;                       // Tafelmitte (b); Text darum zentriert
   const c0 = 0.1, c1 = 0.1 + TAFEL.dicke;                  // 0.1 vor der Wand, in der Tasche (0..1.2)
   const { P } = rahmen(tm);
-  // Aussenkontur: unten gerundet (Einfuehren), oben eckig; gegen den Uhrzeigersinn
-  const kontur = [];
   const R = 1.0, seg = 5;
   const bU = tm.tafelUnten, bO = tm.tafelUnten + bh;
+  const kontur = [];
   const ecke = (cx, cy, a0) => { for (let k = 0; k <= seg; k++) { const a = a0 + (k / seg) * Math.PI / 2; kontur.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]); } };
+  if (tm.quer) {
+    // QUER (Kabelhalter): Text laeuft nach oben (Leserichtung +v, Buchstaben-
+    // oberkante zeigt zu -u). Alles in gedrehten Koordinaten (a', b') =
+    // (b, -a) gebaut — eine Drehung um 90 Grad (det +1), die Windung bleibt —
+    // und ueber P2 in den Rahmen abgebildet. textDeckflaeche zerlegt dann
+    // entlang a' in Zeichenstreifen, genau wie beim waagrechten Text.
+    const maxH = Math.min(SCHRIFT_MAX, groesse > 0 ? groesse : SCHRIFT_MAX, tm.sichtBreite - 0.4);
+    const tp = textPassend(txt, maxH, tm.sichtHoehe - 0.4, tm.sichtBreite - 0.4);
+    if (!tp) return null;
+    // Kontur in (a', b'): a' von bU (unten, gerundet = Einfuehrseite) bis bO, b' quer (±bw/2); gegen den Uhrzeigersinn
+    kontur.push([bO, -bw / 2], [bO, bw / 2]);              // oben rechts, oben links (in a'/b')
+    ecke(bU + R, bw / 2 - R, Math.PI / 2);                 // Ecke bei (bU, +bw/2)
+    ecke(bU + R, -bw / 2 + R, Math.PI);                    // Ecke bei (bU, -bw/2)
+    const P2 = (a2, b2, c) => P(-b2, a2, c);
+    const k = textKoerper(kontur, tp.ts, bM, 0, c0, c1, P2, farbeText, farbeSchild);
+    return { geo: k.geo, farben: k.farben, groesse: tp.h, breite: bw, hoehe: bh, o: tm.o, u: tm.u, v: tm.v, n: tm.n, quer: true };
+  }
+  // 0.4 mm Luft zum Rand (Eckenrundung); sichtbar ist die Tafel oberhalb des Stegs, zwischen den Lippen
+  const maxH = Math.min(SCHRIFT_MAX, groesse > 0 ? groesse : SCHRIFT_MAX, tm.sichtHoehe - 0.4);
+  const tp = textPassend(txt, maxH, tm.sichtBreite, tm.sichtHoehe - 0.4);
+  if (!tp) return null;
+  // Aussenkontur: unten gerundet (Einfuehren), oben eckig; gegen den Uhrzeigersinn
   ecke(bw / 2 - R, bU + R, -Math.PI / 2);                  // unten rechts
   kontur.push([bw / 2, bO], [-bw / 2, bO]);                // oben rechts, oben links
   ecke(-bw / 2 + R, bU + R, Math.PI);                      // unten links
@@ -1286,6 +1581,17 @@ export const VORLAGEN = [
     params: { durchmesser: 66, klemmweite: 50, hoehe: 25 } },
   { id: 'kabel', kategorie: 'buero', familie: 'halter', name: 'Kabel · 4', kurz: 'Schlitze 8 mm, Abstand 20',
     params: { breite: 2, tiefe: 30, durchmesser: 8, anzahl: 4, abstand: 20, reihen: 1, schlitze: 1, rundung: 6, dicke: 5 } },
+  // Kabelhalter-Schlaufen (19.08.2026): USB-Kabel schmal, Netzkabel weiter
+  { id: 'kabel-usb', kategorie: 'buero', familie: 'kabel', name: 'Kabel-Schlaufe · USB', kurz: 'Durchlass 22 × 14, 70 hoch, Etikett quer', text: 'USB-C auf USB-C',
+    params: { durchlass: 22, tiefe: 14, hoehe: 70 } },
+  { id: 'kabel-netz', kategorie: 'buero', familie: 'kabel', name: 'Kabel-Schlaufe · Netzkabel', kurz: 'Durchlass 30 × 20, 70 hoch, Etikett quer', text: 'Netzkabel',
+    params: { durchlass: 30, tiefe: 20, hoehe: 70 } },
+  { id: 'ablage-uni', kategorie: 'werkstatt', familie: 'ablage', name: 'Ablage · 160', kurz: '160 mm breit, 100 tief, Aufkante 6',
+    params: { breite: 4, tiefe: 100, dicke: 6, rand: 6, rundung: 4 } },
+  { id: 'becher-stifte', kategorie: 'buero', familie: 'becher', name: 'Stiftebecher · rund', kurz: 'Ø 45, 90 hoch',
+    params: { durchmesser: 45, hoehe: 90, boden: 0 } },
+  { id: 'becher-loeffel', kategorie: 'kueche', familie: 'becher', name: 'Kochlöffel-Becher', kurz: 'Ø 70, 110 hoch',
+    params: { durchmesser: 70, hoehe: 110, boden: 0 } },
   { id: 'papierrolle', kategorie: 'kueche', familie: 'haken', name: 'Rollenhalter', kurz: 'Haken 60 mm, 10 mm stark',
     params: { laenge: 60, winkel: 20, staerke: 10 } },
   { id: 'gewuerze', kategorie: 'kueche', familie: 'wanne', name: 'Gewürz-Ablage', kurz: '120 mm, flach, geneigt',
@@ -1293,7 +1599,7 @@ export const VORLAGEN = [
 ];
 
 // ---------------------------------------------------------------- Registry
-export const FAMILIEN = [HAKEN, WANNE, HALTER, KLEMME];
+export const FAMILIEN = [HAKEN, WANNE, ABLAGE, HALTER, KLEMME, BECHER, KABEL];
 export function familie(id) { return FAMILIEN.find((f) => f.id === id); }
 
 /** Startparameter einer Familie. */

@@ -1,4 +1,17 @@
 ---
+/**
+ * Kopfleiste mit Aufklappmenue "Konfiguratoren" (Manolo 21.08.2026,
+ * Variante 2: "weil noch mehr konfiguratoren geplant sind wird das so
+ * uebersichtlicher"). Neue Konfiguratoren kommen NUR hier in die Liste —
+ * die Leiste selbst bleibt, wie sie ist.
+ *
+ * Bedienung ohne eigenes JS: aufklappen per :hover (Maus) und :focus-within
+ * (Tastatur und Touch — Tippen fokussiert den Knopf, Tippen daneben
+ * schliesst). Das kleine Skript unten erlaubt zusaetzlich, per zweitem
+ * Tipp auf den Knopf wieder zu schliessen.
+ * Testphasen-Linien tragen ein kleines TEST-Kennzeichen; bei Freigabe
+ * einfach das <em> entfernen.
+ */
 ---
 <nav>
   <a class="logo" href="/">
@@ -9,11 +22,122 @@
     <span class="wm">KOHLI<b>LAB</b></span>
   </a>
   <div class="navlinks">
-    <a href="/#produkte">Produktlinien</a>
+    <div class="navdrop">
+      <button type="button" class="navdrop-knopf" data-navdrop-knopf aria-haspopup="true">Konfiguratoren <span class="pfeil" aria-hidden="true">▾</span></button>
+      <div class="navdrop-menu" role="menu">
+        <a role="menuitem" href="/organizer">Schubladen-Organizer</a>
+        <a role="menuitem" href="/golf-tees">Golf-Tees</a>
+        <a role="menuitem" href="/qr-schilder">QR-Schilder <em>Test</em></a>
+        <a role="menuitem" href="/lochwand">Lochwand-Planer <em>Test</em></a>
+        <a role="menuitem" class="navdrop-alle" href="/#produkte">Alle Produktlinien →</a>
+      </div>
+    </div>
     <a href="/ventilkappen">Ventilkappen</a>
-    <a href="/ventilkappen#entstehung">So entsteht's</a>
     <a href="/spezialanfertigung">Spezialanfertigung</a>
     <a href="/kontakt">Kontakt</a>
   </div>
-  <a class="navbtn" href="/warenkorb">Warenkorb <span class="cart-count" data-cart-count style="display:none">0</span></a>
+  <div class="navrechts">
+    <a class="navbtn" href="/warenkorb">Warenkorb <span class="cart-count" data-cart-count style="display:none">0</span></a>
+    <button type="button" class="burger" data-burger aria-label="Menü" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
 </nav>
+
+<!-- Handy-Menü (Manolo 21.08.2026): unter 860 px hatte die Seite gar keine
+     Navigation — nur Logo und Warenkorb. Der ☰-Knopf klappt dieses Feld
+     unter der Kopfleiste auf; gleiche Einträge wie am Desktop. -->
+<div class="mobilnav" data-mobilnav hidden>
+  <div class="mn-gruppe">Konfiguratoren</div>
+  <a href="/organizer">Schubladen-Organizer</a>
+  <a href="/golf-tees">Golf-Tees</a>
+  <a href="/qr-schilder">QR-Schilder <em>Test</em></a>
+  <a href="/lochwand">Lochwand-Planer <em>Test</em></a>
+  <a class="mn-alle" href="/#produkte">Alle Produktlinien →</a>
+  <div class="mn-trenn"></div>
+  <a href="/ventilkappen">Ventilkappen</a>
+  <a href="/spezialanfertigung">Spezialanfertigung</a>
+  <a href="/kontakt">Kontakt</a>
+</div>
+
+<script is:inline>
+  // Zweiter Tipp auf den offenen Knopf schliesst (blur hebt :focus-within auf).
+  (function () {
+    var k = document.querySelector('[data-navdrop-knopf]');
+    if (!k) return;
+    var offen = false;
+    k.addEventListener('click', function () {
+      if (offen) { k.blur(); offen = false; } else { offen = true; }
+    });
+    k.addEventListener('blur', function () { setTimeout(function () { offen = false; }, 150); });
+  })();
+  // Handy-Menü: ☰ klappt auf/zu; Tipp auf einen Link oder daneben schliesst.
+  (function () {
+    var b = document.querySelector('[data-burger]');
+    var m = document.querySelector('[data-mobilnav]');
+    if (!b || !m) return;
+    function setze(auf) {
+      m.hidden = !auf;
+      b.setAttribute('aria-expanded', auf ? 'true' : 'false');
+      b.classList.toggle('offen', auf);
+    }
+    b.addEventListener('click', function (ev) { ev.stopPropagation(); setze(m.hidden); });
+    m.addEventListener('click', function (ev) { if (ev.target.closest('a')) setze(false); });
+    document.addEventListener('click', function (ev) {
+      if (!m.hidden && !ev.target.closest('[data-mobilnav]') && !ev.target.closest('[data-burger]')) setze(false);
+    });
+  })();
+</script>
+
+<style is:global>
+  .navdrop { position: relative; }
+  .navdrop-knopf {
+    background: none; border: 0; cursor: pointer; padding: 0;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1.5px;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .navdrop-knopf:hover, .navdrop:focus-within .navdrop-knopf { color: var(--acc); }
+  .navdrop .pfeil { font-size: 9px; opacity: .8; }
+  .navdrop-menu {
+    display: none; position: absolute; top: 100%; left: -14px; padding-top: 14px;
+    min-width: 230px; z-index: 60;
+  }
+  .navdrop:hover .navdrop-menu, .navdrop:focus-within .navdrop-menu { display: block; }
+  .navdrop-menu a {
+    display: block; background: #1c1e21; border: 1px solid var(--line); border-top: 0;
+    padding: 11px 16px; font-family: var(--mono); font-size: 12px; letter-spacing: 1.2px;
+    color: var(--muted); text-transform: uppercase; white-space: nowrap;
+  }
+  .navdrop-menu a:first-child { border-top: 1px solid var(--line); border-radius: 6px 6px 0 0; }
+  .navdrop-menu a:last-child { border-radius: 0 0 6px 6px; }
+  .navdrop-menu a:hover { color: var(--acc); background: #232629; }
+  .navdrop-menu em {
+    font-style: normal; font-size: 9px; letter-spacing: 1px; color: #141517;
+    background: var(--acc2); border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px;
+  }
+  .navdrop-alle { color: var(--acc); }
+
+  /* ☰ und Handy-Menü */
+  .navrechts { display: flex; align-items: center; gap: 12px; }
+  .burger { display: none; background: none; border: 1px solid var(--line); border-radius: 6px;
+    width: 38px; height: 36px; cursor: pointer; padding: 8px 9px;
+    flex-direction: column; justify-content: space-between; }
+  .burger span { display: block; height: 2px; width: 100%; background: var(--muted); border-radius: 1px; transition: transform .15s, opacity .15s; }
+  .burger.offen span:nth-child(1) { transform: translateY(8px) rotate(45deg); background: var(--acc); }
+  .burger.offen span:nth-child(2) { opacity: 0; }
+  .burger.offen span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); background: var(--acc); }
+  .mobilnav { display: none; border-bottom: 1px solid var(--line); background: #1c1e21; padding: 6px 0 10px; }
+  .mobilnav a { display: block; padding: 12px 26px; font-family: var(--mono); font-size: 13px;
+    letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+  .mobilnav a:active, .mobilnav a:hover { color: var(--acc); }
+  .mobilnav em { font-style: normal; font-size: 9px; letter-spacing: 1px; color: #141517;
+    background: var(--acc2); border-radius: 3px; padding: 1px 5px; margin-left: 6px; vertical-align: 1px; }
+  .mn-gruppe { padding: 10px 26px 2px; font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
+    color: var(--acc2); text-transform: uppercase; }
+  .mn-alle { color: var(--acc); }
+  .mn-trenn { border-top: 1px solid var(--line); margin: 8px 26px; }
+  @media (max-width: 860px) {
+    .burger { display: flex; }
+    .mobilnav:not([hidden]) { display: block; }
+  }
+</style>

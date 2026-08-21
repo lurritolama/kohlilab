@@ -40,7 +40,7 @@ function modulDreiecke(fam, params, extra = []) {
   return out;
 }
 
-const H = M.familie('haken'), W = M.familie('wanne'), HA = M.familie('halter'), KL = M.familie('klemme');
+const H = M.familie('haken'), W = M.familie('wanne'), HA = M.familie('halter'), KL = M.familie('klemme'), KB = M.familie('kabel'), AB = M.familie('ablage'), BE = M.familie('becher');
 const faelle = [
   { fam: H, name: 'Haken-Standard', params: M.startParameter(H) },
   { fam: H, name: 'Haken-Lang-Winkel', params: { ...M.startParameter(H), laenge: 60, winkel: 45, staerke: 10 } },
@@ -53,6 +53,19 @@ const faelle = [
   { fam: HA, name: 'Halter-1L-Bohrer', params: { ...M.startParameter(HA), breite: 1, reihen: 3, durchmesser: 5, anzahl: 4, tiefe: 60 } },
   { fam: KL, name: 'Klemme-Flasche-66', params: M.startParameter(KL) },
   { fam: KL, name: 'Klemme-Bohrfutter-40', params: { ...M.startParameter(KL), durchmesser: 40, klemmweite: 30, hoehe: 20 } },
+  // Kabelhalter-Schlaufe (19.08.): Standard ohne/mit Quer-Tafel, gross, klein
+  { fam: KB, name: 'Kabel-Standard', params: M.startParameter(KB) },
+  { fam: KB, name: 'Kabel-Standard-Tafel', params: { ...M.startParameter(KB), tafel: 1 }, tafel: 'USB-C auf USB-C' },
+  { fam: KB, name: 'Kabel-Gross-Tafel', params: { ...M.startParameter(KB), durchlass: 40, tiefe: 30, hoehe: 80, tafel: 1 }, tafel: 'Netzkabel' },
+  { fam: KB, name: 'Kabel-Klein', params: { ...M.startParameter(KB), durchlass: 18, tiefe: 8, hoehe: 30 } },
+  // Ablage + Becher (19.08.): Standard, Grenzfaelle, Text auf beiden Wegen
+  { fam: AB, name: 'Ablage-Standard', params: M.startParameter(AB) },
+  { fam: AB, name: 'Ablage-Breit-Rand0', params: { ...M.startParameter(AB), breite: 7, tiefe: 160, dicke: 10, rand: 0, rundung: 8 } },
+  { fam: AB, name: 'Ablage-Rand15-Tafel', params: { ...M.startParameter(AB), rand: 15, tafel: 1 }, tafel: 'Öl & Sprays' },
+  { fam: AB, name: 'Ablage-Ebene-Text', params: { ...M.startParameter(AB), breite: 3, tiefe: 60 }, ebene: 'Ersatzteile' },
+  { fam: BE, name: 'Becher-Standard', params: M.startParameter(BE) },
+  { fam: BE, name: 'Becher-Gross-offen', params: { ...M.startParameter(BE), durchmesser: 100, hoehe: 120, boden: 1 } },
+  { fam: BE, name: 'Becher-Klein-Tafel', params: { ...M.startParameter(BE), durchmesser: 30, hoehe: 50, tafel: 1 }, tafel: 'Pinsel' },
   // Beschriftung: Modul mit Tafelhalter (tafel: 1) + Tafel als eigenes Objekt; Ebene-Text auf der Konsole
   { fam: W, name: 'Wanne-2L-Tafelhalter', params: { ...M.startParameter(W), tafel: 1 }, tafel: 'Nägel & Ösen' },
   { fam: HA, name: 'Halter-2L-Konsolentext', params: M.startParameter(HA), ebene: 'Bohrer Ø6' },
@@ -64,7 +77,7 @@ const faelle = [
 //   'wanne' G:/.../lochwand-etappe2b-wannen.3mf : nur die Wannen in diese Datei
 const nurFamilie = process.argv[2] || null;
 const zielDatei = process.argv[3] || 'C:/Users/Allgemein/Projekt-Daten/kohlilab-skadis/lochwand-test.3mf';
-const auswahl = nurFamilie ? faelle.filter((f) => f.fam.id === nurFamilie) : faelle;
+const auswahl = nurFamilie ? faelle.filter((f) => nurFamilie.split(',').includes(f.fam.id)) : faelle;   // auch 'ablage,becher'
 let objs = '', items = '', tx = 0; const gramm = [];
 // Text: Etikett (Ebene) haengt am Modul; die Tafel wird ein eigenes flaches Objekt
 const objekte = [];
