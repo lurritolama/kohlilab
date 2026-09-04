@@ -12,7 +12,9 @@ const fotos = await ladeGalerie('organizer');
 // Am Netlify-Rand 5 Minuten zwischenspeichern (UX-Durchgang, Punkt 3): die
 // Galerie kommt aus dem Storage, jeder Aufruf kostete ~1.8 s bis zum ersten
 // Byte. Ein neues Galerie-Foto ist so spaetestens nach 5 Minuten sichtbar.
-Astro.response.headers.set('Netlify-CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+// `durable` = gemeinsamer Speicher aller Netlify-Knoten; ohne das cachte jeder
+// Knoten fuer sich (live gemessen 04.09.2026: zweiter Aufruf trotzdem miss).
+Astro.response.headers.set('Netlify-CDN-Cache-Control', 'public, durable, s-maxage=300, stale-while-revalidate=900');
 Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 ---
 <BaseLayout
