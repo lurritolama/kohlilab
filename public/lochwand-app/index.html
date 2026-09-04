@@ -826,7 +826,7 @@ function modulDreiecke(m) {
   // Etikett-Dreiecke tragen je eine Farbe (Text/Modul) -> 3MF-Dreiecksfarbe
   const farbenJe = geos.map((g) => (et && g === et.geo) ? et.farben : null);
   const out = [];
-  const R = drucklageMatrix(f);   // je Familie: Seite oder stehend
+  const R = drucklageMatrix(f, m.params);   // je Familie: Seite oder stehend (Haken: Leiste stehend, Einzelhaken Seite)
   let minZ = Infinity, minX = Infinity, minY = Infinity;
   const tmp = [];
   for (const g of geos) {
@@ -834,7 +834,9 @@ function modulDreiecke(m) {
     const a = ng.attributes.position.array;
     const arr = new Float32Array(a.length);
     for (let i = 0; i < a.length; i += 3) {
-      const v = new THREE.Vector3(a[i], a[i+1], a[i+2]).applyMatrix4(R);
+      const v = new THREE.Vector3(a[i], a[i+1], a[i+2]);
+      if (g.userData && g.userData.exportMatrix) v.applyMatrix4(g.userData.exportMatrix);   // z. B. Wannen-Deckel: fuer den Druck umgedreht hinters Modul
+      v.applyMatrix4(R);
       arr[i] = v.x; arr[i+1] = v.y; arr[i+2] = v.z;
       if (v.z < minZ) minZ = v.z; if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
     }

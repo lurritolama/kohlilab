@@ -25,12 +25,14 @@ M.setzeSchrift(JSON.parse(readFileSync('public/vendor/three/fonts/droid_sans_bol
 // Dieselbe Drucklage-Logik wie index.html: x -> z (Seitenlage), an den Ursprung.
 function modulDreiecke(fam, params, extra = []) {
   const geos = [...fam.geometrie(params), ...(fam.stuetzen ? fam.stuetzen(params) : []), ...extra]; const out = [];
-  const Rm = M.drucklageMatrix(fam);
+  const Rm = M.drucklageMatrix(fam, params);   // Drucklage je Modul (Haken-Leiste stehend)
   let minZ = Infinity, minX = Infinity, minY = Infinity; const tmp = [];
   for (const g of geos) {
     const ng = g.index ? g.toNonIndexed() : g; const a = ng.attributes.position.array; const arr = new Float32Array(a.length);
     for (let i = 0; i < a.length; i += 3) {
-      const v = new THREE.Vector3(a[i], a[i + 1], a[i + 2]).applyMatrix4(Rm);
+      const v = new THREE.Vector3(a[i], a[i + 1], a[i + 2]);
+      if (g.userData && g.userData.exportMatrix) v.applyMatrix4(g.userData.exportMatrix);   // Wannen-Deckel: umgedreht hinters Modul
+      v.applyMatrix4(Rm);
       arr[i] = v.x; arr[i + 1] = v.y; arr[i + 2] = v.z;
       if (v.z < minZ) minZ = v.z; if (v.x < minX) minX = v.x; if (v.y < minY) minY = v.y;
     }
@@ -58,6 +60,23 @@ const faelle = [
   { fam: KB, name: 'Kabel-Standard-Tafel', params: { ...M.startParameter(KB), tafel: 1 }, tafel: 'USB-C auf USB-C' },
   { fam: KB, name: 'Kabel-Gross-Tafel', params: { ...M.startParameter(KB), durchlass: 40, tiefe: 30, hoehe: 80, tafel: 1 }, tafel: 'Netzkabel' },
   { fam: KB, name: 'Kabel-Klein', params: { ...M.startParameter(KB), durchlass: 18, tiefe: 8, hoehe: 30 } },
+  // Stufe C (04.09.): Leiste, Gummiband, Spule, Kipplade — Grenzfaelle
+  { fam: M.familie('leiste'), name: 'Leiste-Bilder-7L', params: { ...M.startParameter(M.familie('leiste')), breite: 7, tiefe: 16, nut: 6, lippe: 0, kabel: 0 } },
+  { fam: M.familie('leiste'), name: 'Leiste-Tablet-Kabel', params: { ...M.startParameter(M.familie('leiste')), breite: 4, tiefe: 40, nut: 0, lippe: 20, kabel: 1 } },
+  { fam: M.familie('band'), name: 'Band-Gross', params: { ...M.startParameter(M.familie('band')), breite: 5, hoehe: 50, tiefe: 24 } },
+  { fam: M.familie('band'), name: 'Band-Klein', params: { ...M.startParameter(M.familie('band')), breite: 2, hoehe: 20, tiefe: 12 } },
+  { fam: M.familie('spule'), name: 'Spule-Gross', params: { ...M.startParameter(M.familie('spule')), tiefe: 130, abstand: 120, achse: 32 } },
+  { fam: M.familie('spule'), name: 'Spule-Klein', params: { ...M.startParameter(M.familie('spule')), tiefe: 60, abstand: 40, achse: 20 } },
+  { fam: M.familie('kipplade'), name: 'Kipplade-Klein', params: { ...M.startParameter(M.familie('kipplade')), breite: 2, tiefe: 50, hoehe: 50 } },
+  { fam: M.familie('kipplade'), name: 'Kipplade-Gross-Tafel', params: { ...M.startParameter(M.familie('kipplade')), breite: 4, tiefe: 100, hoehe: 120, tafel: 1 }, tafel: 'Schrauben' },
+  // Stufe B (04.09.): Sattel, Leiste, Deckel, Gitter, Greifmulde — Grenzfaelle
+  { fam: H, name: 'Haken-Sattel-60', params: { ...M.startParameter(H), laenge: 60, winkel: 20, staerke: 12, sattel: 60 } },
+  { fam: H, name: 'Haken-Leiste-5-Sattel', params: { ...M.startParameter(H), laenge: 25, winkel: 45, staerke: 8, sattel: 20, anzahl: 5 } },
+  { fam: W, name: 'Wanne-Deckel-Tafel', params: { ...M.startParameter(W), deckel: 1, tafel: 1, rundung: 8 }, tafel: 'M4 · M5' },
+  { fam: W, name: 'Wanne-Gitter-Rund15', params: { ...M.startParameter(W), breite: 3, tiefe: 80, hoehe: 60, rundung: 15, trenner: 2, gitter: 1 } },
+  { fam: W, name: 'Wanne-Gitter-Eckig', params: { ...M.startParameter(W), breite: 1, tiefe: 30, hoehe: 40, rundung: 0, gitter: 1, deckel: 1 } },
+  { fam: W, name: 'Wanne-Griff-Neigung', params: { ...M.startParameter(W), breite: 2, hoehe: 80, neigung: 15, trenner: 1, griff: 1 } },
+  { fam: W, name: 'Wanne-Griff-Eckig', params: { ...M.startParameter(W), breite: 1, tiefe: 40, hoehe: 30, rundung: 0, griff: 1 } },
   // Ablage + Becher (19.08.): Standard, Grenzfaelle, Text auf beiden Wegen
   { fam: AB, name: 'Ablage-Standard', params: M.startParameter(AB) },
   { fam: AB, name: 'Ablage-Breit-Rand0', params: { ...M.startParameter(AB), breite: 7, tiefe: 160, dicke: 10, rand: 0, rundung: 8 } },
@@ -77,7 +96,8 @@ const faelle = [
 //   'wanne' G:/.../lochwand-etappe2b-wannen.3mf : nur die Wannen in diese Datei
 const nurFamilie = process.argv[2] || null;
 const zielDatei = process.argv[3] || 'C:/Users/Allgemein/Projekt-Daten/kohlilab-skadis/lochwand-test.3mf';
-const auswahl = nurFamilie ? faelle.filter((f) => nurFamilie.split(',').includes(f.fam.id)) : faelle;   // auch 'ablage,becher'
+const auswahl = nurFamilie === 'vorlagen' ? faelle.filter((f) => f.name.startsWith('Vorlage-'))                 // nur die Bibliotheks-Vorlagen
+  : nurFamilie ? faelle.filter((f) => nurFamilie.split(',').includes(f.fam.id)) : faelle;   // auch 'ablage,becher'
 let objs = '', items = '', tx = 0; const gramm = [];
 // Text: Etikett (Ebene) haengt am Modul; die Tafel wird ein eigenes flaches Objekt
 const objekte = [];
