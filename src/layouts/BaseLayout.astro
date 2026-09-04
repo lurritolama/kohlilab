@@ -17,12 +17,21 @@ interface Props {
   description?: string;
   /** true fuer private Seiten (Werber-Ansicht) — haelt Suchmaschinen fern */
   noindex?: boolean;
+  /** Vorschaubild beim Teilen (WhatsApp, Instagram, Suchmaschinen), Pfad ab
+   *  Wurzel; Querformat, ideal 1200×630. Ohne Angabe das Standardbild. */
+  bild?: string;
 }
 const {
   title = 'KohliLab — Du konfigurierst. Wir drucken.',
-  description = 'Konfiguratoren für 3D-gedruckte Produkte nach Mass: QR-Schilder, Schubladen-Organizer und mehr — im Browser gestaltet, in Bühler AR gedruckt. Dazu Ventilkappen aus der KI-Mikrofabrik.',
+  description = 'Konfiguratoren für 3D-gedruckte Produkte nach Mass: Schubladen-Organizer, QR-Schilder, Golf-Tees und Module für die IKEA-Skådis-Lochwand — im Browser gestaltet, in Bühler AR gedruckt. Dazu Ventilkappen aus der KI-Mikrofabrik.',
   noindex = false,
+  bild = '/bilder/og-standard.jpg',
 } = Astro.props;
+// Absolute Adressen fuer die Teilen-Vorschau (og:image muss absolut sein)
+const site = 'https://kohlilab.ch';
+const bildAbs = bild.startsWith('http') ? bild : site + bild;
+// build.format 'file' liefert den Pfad als /golf-tees.html — nach aussen gilt /golf-tees
+const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '/');
 ---
 <!doctype html>
 <html lang="de">
@@ -36,6 +45,12 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={seiteAbs} />
+    <meta property="og:image" content={bildAbs} />
+    <meta property="og:site_name" content="KohliLab" />
+    <meta property="og:locale" content="de_CH" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={bildAbs} />
     <title>{title}</title>
   </head>
   <body>

@@ -7,6 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Hero from '../components/Hero.astro';
 import FabrikBand from '../components/FabrikBand.astro';
 import SujetGrid from '../components/SujetGrid.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
 import Entstehung from '../components/Entstehung.astro';
 import { ladeSujets } from '../lib/server/sujets';
 
@@ -14,10 +15,12 @@ const sujets = await ladeSujets();
 ---
 <BaseLayout
   title="Ventilkappen — KohliLab"
+  bild="/bilder/ventilkappen-titel.jpg"
   description="3D-gedruckte Ventilkappen mit Schrader- oder Presta-Gewinde: kleine Skulpturen aus der KI-Mikrofabrik, geprüft und gedruckt im Appenzellerland."
 >
   <Hero />
   <FabrikBand />
+  <Kurzinfo />
   <SujetGrid sujets={sujets} />
   <Entstehung />
 </BaseLayout>

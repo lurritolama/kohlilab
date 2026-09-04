@@ -5,9 +5,11 @@
 // kommen mit den Modulen (Etappe 2/3).
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
   title="Lochwand-Planer (Test) — KohliLab"
+  bild="/bilder/lochwand-titel.jpg"
   description="Plane deine IKEA-Skådis-Wand: Platte wählen, Module platzieren, 3D-gedruckt in Bühler AR."
   noindex
 >
@@ -20,9 +22,10 @@ import KonfigFrame from '../components/KonfigFrame.astro';
       platzierst und beschriftest.
     </p>
     <p class="hinweis-etappe">
-      <b>Testphase:</b> Haken, Wanne, Halter, Klemme — mit Beschriftung, Teilen-Link und Warenkorb. Bestellungen aus dem Planer sind bis auf Weiteres Testbestellungen und werden als «TEST» geführt.
+      <b>Testphase:</b> Haken, Wanne, Ablage, Halter, Klemme, Becher und Kabelhalter — mit Beschriftung, Teilen-Link und Warenkorb. Bestellungen aus dem Planer sind bis auf Weiteres Testbestellungen und werden als «TEST» geführt.
     </p>
   </section>
+  <Kurzinfo />
   <KonfigFrame app="lochwand-app" titel="Lochwand-Planer" mobil="ansehen" />
 </BaseLayout>
 

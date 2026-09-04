@@ -1,0 +1,30 @@
+---
+/**
+ * Kurzinfo Versand / Zahlung / Fertigung — auf jeder Produktseite ueber dem
+ * Konfigurator (UX-Durchgang 31.08.2026: die Angaben standen bisher erst in
+ * der Kasse; wer 10 Minuten konfiguriert, will vorher wissen, was Versand
+ * kostet und wie bezahlt wird). Zahlen sind dieselben wie in checkout.astro
+ * (VERSANDARTEN) — aendert sich dort etwas, hier nachziehen.
+ */
+interface Props { kompakt?: boolean }
+const { kompakt = false } = Astro.props;
+---
+<div class={`kurzinfo ${kompakt ? 'kurzinfo--kompakt' : ''}`}>
+  <span><b>Versand</b> CHF 7.— (B-Post, 2–4 Werktage) oder Abholung in Bühler AR</span>
+  <span><b>Zahlung</b> QR-Rechnung oder TWINT nach der Bestellung</span>
+  <span><b>Fertigung</b> auf Bestellung gedruckt — Versand, sobald die Teile fertig sind</span>
+</div>
+
+<style>
+  .kurzinfo {
+    display: flex; flex-wrap: wrap; gap: 6px 22px;
+    margin: 6px 26px 0; padding: 7px 12px;   /* flach halten: schiebt den Konfigurator sonst weiter nach unten */
+    border: 1px dashed var(--line); border-radius: 8px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .6px; color: var(--muted);
+  }
+  .kurzinfo b { color: var(--acc2); font-weight: 500; margin-right: 4px; text-transform: uppercase; font-size: 10.5px; letter-spacing: 1.2px; }
+  .kurzinfo--kompakt { margin: 0; padding: 0; border: 0; gap: 4px 18px; font-size: 12px; }
+  @media (max-width: 860px) {
+    .kurzinfo { margin-inline: 10px; flex-direction: column; gap: 6px; font-size: 12px; }
+  }
+</style>

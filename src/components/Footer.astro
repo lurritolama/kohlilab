@@ -1,12 +1,54 @@
 ---
+// Fusszeile (UX-Durchgang 31.08.2026): vorher nur Rechtliches — am Seitenende
+// fehlte der Weg weiter. Jetzt Produktlinien, Kontakt und die Kurzinfo zu
+// Versand/Zahlung; das Rechtliche bleibt in der letzten Zeile.
+import Kurzinfo from './Kurzinfo.astro';
 const jahr = new Date().getFullYear();
 ---
 <footer>
-  <span>© {jahr} KohliLab — eine Marke von Creative Lab Munsby</span>
-  <div class="flinks">
-    <a href="/agb">AGB</a>
-    <a href="/versand">Versand</a>
-    <a href="/datenschutz">Datenschutz</a>
-    <a href="/impressum">Impressum</a>
+  <div class="foot-oben">
+    <div class="foot-spalte">
+      <div class="foot-titel">Konfiguratoren</div>
+      <a href="/organizer">Schubladen-Organizer</a>
+      <a href="/golf-tees">Golf-Tees</a>
+      <a href="/qr-schilder">QR-Schilder</a>
+      <a href="/lochwand">Lochwand-Planer</a>
+      <a href="/#produkte">Alle Produktlinien</a>
+    </div>
+    <div class="foot-spalte">
+      <div class="foot-titel">KohliLab</div>
+      <a href="/ventilkappen">Ventilkappen</a>
+      <a href="/spezialanfertigung">Spezialanfertigung</a>
+      <a href="/kontakt">Kontakt</a>
+      <a href="/versand">Versand und Rückgabe</a>
+    </div>
+    <div class="foot-spalte foot-info">
+      <div class="foot-titel">Gut zu wissen</div>
+      <Kurzinfo kompakt />
+    </div>
+  </div>
+  <div class="foot-unten">
+    <span>© {jahr} KohliLab — eine Marke von Creative Lab Munsby, Bühler AR</span>
+    <div class="flinks">
+      <a href="/agb">AGB</a>
+      <a href="/versand">Versand</a>
+      <a href="/datenschutz">Datenschutz</a>
+      <a href="/impressum">Impressum</a>
+    </div>
   </div>
 </footer>
+
+<style is:global>
+  footer { display: block; padding: 28px 26px 22px; }
+  footer .foot-oben { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 24px 32px; padding-bottom: 20px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  footer .foot-spalte { display: flex; flex-direction: column; gap: 2px; }
+  footer .foot-spalte a { padding: 6px 0; color: var(--muted); font-size: 13px; }   /* 6px + Zeile = ~30px Tippziel je Link */
+  footer .foot-titel { font-family: var(--mono); font-size: 10.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--acc2); margin-bottom: 6px; }
+  footer .foot-unten { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; align-items: center; }
+  footer .flinks a { padding: 8px 0; display: inline-block; }
+  @media (max-width: 860px) {
+    footer .foot-oben { grid-template-columns: 1fr 1fr; }
+    footer .foot-info { grid-column: 1 / -1; }
+    footer .foot-spalte a { padding: 9px 0; font-size: 14px; }   /* ~40px Tippziel */
+  }
+</style>

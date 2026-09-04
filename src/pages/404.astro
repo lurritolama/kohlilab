@@ -1,0 +1,28 @@
+---
+// Eigene 404-Seite (UX-Durchgang 31.08.2026): vorher die weisse Astro-Standard-
+// seite ohne Logo und Menue — ein falsch getippter Link endete im Nichts.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="Seite nicht gefunden — KohliLab" description="Diese Seite gibt es bei KohliLab nicht." noindex>
+  <section class="block nf">
+    <span class="kicker">Fehler 404</span>
+    <h1>Hier ist nichts.</h1>
+    <p class="lead">
+      Die Adresse gibt es nicht (mehr) — vielleicht ein Tippfehler oder ein alter Link.
+      Was du suchst, ist wahrscheinlich hier:
+    </p>
+    <div class="nf-links">
+      <a class="btn primary" href="/#produkte">Alle Produktlinien</a>
+      <a class="btn ghost" href="/organizer">Schubladen-Organizer</a>
+      <a class="btn ghost" href="/golf-tees">Golf-Tees</a>
+      <a class="btn ghost" href="/ventilkappen">Ventilkappen</a>
+      <a class="btn ghost" href="/kontakt">Kontakt</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .nf { padding-top: 56px; padding-bottom: 72px; max-width: 720px; }
+  .nf h1 { margin: 6px 0 14px; }
+  .nf-links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+</style>

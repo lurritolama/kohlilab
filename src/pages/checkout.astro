@@ -15,18 +15,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <div class="co-fehler" data-fehler role="alert" hidden></div>
 
         <h2>Kontakt</h2>
-        <label>E-Mail<input type="email" name="email" required placeholder="dein@mail.ch" /></label>
-        <label>Telefon (optional)<input type="tel" name="telefon" placeholder="079 …" /></label>
+        <label>E-Mail<input type="email" name="email" required placeholder="dein@mail.ch" autocomplete="email" /></label>
+        <label>Telefon (optional)<input type="tel" name="telefon" placeholder="079 …" autocomplete="tel" /></label>
 
         <h2>Lieferadresse</h2>
-        <label>Name<input type="text" name="name" required /></label>
-        <label>Strasse und Hausnummer<input type="text" name="strasse" required /></label>
+        <label>Name<input type="text" name="name" required autocomplete="name" /></label>
+        <label>Strasse und Hausnummer<input type="text" name="strasse" required autocomplete="street-address" /></label>
         <div class="co-row">
-          <label>PLZ<input type="text" name="plz" required inputmode="numeric" pattern="[0-9]{4}" placeholder="9055" /></label>
-          <label>Ort<input type="text" name="ort" required /></label>
+          <label>PLZ<input type="text" name="plz" required inputmode="numeric" pattern="[0-9]{4}" placeholder="9055" autocomplete="postal-code" /></label>
+          <label>Ort<input type="text" name="ort" required autocomplete="address-level2" /></label>
         </div>
         <label>Land
-          <select name="land" required><option value="CH">Schweiz</option><option value="LI">Liechtenstein</option></select>
+          <select name="land" required autocomplete="country"><option value="CH">Schweiz</option><option value="LI">Liechtenstein</option></select>
         </label>
 
         <h2>Versand</h2>
@@ -43,6 +43,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </label>
 
         <p class="co-pay">Wir drucken deine Teile und schicken sie per Post. Bezahlung per QR-Rechnung / TWINT – du bekommst nach dem Absenden eine Bestätigung per E-Mail.</p>
+        <div class="co-total-kurz"><span>Total inkl. Versand</span><b data-sum-total-kurz>–</b></div>
         <button type="submit" class="btn primary" data-submit>Bestellung abschicken</button>
       </form>
 
@@ -62,7 +63,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   .korb-note { color:var(--muted); }
   .co-grid { display:grid; grid-template-columns:1.3fr .9fr; gap:26px; align-items:start; }
   .co-form label { display:block; font-size:13px; color:var(--muted); margin:9px 0; }
-  .co-form input, .co-form select, .co-form textarea { width:100%; margin-top:4px; background:#17181b; border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:9px 10px; font-size:14px; font-family:inherit; }
+  /* 16px + 44px hoch (UX-Durchgang 31.08.2026): iOS Safari zoomt bei Feldern
+     unter 16px bei jedem Fokus hinein und wieder heraus; 44px = Tippziel. */
+  .co-form input:not([type=radio]):not([type=checkbox]), .co-form select, .co-form textarea { width:100%; margin-top:4px; background:#17181b; border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:10px 12px; min-height:44px; font-size:16px; font-family:inherit; }
   .co-form h2 { font-family:var(--disp); font-size:18px; text-transform:uppercase; letter-spacing:.5px; margin:20px 0 4px; }
   .co-row { display:grid; grid-template-columns:1fr 2fr; gap:12px; }
   .co-versand { display:flex; flex-direction:column; gap:8px; }
@@ -81,7 +84,17 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   .co-total { color:var(--ink); font-weight:700; font-size:16px; border-top:1px solid var(--line); margin-top:4px; padding-top:10px; }
   .co-total span:last-child { font-family:var(--mono); color:var(--acc2); }
   .note-klein { color:var(--muted); font-size:11.5px; margin-top:12px; line-height:1.5; }
-  @media (max-width:760px){ .co-grid { grid-template-columns:1fr; } }
+  /* Kurz-Summe direkt ueber dem Abschick-Knopf: am Handy stand die
+     Zusammenfassung UNTER dem Knopf (UX-Durchgang 31.08.2026) — man schickte
+     ab, ohne den Betrag zu sehen. Am Desktop steht die Summe rechts daneben,
+     dort bleibt die Kurzzeile versteckt. */
+  .co-total-kurz { display:none; justify-content:space-between; align-items:baseline; gap:12px; margin:14px 0 10px; padding-top:10px; border-top:1px solid var(--line); font-size:14px; color:var(--muted); }
+  .co-total-kurz b { font-family:var(--mono); font-size:18px; color:var(--acc2); }
+  @media (max-width:760px){
+    .co-grid { grid-template-columns:1fr; }
+    .co-summary { order:-1; position:static; }   /* erst sehen, was man bestellt, dann Adresse */
+    .co-total-kurz { display:flex; }
+  }
 </style>
 
 <script>
@@ -131,6 +144,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     set('[data-sum-subtotal]', chf(sub));
     set('[data-sum-versand]', vers === 0 ? 'gratis' : chf(vers));
     set('[data-sum-total]', chf(sub + vers));
+    set('[data-sum-total-kurz]', chf(sub + vers));
   }
   function zeigeFehler(m: string[]): void {
     if (!fehlerEl) return;

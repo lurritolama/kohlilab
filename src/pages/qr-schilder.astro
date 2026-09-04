@@ -1,9 +1,11 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
   title="QR-Schilder-Konfigurator — KohliLab"
+  bild="/bilder/qr-schilder-titel.jpg"
   description="Gestalte dein eigenes 3D-gedrucktes QR-Schild: Form, Farben, WLAN/URL/vCard-Inhalt, Text und Logo — mit Echtzeit-3D-Vorschau und druckfertigem Farb-3MF."
 >
   <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
@@ -17,6 +19,7 @@ import KonfigFrame from '../components/KonfigFrame.astro';
      
     </p>
   </section>
+  <Kurzinfo />
   <KonfigFrame app="qr-schilder-app" titel="QR-Schilder-Konfigurator" mobil="ansehen" />
 
 </BaseLayout>

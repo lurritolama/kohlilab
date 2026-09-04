@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
 import { ladeGalerie } from '../lib/server/galerie';
 
 // SSR statt vorgerendert: die Foto-Galerie kommt aus dem Storage und soll
@@ -11,6 +12,7 @@ const fotos = await ladeGalerie('organizer');
 ---
 <BaseLayout
   title="Schubladen-Organizer nach Mass — KohliLab"
+  bild="/bilder/organizer-titel.jpg"
   description="Massgeschneiderter Schubladeneinsatz, 3D-gedruckt: Innenmass eingeben, Fächer frei einteilen, direkt in der 3D-Schublade gestalten — für Besteck, Büro, Werkzeug, Schrauben und mehr."
 >
   <section class="block" style="padding-top:28px">
@@ -28,6 +30,7 @@ const fotos = await ladeGalerie('organizer');
       </button>
     )}
   </section>
+  <Kurzinfo />
   <KonfigFrame app="organizer-app" titel="Schubladen-Organizer-Konfigurator" mobil="ansehen" />
 
   {fotos.length > 0 && (

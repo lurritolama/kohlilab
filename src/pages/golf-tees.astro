@@ -5,9 +5,11 @@
 // gemeinsame KCart, die Kasse kennt den Typ `tee`.
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
   title="Golf-Tees — KohliLab"
+  bild="/bilder/golf-tees-titel.jpg"
   description="Dein Golf-Tee millimetergenau: Länge, Kopfform, Schaft, Steckverbindung und Farben — 3D-gedruckt in Bühler AR, ab 10 Stück."
 >
   <section class="block" style="padding-top:28px">
@@ -20,6 +22,7 @@ import KonfigFrame from '../components/KonfigFrame.astro';
     </p>
     <p class="hinweis-klein">Preis je Tee: 1.40 bei einer Farbe, 1.70 bei zwei, 2.— bei drei Farben (Auge immer drei).</p>
   </section>
+  <Kurzinfo />
   <KonfigFrame app="tee-konfigurator" titel="Golf-Tee-Konfigurator" mobil="ansehen" />
 </BaseLayout>
 
