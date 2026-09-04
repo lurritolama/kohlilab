@@ -30,7 +30,7 @@ nav { display:flex; align-items:center; justify-content:space-between; padding:1
 .navbtn { font-family:var(--mono); font-size:12px; letter-spacing:1px; color:#141517; background:var(--acc);
   font-weight:700; padding:9px 16px; border-radius:3px; text-transform:uppercase; }
 .navbtn:hover { background:var(--acc2); }
-.cart-count { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 4px; margin-left:4px; background:#141517; color:var(--acc); border-radius:9px; font-size:10.5px; }
+.cart-count { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 4px; margin-left:4px; background:#141517; color:var(--acc); border-radius:9px; font-size:11px; }
 
 /* hero */
 .hero { display:grid; grid-template-columns:1.1fr .9fr; gap:32px; padding:64px 26px 52px; align-items:center; position:relative;
@@ -48,7 +48,7 @@ h1 .g { color:var(--acc); }
 .btn.ghost:hover { border-color:var(--acc); color:var(--acc); }
 .specs { display:flex; gap:30px; margin-top:36px; font-family:var(--mono); }
 .specs .n { font-size:21px; color:var(--acc2); font-weight:500; }
-.specs .l { font-size:10.5px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+.specs .l { font-size:12px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-top:2px; }
 
 /* hero stage — Metallplatte mit Sujet */
 .stage { display:flex; justify-content:center; align-items:center; }
@@ -56,7 +56,7 @@ h1 .g { color:var(--acc); }
   background:radial-gradient(circle at 30% 25%, #2b2e33, #1b1d20 70%);
   border:1px solid var(--line); box-shadow:inset 0 0 60px rgba(0,0,0,.5); }
 .plate .cap { position:absolute; inset:0; margin:auto; }
-.plate .plabel { position:absolute; bottom:12px; left:14px; font-family:var(--mono); font-size:10.5px; letter-spacing:2px; color:var(--muted); }
+.plate .plabel { position:absolute; bottom:12px; left:14px; font-family:var(--mono); font-size:11.5px; letter-spacing:2px; color:var(--muted); }
 
 /* pipeline band */
 .band { display:flex; border-block:1px solid var(--line); background:var(--bg2); }
@@ -84,7 +84,7 @@ section.block { padding:56px 26px; }
 .card .thumb img { width:100%; height:100%; object-fit:contain; }
 .card .thumb .bildhinweis {
   position:absolute; bottom:8px; right:9px;
-  font-family:var(--mono); font-size:9px; letter-spacing:1.1px; text-transform:uppercase;
+  font-family:var(--mono); font-size:11px; letter-spacing:1.1px; text-transform:uppercase;
   color:var(--muted); background:rgba(20,21,23,0.72);
   border:1px solid var(--line); border-radius:3px; padding:2px 6px;
   backdrop-filter:blur(2px);
@@ -94,7 +94,7 @@ section.block { padding:56px 26px; }
 .card.stumm { pointer-events:none; opacity:.75; }
 .tag-dim { background:var(--line2); color:var(--ink); }
 .tag-test { background:#8b3fd6; color:#f4e9ff; }
-.card .tag { position:absolute; top:10px; left:10px; font-family:var(--mono); font-size:10px; letter-spacing:1.8px;
+.card .tag { position:absolute; top:10px; left:10px; font-family:var(--mono); font-size:11px; letter-spacing:1.8px;
   background:var(--acc); color:#141517; font-weight:700; padding:3px 8px; border-radius:2px; }
 .card .meta { padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
 .card .nm { font-family:var(--disp); font-size:19px; font-weight:500; letter-spacing:.5px; }
@@ -104,7 +104,7 @@ section.block { padding:56px 26px; }
 /* so entsteht's */
 .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
 .step { background:var(--bg2); border:1px solid var(--line); border-radius:8px; padding:20px; }
-.step .num { font-family:var(--mono); font-size:11px; color:var(--acc); letter-spacing:2px; margin-bottom:10px; }
+.step .num { font-family:var(--mono); font-size:12px; color:var(--acc); letter-spacing:2px; margin-bottom:10px; }
 .step h3 { font-family:var(--disp); font-size:18px; font-weight:500; letter-spacing:.5px; text-transform:uppercase; margin-bottom:8px; }
 .step p { color:var(--muted); font-size:13.5px; line-height:1.6; }
 

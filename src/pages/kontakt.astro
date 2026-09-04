@@ -1,19 +1,94 @@
 ---
+// Kontaktseite mit Formular (UX-Durchgang 31.08.2026, Punkt 9): vorher nur
+// eine Mailadresse. Jetzt Formular (-> /api/kontakt), Telefon als tel:-Link
+// (dieselbe Nummer wie bei der Spezialanfertigung) und die Adresse.
 import BaseLayout from '../layouts/BaseLayout.astro';
+const TELEFON = '076 386 89 10';
+const telHref = 'tel:+41' + TELEFON.replace(/\D/g, '').replace(/^0/, '');
+const MAIL = 'manuel_looser@bluewin.ch';
 ---
-<BaseLayout title="Kontakt — KohliLab">
-  <div class="prose">
-    <h1>Kontakt</h1>
-    <p>
-      Fragen zu einem Sujet, einer Bestellung oder eine Idee, was als nächstes
-      aufs Ventil gehört? Schreib uns.
-    </p>
-    <h2>KohliLab</h2>
-    <p>
-      Eine Marke von Creative Lab Munsby<br />
-      Manuel Looser<br />
-      Kohli 16, 9055 Bühler AR<br />
-      <a href="mailto:manuel_looser@bluewin.ch">manuel_looser@bluewin.ch</a>
-    </p>
-  </div>
+<BaseLayout title="Kontakt — KohliLab" description="Frage, Idee oder Bestellung — schreib oder ruf an: KohliLab, Bühler AR.">
+  <section class="block kontakt">
+    <div>
+      <h1>Kontakt</h1>
+      <p class="lead">
+        Fragen zu einem Sujet, einer Bestellung oder eine Idee, was als nächstes
+        aufs Ventil gehört? Schreib uns — wir melden uns so schnell wie möglich,
+        in der Regel am nächsten Werktag.
+      </p>
+      <form class="kf" id="kontaktForm" novalidate>
+        <div class="kf-fehler" data-fehler role="alert" hidden></div>
+        <label>Name<input type="text" name="name" required autocomplete="name" maxlength="80" /></label>
+        <label>E-Mail<input type="email" name="email" required autocomplete="email" maxlength="120" placeholder="dein@mail.ch" /></label>
+        <label>Telefon (optional)<input type="tel" name="telefon" autocomplete="tel" maxlength="40" placeholder="079 …" /></label>
+        <label>Nachricht<textarea name="nachricht" required rows="6" maxlength="3000" placeholder="Worum geht's?"></textarea></label>
+        <label class="kf-honig" aria-hidden="true">Firma<input type="text" name="firma" tabindex="-1" autocomplete="off" /></label>
+        <button type="submit" class="btn primary" data-submit>Nachricht senden</button>
+        <p class="kf-danke" data-danke hidden>✓ Danke — deine Nachricht ist angekommen. Wir melden uns per E-Mail.</p>
+      </form>
+    </div>
+    <aside class="kontakt-seite">
+      <h2>Direkt</h2>
+      <p>
+        <a class="kontakt-zeile" href={telHref}>📞 {TELEFON}</a>
+        <a class="kontakt-zeile" href={`mailto:${MAIL}`}>✉️ {MAIL}</a>
+      </p>
+      <h2>KohliLab</h2>
+      <p>
+        Eine Marke von Creative Lab Munsby<br />
+        Manuel Looser<br />
+        Kohli 16, 9055 Bühler AR
+      </p>
+      <p class="kontakt-hinweis">
+        Abholung von Bestellungen nach Absprache in Bühler AR.
+        Für Einzelstücke nach deiner Idee: <a href="/spezialanfertigung">Spezialanfertigung anfragen</a>.
+      </p>
+    </aside>
+  </section>
 </BaseLayout>
+
+<style>
+  .kontakt { display:grid; grid-template-columns:1.2fr .8fr; gap:36px; padding-top:40px; align-items:start; }
+  .kf { display:grid; gap:12px; margin-top:22px; max-width:560px; }
+  .kf label { display:block; font-size:13px; color:var(--muted); }
+  .kf input, .kf textarea { width:100%; margin-top:4px; background:#17181b; border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:10px 12px; min-height:44px; font-size:16px; font-family:inherit; }
+  .kf textarea { resize:vertical; }
+  .kf input:focus, .kf textarea:focus { outline:none; border-color:var(--acc); }
+  .kf-honig { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  .kf-fehler { background:rgba(226,72,61,.12); border:1px solid #e2483d; color:#ffb4ad; border-radius:6px; padding:10px 12px; font-size:14px; }
+  .kf-danke { color:#4ade80; font-weight:600; margin:0; }
+  .kontakt-seite { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 22px; }
+  .kontakt-seite h2 { font-family:var(--disp); font-size:17px; text-transform:uppercase; margin:0 0 8px; }
+  .kontakt-seite h2 + p { margin-bottom:20px; }
+  .kontakt-zeile { display:block; padding:8px 0; font-size:16px; color:var(--ink); }
+  .kontakt-zeile:hover { color:var(--acc); }
+  .kontakt-hinweis { color:var(--muted); font-size:14px; margin:0; }
+  @media (max-width:860px) { .kontakt { grid-template-columns:1fr; gap:24px; padding-top:28px; } }
+</style>
+
+<script>
+  const form = document.getElementById('kontaktForm') as HTMLFormElement;
+  const fehler = form.querySelector('[data-fehler]') as HTMLElement;
+  const danke = form.querySelector('[data-danke]') as HTMLElement;
+  const knopf = form.querySelector('[data-submit]') as HTMLButtonElement;
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    fehler.hidden = true;
+    const fd = new FormData(form);
+    const daten = Object.fromEntries(fd.entries());
+    knopf.disabled = true; const alt = knopf.textContent; knopf.textContent = 'Sendet …';
+    try {
+      const r = await fetch('/api/kontakt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(daten) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.fehler || 'Senden hat nicht geklappt.');
+      form.querySelectorAll('input, textarea').forEach((e) => { (e as HTMLInputElement).value = ''; });
+      danke.hidden = false;
+      knopf.hidden = true;
+    } catch (e) {
+      fehler.textContent = (e as Error).message + ' Alternativ per E-Mail an manuel_looser@bluewin.ch.';
+      fehler.hidden = false;
+      knopf.disabled = false; knopf.textContent = alt;
+    }
+  });
+</script>

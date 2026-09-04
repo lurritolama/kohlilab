@@ -15,9 +15,21 @@ const icons: Record<string, string> = {
 <section class="block" id="sujets">
   <h2>Aktuelle Sujets</h2>
   <p class="lead">Frisch aus der Mikrofabrik — limitiert, bis der Trend weiterzieht.</p>
+  {/* Filter + Suche (UX-Durchgang, Punkt 12): 22 Karten am Stueck sind zu viel
+      zum Durchscrollen. Rein clientseitig ueber data-Attribute der Karten;
+      die Wunsch-Karte bleibt immer sichtbar. */}
+  <div class="sujet-filter" data-sujet-filter>
+    <div class="sf-chips" role="group" aria-label="Sujets filtern">
+      <button type="button" class="sf-chip is-on" data-filter="alle">Alle <span data-anzahl="alle"></span></button>
+      <button type="button" class="sf-chip" data-filter="neu">Neu <span data-anzahl="neu"></span></button>
+      <button type="button" class="sf-chip" data-filter="foto">Schon gedruckt <span data-anzahl="foto"></span></button>
+    </div>
+    <label class="sf-suche"><span class="sr-only">Sujet suchen</span><input type="search" placeholder="Sujet suchen …" data-suche autocomplete="off" /></label>
+  </div>
+  <p class="sf-leer" data-sf-leer hidden>Kein Sujet passt — anderes Wort probieren oder ein <a href="#wunsch">Wunsch-Sujet</a> bestellen.</p>
   <div class="cards">
     {sujets.map((s) => (
-      <div class="card">
+      <div class="card" data-sujet-karte data-neu={s.neu ? '1' : '0'} data-foto={s.bildTyp === 'foto' ? '1' : '0'} data-such={`${s.name} ${s.beschreibung ?? ''}`.toLowerCase()}>
         <div class="thumb">
           {s.neu && <span class="tag">NEU</span>}
           {s.bild
@@ -52,7 +64,7 @@ const icons: Record<string, string> = {
         )}
       </div>
     ))}
-    <div class="card card--wunsch">
+    <div class="card card--wunsch" id="wunsch">
       <div class="thumb">
         <span class="tag tag-wunsch">WUNSCH</span>
         <svg width="90" height="110" viewBox="0 0 90 110"><path d="M30 78 L62 30 l10 7 -32 48 -14 5 z" fill="none" stroke="#ff6b1a" stroke-width="4" stroke-linejoin="round"/><path d="M58 36 l10 7" stroke="#ff6b1a" stroke-width="3"/><rect x="30" y="88" width="30" height="14" rx="3" fill="none" stroke="#e8e6e1" stroke-width="3"/></svg>
@@ -77,20 +89,47 @@ const icons: Record<string, string> = {
     </div>
   </div>
   <p class="setnote">Preise gelten pro 4er-Set (4 Ventilkappen). Wähle je Sujet dein Ventilgewinde: <b>Schrader</b> (Auto und die meisten Velos) oder <b>Presta</b> (Rennvelo).</p>
+  <button type="button" class="nach-oben" data-nach-oben hidden aria-label="Nach oben">↑ oben</button>
 </section>
 
 <style>
+  .sujet-filter { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin:-4px 0 18px; }
+  .sf-chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .sf-chip {
+    background:transparent; color:var(--mut,#9a9a93); border:1px solid var(--line,#33373c); border-radius:999px;
+    padding:9px 14px; min-height:40px; font-family:var(--mono,monospace); font-size:0.78rem; letter-spacing:0.08em;
+    text-transform:uppercase; cursor:pointer;
+  }
+  .sf-chip span { opacity:.7; margin-left:3px; }
+  .sf-chip.is-on { border-color:var(--acc,#ff6b1a); color:var(--acc,#ff6b1a); background:rgba(255,107,26,0.08); }
+  .sf-suche { flex:1 1 200px; max-width:320px; }
+  .sf-suche input {
+    width:100%; min-height:40px; background:#17181b; border:1px solid var(--line,#33373c); border-radius:999px;
+    color:var(--ink,#e8e6e1); padding:8px 16px; font-size:16px; font-family:inherit;
+  }
+  .sf-suche input:focus { outline:none; border-color:var(--acc,#ff6b1a); }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .sf-leer { color:var(--mut,#9a9a93); margin:0 0 14px; }
+  .card.sf-aus { display:none; }
+  .nach-oben {
+    position:fixed; right:16px; bottom:18px; z-index:40;
+    background:var(--panel,#1c1e21); color:var(--ink,#e8e6e1); border:1px solid var(--line,#33373c);
+    border-radius:999px; padding:11px 15px; min-height:44px; font-size:0.85rem; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+  }
+  .nach-oben:hover { border-color:var(--acc,#ff6b1a); color:var(--acc,#ff6b1a); }
+
   .pr { display:flex; flex-direction:column; align-items:flex-end; line-height:1.12; }
-  .pr-set { font-size:0.7rem; font-weight:400; letter-spacing:0.02em; color:var(--mut,#9a9a93); text-transform:uppercase; }
+  .pr-set { font-size:0.78rem; font-weight:400; letter-spacing:0.02em; color:var(--mut,#9a9a93); text-transform:uppercase; }
   .setnote { margin:1.2rem 0 0; font-size:0.8rem; color:var(--mut,#9a9a93); }
 
-  .bildnote { margin:-0.35rem 16px 0; font-size:0.72rem; line-height:1.45; color:var(--mut,#9a9a93); }
+  .bildnote { margin:-0.35rem 16px 0; font-size:0.8rem; line-height:1.45; color:var(--mut,#9a9a93); }
   .bildnote b { color:var(--ink,#e8e6e1); font-weight:600; }
 
   .order { margin-top:0.9rem; display:flex; flex-direction:column; gap:0.55rem; }
   .order--bald { align-items:flex-start; }
   .order--bald span {
-    font-family:var(--mono,monospace); font-size:0.68rem; letter-spacing:0.12em;
+    font-family:var(--mono,monospace); font-size:0.75rem; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--mut,#9a9a93);
     border:1px solid var(--line,#33373c); border-radius:999px; padding:0.3rem 0.7rem;
   }
@@ -101,7 +140,7 @@ const icons: Record<string, string> = {
     background:transparent; color:var(--ink,#e8e6e1); cursor:pointer;
     font-size:0.82rem; font-weight:600; line-height:1.1;
   }
-  .gw-opt small { font-size:0.6rem; font-weight:400; color:var(--mut,#9a9a93); letter-spacing:0.02em; }
+  .gw-opt small { font-size:0.7rem; font-weight:400; color:var(--mut,#9a9a93); letter-spacing:0.02em; }
   .gw-opt.is-on { border-color:var(--acc,#ff6b1a); color:var(--acc,#ff6b1a); background:rgba(255,107,26,0.08); }
   .gw-opt.is-on small { color:var(--acc,#ff6b1a); }
   .btn-cart {
@@ -120,7 +159,7 @@ const icons: Record<string, string> = {
     color:var(--ink,#e8e6e1); padding:0.5rem 0.6rem; font-size:0.82rem; font-family:inherit;
   }
   .order--wunsch textarea:focus { outline:none; border-color:var(--acc,#ff6b1a); }
-  .wunsch-note { margin:0; font-size:0.72rem; line-height:1.45; color:var(--mut,#9a9a93); }
+  .wunsch-note { margin:0; font-size:0.8rem; line-height:1.45; color:var(--mut,#9a9a93); }
   .wunsch-note b { color:var(--ink,#e8e6e1); font-weight:600; }
 </style>
 
@@ -206,5 +245,48 @@ const icons: Record<string, string> = {
       btn.classList.add('ok');
       setTimeout(() => { btn.textContent = alt; btn.classList.remove('ok'); }, 2200);
     });
+  }
+
+  // Filter + Suche + «nach oben» (UX-Durchgang 31.08.2026, Punkt 12).
+  const filterBox = document.querySelector('[data-sujet-filter]');
+  if (filterBox) {
+    const karten = [...document.querySelectorAll('[data-sujet-karte]')];
+    const leer = document.querySelector('[data-sf-leer]');
+    const suche = filterBox.querySelector('[data-suche]');
+    let filter = 'alle';
+    const zaehle = (f) => karten.filter((k) => f === 'alle' || k.dataset[f] === '1').length;
+    filterBox.querySelectorAll('[data-anzahl]').forEach((s) => { s.textContent = '(' + zaehle(s.dataset.anzahl) + ')'; });
+    // Ein Filter, der nichts aussortiert (alle Sujets «neu») oder nichts
+    // uebrig laesst, ist kein Filter — dann den Chip weglassen.
+    filterBox.querySelectorAll('[data-filter]').forEach((chip) => {
+      const f = chip.dataset.filter; if (f === 'alle') return;
+      const n = zaehle(f); if (n === 0 || n === karten.length) chip.hidden = true;
+    });
+    if ([...filterBox.querySelectorAll('[data-filter]')].filter((c) => !c.hidden).length < 2) filterBox.querySelector('.sf-chips').hidden = true;
+    const anwenden = () => {
+      const q = (suche.value || '').trim().toLowerCase();
+      let sichtbar = 0;
+      for (const k of karten) {
+        const passt = (filter === 'alle' || k.dataset[filter] === '1') && (!q || k.dataset.such.includes(q));
+        k.classList.toggle('sf-aus', !passt);
+        if (passt) sichtbar++;
+      }
+      leer.hidden = sichtbar > 0;
+    };
+    filterBox.querySelectorAll('[data-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        filter = chip.dataset.filter;
+        filterBox.querySelectorAll('[data-filter]').forEach((c) => c.classList.toggle('is-on', c === chip));
+        anwenden();
+      });
+    });
+    suche.addEventListener('input', anwenden);
+  }
+  const hoch = document.querySelector('[data-nach-oben]');
+  if (hoch) {
+    const pruefe = () => { hoch.hidden = window.scrollY < 900; };
+    window.addEventListener('scroll', pruefe, { passive: true });
+    pruefe();
+    hoch.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
   }
 </script>

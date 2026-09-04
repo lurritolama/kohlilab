@@ -12,6 +12,11 @@ import Entstehung from '../components/Entstehung.astro';
 import { ladeSujets } from '../lib/server/sujets';
 
 const sujets = await ladeSujets();
+// Am Netlify-Rand 5 Minuten zwischenspeichern (UX-Durchgang, Punkt 3): ~1.9 s
+// bis zum ersten Byte, weil die Sujets pro Aufruf aus Supabase kamen. Ein
+// frisch freigegebenes Sujet ist so spaetestens nach 5 Minuten live.
+Astro.response.headers.set('Netlify-CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 ---
 <BaseLayout
   title="Ventilkappen — KohliLab"

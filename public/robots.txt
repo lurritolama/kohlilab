@@ -1,0 +1,12 @@
+# kohlilab.ch — Suchmaschinen willkommen; private und funktionale Pfade bleiben aussen vor
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /checkout
+Disallow: /warenkorb
+Disallow: /bestellung/
+Disallow: /offerte/
+Disallow: /werber
+Disallow: /w/
+
+Sitemap: https://kohlilab.ch/sitemap-index.xml

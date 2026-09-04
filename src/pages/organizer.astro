@@ -9,6 +9,11 @@ import { ladeGalerie } from '../lib/server/galerie';
 export const prerender = false;
 
 const fotos = await ladeGalerie('organizer');
+// Am Netlify-Rand 5 Minuten zwischenspeichern (UX-Durchgang, Punkt 3): die
+// Galerie kommt aus dem Storage, jeder Aufruf kostete ~1.8 s bis zum ersten
+// Byte. Ein neues Galerie-Foto ist so spaetestens nach 5 Minuten sichtbar.
+Astro.response.headers.set('Netlify-CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900');
+Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 ---
 <BaseLayout
   title="Schubladen-Organizer nach Mass — KohliLab"
@@ -22,6 +27,11 @@ const fotos = await ladeGalerie('organizer');
       direkt in der 3D-Schublade ein: Fach anklicken zum Teilen, Wände einfach
       verschieben. Für Besteck, Büro, Werkzeug, Schrauben, Schminke und alles
       andere, das endlich Ordnung braucht.
+    </p>
+    {/* Am Handy kurz (UX-Durchgang, Punkt 18): 272 Zeichen Einleitung schoben
+        den Konfigurator auf 522 px — der Rechner-Tipp steht ohnehin in der App. */}
+    <p class="lead lead-kurz">
+      Innenmass eingeben, Fächer in 3D einteilen, bestellen — passgenau gedruckt.
     </p>
     {fotos.length > 0 && (
       <button class="galerie-knopf" data-galerie-auf>
@@ -52,6 +62,12 @@ const fotos = await ladeGalerie('organizer');
 </BaseLayout>
 
 <style>
+  .lead-kurz { display: none; }
+  @media (max-width: 860px) {
+    .lead { display: none; }
+    .lead-kurz { display: block; }
+  }
+
   /* KohliLab-Orange mit schwarzer Schrift (Manolo 13.08.2026) — die erste
      Fassung hatte var(--text) mit dunklem Fallback und war auf dem dunklen
      Seitenhintergrund praktisch unsichtbar. */
