@@ -8,7 +8,31 @@
 //                                              Projekt-Daten/kohlilab-relief
 import { zipSync, strToU8 } from 'fflate';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { reliefMesh, praegungAus, pruefe, modelXml, klassifiziere, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+import { reliefMesh, praegungAus, pruefe, modelXml, klassifiziere, resampleMaske, fluesseVerbinden, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+
+// --- Fluesse: Umrechnen ohne Luecken, eingedolte Luecken schliessen ----------
+{
+  // 1-Zellen-Linie 480 -> 300: muss zusammenhaengend bleiben
+  const sx = 480, sy = 480, nx = 300, ny = 300;
+  const src = new Uint8Array(sx * sy); for (let i = 40; i < 440; i++) src[(200 + Math.round(30 * Math.sin(i / 40))) * sx + i] = 1;
+  const m = resampleMaske(src, sx, sy, nx, ny);
+  const F = new Uint8Array(nx * ny); let luecken = 0;
+  for (let i = 30; i < 270; i++) { let hit = 0; for (let j = 0; j < ny; j++) if (m[j * nx + i]) hit = 1; if (!hit) luecken++; }
+  console.log(`${luecken === 0 ? 'OK ' : 'FEHLER'} Maske 480->300: ${luecken} Spalten ohne Linie`);
+  if (luecken) process.exitCode = 1;
+  // Gelaende faellt nach Westen; Bach von Osten mit Luecke (Dole) und ein
+  // isolierter Stummel oben in einer Mulde ohne Abfluss
+  const n = 120, hM = new Float32Array(n * n); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) hM[j * n + i] = 500 + i * 2 + 0.3 * Math.sin(j) ;
+  const fl = new Uint8Array(n * n);
+  for (let i = 100; i > 60; i--) fl[60 * n + i] = 1;          // Oberlauf
+  for (let i = 40; i >= 0; i--) fl[60 * n + i] = 1;           // Unterlauf bis zum Rand
+  for (let i = 80; i < 90; i++) { fl[20 * n + i] = 1; hM[20 * n + i] -= 50; } // Stummel in Mulde (tiefer als alles um ihn)
+  const v = fluesseVerbinden(fl, null, hM, n, n, 20000);
+  let zeile60 = 0; for (let i = 0; i <= 100; i++) if (v.fluesse[60 * n + i]) zeile60++;
+  const ok = v.ueberbrueckt >= 1 && zeile60 >= 100 && v.fluesse[20 * n + 85] === 0;
+  console.log(`${ok ? 'OK ' : 'FEHLER'} Fluesse verbinden: ${v.ueberbrueckt} ueberbrueckt, ${v.gestrichen} gestrichen, Hauptlauf ${zeile60}/101 Zellen, Stummel weg: ${v.fluesse[20 * n + 85] === 0}`);
+  if (!ok) process.exitCode = 1;
+}
 
 function gelaende(nx, ny) {
   const h = new Float32Array(nx * ny);

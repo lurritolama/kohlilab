@@ -88,6 +88,7 @@
   <div class="grp"><h2>3 · Farben</h2>
     <div id="zonen"></div>
     <label class="schalter" id="fluesseWrap"><input type="checkbox" id="fluesse"> Flüsse und Bäche mitdrucken (Seen immer)</label>
+    <div class="row" id="flussRow"><label>Flussbreite</label><input type="range" id="flussB" min="1" max="3" step="0.1"><span class="val" id="flussBV"></span></div>
     <div class="row" id="schneeRow"><label>Schneegrenze</label><input type="range" id="schnee" min="1500" max="4200" step="50"><span class="val" id="schneeV"></span></div>
     <div class="row" id="felsRow"><label>Fels ab</label><input type="range" id="fels" min="25" max="60" step="1"><span class="val" id="felsV"></span></div>
     <div class="row" id="hausRow"><label>Häuser</label><input type="range" id="hausH" min="3" max="15" step="1"><span class="val" id="hausHV"></span></div>
@@ -109,7 +110,7 @@
   <div class="grp"><h2>Menge &amp; Preis</h2>
     <div class="row"><label>Menge</label><input type="range" id="menge" min="1" max="5" step="1"><span class="val" id="mengeV"></span></div>
     <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
-    <div class="note">Preis: Grundbetrag + Material + Druckzeit + Farbwechsel, gleiche Kopien günstiger. Versand separat.</div>
+    <div class="note">Preis: Grundbetrag + Material + Druckzeit. <b>Einfarbig ist 25 % günstiger</b> als zwei Farben; drei und vier Farben kosten mehr, weil jeder Farbwechsel Zeit und Spülmaterial braucht. Gleiche Kopien günstiger. Versand separat.</div>
   </div>
 
   <div class="grp"><h2>Bestellen</h2>
@@ -139,17 +140,20 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mobilModus } from '/konfig-mobil.js';
-import { reliefMesh, praegungAus, volumen, modelXml, klassifiziere, resample, resampleMaske, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
+import { reliefMesh, praegungAus, volumen, modelXml, klassifiziere, resample, resampleMaske, dilatiere, fluesseVerbinden, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
 import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, LAYER, WASSER_FILTER, gpxPunkte, routeMaske, SUCHE } from './geo.js';
 let mobil = null;
 
 // ---------- Konfiguration ----------
-// Preis (Vorschlag, Manolo entscheidet): Grundbetrag je Auftrag, Material
-// 30.–/kg, Maschine 0.50/h bei 18 g/h (Farbwechsel bremsen), 8 % Ausfall,
-// 3.– je Zusatzfarbe (Spülabfall, Wechselzeit). Das 3MF ist ein Vollkoerper;
+// Preis (Manolo, 07.09.2026): Grundbetrag je Auftrag, Material 30.–/kg,
+// Maschine 0.50/h bei 18 g/h, 8 % Ausfall. Farben ueber einen FAKTOR auf den
+// Druck: einfarbig 25 % unter der Farbfassung (2 Farben = 1.0), drei und vier
+// Farben deutlich teurer (jeder Farbwechsel kostet Spuelmaterial und Zeit,
+// Haeuser in eigener Farbe zaehlen als Farbe). Das 3MF ist ein Vollkoerper;
 // gedruckt wird mit Fuellung — der Faktor 0.35 rechnet das Vollvolumen auf
 // das reale Gewicht um. Muss zu src/lib/preis.ts (reliefPreisRappen) passen.
-const PREIS = { grund: 15, filamentKg: 30, stundensatz: 0.5, durchsatz: 18, dichte: 1.27, fuell: 0.35, farbe: 3, ausfall: 0.08, min: 39 };
+const PREIS = { grund: 15, filamentKg: 30, stundensatz: 0.5, durchsatz: 18, dichte: 1.27, fuell: 0.35, ausfall: 0.08, min: 35,
+                farbFaktor: { 1: 0.75, 2: 1.0, 3: 1.3, 4: 1.65 } };
 const FORMATE = [['1:1', 1], ['3:2', 3 / 2], ['2:3', 2 / 3]];
 const MASTER = 480;                                 // Datenraster (laengere Seite)
 const VORSCHAU = 220;                               // 3D-Ansicht (laengere Seite)
@@ -169,10 +173,10 @@ const START = wgs2lv95(47.3735, 9.3235);
 
 const P = {
   E: Math.round(START[0]), N: Math.round(START[1]), km: 2, format: '1:1',
-  breite: 180, ueberh: 1.5, sockel: 6, glatt: 1,
+  breite: 180, ueberh: 1.5, sockel: 4, glatt: 1,
   an: { wald: true, wasser: true, fels: false, schnee: false, gebaeude: false, route: false },
   farben: Object.fromEntries(ZONEN.map((z) => [z.key, z.farbe])),
-  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true,
+  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true, flussB: 1.2,
   text: '', menge: 1,
 };
 let daten = null;                                   // { rect, nx, ny, h, masken, aufl, kacheln } — Masterraster
@@ -283,14 +287,24 @@ async function laden() {
       wmsMaske(r, nx, ny, LAYER.gebaeude, signal).catch(() => null),
     ]);
     balken(0.9);
+    // Fluesse: eingedolte Luecken entlang des Talwegs schliessen, Reste ohne
+    // Anschluss ans Netz streichen (mesh.js fluesseVerbinden)
+    let fl = null, flInfo = '';
+    if (wasser) {
+      status('Gewässer werden verbunden …');
+      await new Promise((res) => setTimeout(res, 20));
+      const v = fluesseVerbinden(wasser.fluesse, wasser.seen, hoehen.h, nx, ny);
+      fl = v.fluesse;
+      if (v.ueberbrueckt || v.gestrichen) flInfo = ` · Bäche: ${v.ueberbrueckt} verbunden, ${v.gestrichen} ohne Anschluss weggelassen`;
+    }
     daten = { rect: r, nx, ny, h: hoehen.h, aufl: hoehen.aufl, kacheln: hoehen.kacheln, fehlt: hoehen.fehlt,
-              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: wasser ? wasser.fluesse : null, gebaeude: geb } };
+              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: fl, gebaeude: geb } };
     datenAlt = false;
     let min = Infinity, max = -Infinity; for (const v of hoehen.h) { if (v < min) min = v; if (v > max) max = v; }
     daten.min = min; daten.max = max;
     ladeStatus = `Geladen: ${hoehen.kacheln} Kacheln swissALTI3D (${hoehen.aufl} m) · ${min.toFixed(0)}–${max.toFixed(0)} m ü. M.` +
       (hoehen.fehlt ? ` · ${(100 * hoehen.fehlt / hoehen.h.length).toFixed(0)} % ohne Daten (Landesgrenze)` : '') +
-      (!wald || !wasser ? ' · Flächenmasken unvollständig' : '');
+      (!wald || !wasser ? ' · Flächenmasken unvollständig' : '') + flInfo;
     status(ladeStatus);
     balken(1);
     rebuild();
@@ -320,7 +334,13 @@ function bau(lang, fuerDruck = false) {
   // machen die Entwaesserungsgraeben das Relief sonst unruhig)
   if (daten.masken.seen) {
     const seen = resampleMaske(daten.masken.seen, daten.nx, daten.ny, nx, ny);
-    if (P.fluesse && daten.masken.fluesse) { const fl = resampleMaske(daten.masken.fluesse, daten.nx, daten.ny, nx, ny); for (let k = 0; k < seen.length; k++) if (fl[k]) seen[k] = 1; }
+    if (P.fluesse && daten.masken.fluesse) {
+      // Mindestbreite: die Zellregel (>= 1 Ecke) gibt schon 2 Zellen, darueber
+      // hinaus verbreitern — sonst laesst der Slicer die Linie fallen.
+      const r = Math.max(0, Math.round((P.flussB / pitch - 2) / 2));
+      const fl = dilatiere(resampleMaske(daten.masken.fluesse, daten.nx, daten.ny, nx, ny), nx, ny, r);
+      for (let k = 0; k < seen.length; k++) if (fl[k]) seen[k] = 1;
+    }
     masken.wasser = seen;
   } else masken.wasser = null;
   const zellM = r.wM / (nx - 1);
@@ -442,18 +462,22 @@ function rebuildBald() { clearTimeout(timer); timer = setTimeout(rebuild, 60); }
 // ---------- Preis ----------
 function preisInfo() {
   const g = letzteVolCm3 * PREIS.dichte * PREIS.fuell;
-  const druck = (g * PREIS.filamentKg / 1000 + (g / PREIS.durchsatz) * PREIS.stundensatz) * (1 + PREIS.ausfall) + (letzteFarben - 1) * PREIS.farbe;
+  // Farbfaktor auf den GANZEN Preis (nach dem Mindestpreis): so ist einfarbig
+  // immer 25 % unter zwei Farben, auch bei kleinen Reliefs am Mindestpreis.
+  const faktor = PREIS.farbFaktor[Math.min(4, Math.max(1, letzteFarben))];
+  const druck = (g * PREIS.filamentKg / 1000 + (g / PREIS.durchsatz) * PREIS.stundensatz) * (1 + PREIS.ausfall);
   const n = P.menge;
-  const roh = PREIS.grund + n * druck;
-  const total = daten ? Math.max(PREIS.min, Math.ceil(roh * 2) / 2) : 0;
-  return { g, druck, n, total };
+  const roh = Math.max(PREIS.min, PREIS.grund + n * druck);
+  const total = daten ? Math.ceil(roh * faktor * 2) / 2 : 0;
+  return { g, druck, n, total, faktor, roh };
 }
 function preisAnzeigen() {
   const box = $('preisBox'); if (!box) return;
   const pi = preisInfo(), f = (v) => v.toFixed(2);
+  const farbText = letzteFarben === 1 ? 'einfarbig −25 %' : letzteFarben === 2 ? '2 Farben' : `${letzteFarben} Farben +${Math.round((pi.faktor - 1) * 100)} %`;
   box.innerHTML = daten
-    ? `≈ ${pi.g.toFixed(0)} g je Stück · Grund ${f(PREIS.grund)} + ${pi.n} × ${f(pi.druck)} Druck (${letzteFarben} Farbe${letzteFarben > 1 ? 'n' : ''})` +
-      (pi.total === PREIS.min ? ` · Mindestpreis` : '') +
+    ? `≈ ${pi.g.toFixed(0)} g je Stück · Grund ${f(PREIS.grund)} + ${pi.n} × ${f(pi.druck)} Druck` +
+      (pi.roh === PREIS.min ? ` · Mindestpreis ${f(PREIS.min)}` : '') + ` · ${farbText}` +
       `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`
     : `<div style="font-size:13px;color:var(--mut)">Preis erscheint, sobald das Relief geladen ist.</div>`;
   if (mobil) mobil.setPreis(daten ? `Total CHF ${f(pi.total)}` : 'Relief laden');
@@ -526,7 +550,7 @@ $('cart').addEventListener('click', () => busy($('cart'), async () => {
     typ: 'relief', titel, menge: P.menge, gesamtRappen: Math.round(pi.total * 100), stueckRappen: Math.round(pi.total * 100),
     konfig: { E: P.E, N: P.N, km: P.km, format: P.format, ort, breite: +m.W.toFixed(1), hoehe: +m.H.toFixed(1), massstab: m.massstab,
               ueberh: P.ueberh, sockel: P.sockel, glatt: P.glatt, zonen, farben: pal, schnee: P.an.schnee ? P.schnee : undefined,
-              fels: P.an.fels ? P.fels : undefined, hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined,
+              fels: P.an.fels ? P.fels : undefined, hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined, flussB: P.an.wasser && P.fluesse ? P.flussB : undefined,
               text: P.text.trim(), quelle: `swissALTI3D ${daten.aufl} m, ${daten.kacheln} Kacheln`, raster: lang, menge: P.menge },
     dateien,
   });
@@ -545,7 +569,7 @@ function mkBtns(hostId, liste, key, nach) {
   });
 }
 const EINH = [['km', 'km', ' km'], ['breite', 'breite', ' mm'], ['ueberh', 'ueberh', '×'], ['sockel', 'sockel', ' mm'], ['glatt', 'glatt', ''],
-              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm']];
+              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm'], ['flussB', 'flussB', ' mm']];
 function slider(id, key, nach) {
   $(id).value = P[key];
   $(id).addEventListener('input', () => { P[key] = parseFloat($(id).value); nach ? nach() : rebuildBald(); });
@@ -556,6 +580,7 @@ function syncUI() {
   $('ausschnittNote').textContent = `Ausschnitt ${(r.wM / 1000).toFixed(1)} × ${(r.hM / 1000).toFixed(1)} km · Mitte E ${P.E} / N ${P.N} (LV95)`;
   $('masseNote').textContent = `Relief ${m.W.toFixed(0)} × ${m.H.toFixed(0)} mm · Massstab 1:${m.massstab.toLocaleString('de-CH')} · 1 mm = ${(1 / m.mmJeM).toFixed(0)} m`;
   $('fluesseWrap').style.display = P.an.wasser ? 'flex' : 'none';
+  $('flussRow').style.display = P.an.wasser && P.fluesse ? 'flex' : 'none';
   if ($('fluesse').checked !== P.fluesse) $('fluesse').checked = P.fluesse;
   $('schneeRow').style.display = P.an.schnee ? 'flex' : 'none';
   $('felsRow').style.display = P.an.fels ? 'flex' : 'none';

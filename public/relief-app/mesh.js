@@ -229,14 +229,115 @@ export function resample(src, sx, sy, nx, ny) {
   }
   return out;
 }
-/** Maske umrechnen (naechster Punkt). */
+/**
+ * Maske umrechnen: eine Zielzelle ist gesetzt, wenn IRGENDEINE Quellzelle in
+ * ihrem Einzugsbereich gesetzt ist. Der naechste-Punkt-Weg liess bei duennen
+ * Linien (Fluesse, 1 Zelle breit) jede dritte Zelle fallen — im Druck wurden
+ * daraus Striche (Manolo, 07.09.2026).
+ */
 export function resampleMaske(src, sx, sy, nx, ny) {
   const out = new Uint8Array(nx * ny);
+  const rx = (sx - 1) / (nx - 1), ry = (sy - 1) / (ny - 1);
   for (let j = 0; j < ny; j++) {
-    const y = Math.round(j * (sy - 1) / (ny - 1));
-    for (let i = 0; i < nx; i++) out[j * nx + i] = src[y * sx + Math.round(i * (sx - 1) / (nx - 1))];
+    const y0 = Math.max(0, Math.floor((j - 0.5) * ry + 0.5)), y1 = Math.min(sy - 1, Math.ceil((j + 0.5) * ry - 0.5));
+    for (let i = 0; i < nx; i++) {
+      const x0 = Math.max(0, Math.floor((i - 0.5) * rx + 0.5)), x1 = Math.min(sx - 1, Math.ceil((i + 0.5) * rx - 0.5));
+      let v = 0;
+      for (let y = y0; y <= y1 && !v; y++) for (let x = x0; x <= x1; x++) if (src[y * sx + x]) { v = 1; break; }
+      out[j * nx + i] = v;
+    }
   }
   return out;
+}
+/** Maske um r Zellen verbreitern (Quadrat). */
+export function dilatiere(m, nx, ny, r) {
+  if (r <= 0) return m;
+  const out = new Uint8Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    if (!m[j * nx + i]) continue;
+    for (let dj = -r; dj <= r; dj++) { const jj = j + dj; if (jj < 0 || jj >= ny) continue;
+      for (let di = -r; di <= r; di++) { const ii = i + di; if (ii >= 0 && ii < nx) out[jj * nx + ii] = 1; } }
+  }
+  return out;
+}
+
+/**
+ * Fluesse zusammenhaengend machen.
+ *
+ * Der Gewaesser-Layer zeichnet eingedolte Abschnitte (unter Doerfern,
+ * Strassen, Bahnlinien) nicht — im Relief tauchten Baeche mitten im Objekt
+ * auf und verschwanden wieder (Manolo, 07.09.2026). Vorgehen:
+ *   1. Zusammenhangskomponenten von Fluessen+Seen (8er-Nachbarschaft).
+ *   2. Verbunden = beruehrt den Rand oder enthaelt See-Zellen.
+ *   3. Jede andere Komponente sucht vom tiefsten Punkt einen Weg zum
+ *      verbundenen Netz oder zum Rand — Dijkstra ueber dem Hoehenmodell,
+ *      bergab billig, bergauf teuer (folgt also dem Talweg wie die Dole).
+ *      Gefunden: Weg wird Fluss, Komponente gilt als verbunden.
+ *      Nicht gefunden (Budget): Komponente wird gestrichen.
+ * Rueckgabe { fluesse (neu), verbunden, gestrichen, ueberbrueckt }.
+ *   hM: Hoehen (m), maxSchritte: Budget je Komponente (Zellen im Heap).
+ */
+export function fluesseVerbinden(fluesse, seen, hM, nx, ny, maxSchritte = 60000) {
+  const N = nx * ny;
+  const F = new Uint8Array(N);
+  for (let k = 0; k < N; k++) F[k] = (fluesse[k] || (seen && seen[k])) ? 1 : 0;
+  const komp = new Int32Array(N).fill(-1);
+  const komps = [];                                  // { zellen: [], verbunden }
+  const rand = (k) => { const i = k % nx, j = (k - i) / nx; return i === 0 || j === 0 || i === nx - 1 || j === ny - 1; };
+  const stack = [];
+  for (let s = 0; s < N; s++) {
+    if (!F[s] || komp[s] >= 0) continue;
+    const id = komps.length, zellen = []; let verbunden = false;
+    komp[s] = id; stack.push(s);
+    while (stack.length) {
+      const k = stack.pop(); zellen.push(k);
+      if (rand(k) || (seen && seen[k])) verbunden = true;
+      const i = k % nx, j = (k - i) / nx;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+        const q = jj * nx + ii; if (F[q] && komp[q] < 0) { komp[q] = id; stack.push(q); }
+      }
+    }
+    komps.push({ zellen, verbunden });
+  }
+  const netz = new Uint8Array(N);                    // verbundenes Wasser (waechst)
+  for (const c of komps) if (c.verbunden) for (const k of c.zellen) netz[k] = 1;
+  const aus = new Uint8Array(N);
+  for (let k = 0; k < N; k++) if (fluesse[k] && netz[k]) aus[k] = 1;
+  let gestrichen = 0, ueberbrueckt = 0;
+  // Binaerer Heap fuer Dijkstra
+  const heap = []; const hpush = (c, k) => { heap.push([c, k]); let a = heap.length - 1; while (a > 0) { const p = (a - 1) >> 1; if (heap[p][0] <= heap[a][0]) break; [heap[p], heap[a]] = [heap[a], heap[p]]; a = p; } };
+  const hpop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let a = 0; for (;;) { let l = 2 * a + 1, r = l + 1, m = a; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === a) break; [heap[m], heap[a]] = [heap[a], heap[m]]; a = m; } } return top; };
+  const dist = new Float32Array(N), vor = new Int32Array(N);
+  const offen = komps.filter((c) => !c.verbunden).sort((a, b) => b.zellen.length - a.zellen.length);
+  for (const c of offen) {
+    dist.fill(Infinity); vor.fill(-1); heap.length = 0;
+    const cid = komp[c.zellen[0]];
+    for (const k of c.zellen) { dist[k] = 0; hpush(0, k); }
+    let ziel = -1, schritte = 0;
+    while (heap.length && schritte < maxSchritte) {
+      const [d, k] = hpop(); if (d > dist[k]) continue;
+      schritte++;
+      if (komp[k] !== cid && (netz[k] || rand(k))) { ziel = k; break; }
+      const i = k % nx, j = (k - i) / nx;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+        const q = jj * nx + ii;
+        const dh = hM[q] - hM[k];
+        const kosten = (di && dj ? 1.414 : 1) + (dh > 0 ? 40 * dh : 0.5 * Math.max(-2, dh) + 1);   // bergauf teuer, bergab leicht billiger
+        const nd = d + Math.max(0.05, kosten);
+        if (nd < dist[q]) { dist[q] = nd; vor[q] = k; hpush(nd, q); }
+      }
+    }
+    if (ziel < 0) { gestrichen++; continue; }
+    // Weg zurueckverfolgen und einzeichnen
+    for (let k = ziel; k >= 0 && dist[k] > 0; k = vor[k]) { aus[k] = 1; netz[k] = 1; }
+    for (const k of c.zellen) { netz[k] = 1; if (fluesse[k]) aus[k] = 1; }
+    c.verbunden = true; ueberbrueckt++;
+  }
+  return { fluesse: aus, verbunden: komps.filter((c) => c.verbunden).length, gestrichen, ueberbrueckt };
 }
 /** Glaetten (Boxfilter 3x3), n Durchgaenge — gegen Rasterrauschen bei grober Stufe. */
 export function glaette(h, nx, ny, n) {

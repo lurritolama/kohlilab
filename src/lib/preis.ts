@@ -74,23 +74,28 @@ export function teeMengeGueltig(menge: unknown): menge is number {
 }
 
 /**
- * Relief aus swisstopo-Daten (07.09.2026, Vorschlag — Manolo entscheidet die
- * Saetze): Grundbetrag je Auftrag; Material + Maschine bei 18 g/h (Farb-
- * wechsel bremsen) + 8 % Ausfall; 3.— je Zusatzfarbe (Spuelabfall, Wechsel-
- * zeit). Das 3MF ist ein VOLLkoerper — gedruckt wird mit Fuellung, darum
- * rechnet FUELL das gemessene Vollgewicht auf das reale um. Gleiche Kopien
- * zahlen nur den Druck. Spiegelt public/relief-app/index.html (PREIS).
+ * Relief aus swisstopo-Daten (Manolo, 07.09.2026): Grundbetrag je Auftrag;
+ * Material + Maschine bei 18 g/h + 8 % Ausfall; darauf ein FARBFAKTOR:
+ * einfarbig 25 % unter der Farbfassung (2 Farben = 1.0), drei und vier
+ * Farben deutlich teurer (Spuelabfall und Wechselzeit; Haeuser in eigener
+ * Farbe zaehlen als Farbe; mehr als vier laesst der Konfigurator nicht zu).
+ * Das 3MF ist ein VOLLkoerper — gedruckt wird mit Fuellung, darum rechnet
+ * FUELL das gemessene Vollgewicht auf das reale um. Gleiche Kopien zahlen nur
+ * den Druck. Spiegelt public/relief-app/index.html (PREIS).
  * `gramm` = Vollvolumen aus dem 3MF x Dichte (grammAus), `farben` = Anzahl
  * m:color im 3MF (farbAnzahl).
  */
-const RELIEF_GRUND_RP = 1500, RELIEF_G_H = 18, RELIEF_FUELL = 0.35, RELIEF_FARBE_RP = 300, RELIEF_MIN_RP = 3900;
+const RELIEF_GRUND_RP = 1500, RELIEF_G_H = 18, RELIEF_FUELL = 0.35, RELIEF_MIN_RP = 3500;
+const RELIEF_FARBFAKTOR: Record<number, number> = { 1: 0.75, 2: 1.0, 3: 1.3, 4: 1.65 };
 export function reliefPreisRappen(o: { gramm: number; farben: number; menge: number }): number {
   const n = Math.min(5, Math.max(1, Math.round(o.menge)));
   const g = o.gramm * RELIEF_FUELL;
-  const farben = Math.min(8, Math.max(1, Math.round(o.farben)));
-  const druck = (g * FILAMENT_RP_G + (g / RELIEF_G_H) * MASCHINE_RP_H) * (1 + AUSFALL) + (farben - 1) * RELIEF_FARBE_RP;
-  const roh = RELIEF_GRUND_RP + n * druck;
-  return Math.max(RELIEF_MIN_RP, Math.ceil(roh / 50) * 50);
+  const farben = Math.min(4, Math.max(1, Math.round(o.farben)));
+  const druck = (g * FILAMENT_RP_G + (g / RELIEF_G_H) * MASCHINE_RP_H) * (1 + AUSFALL);
+  // Farbfaktor auf den ganzen Preis NACH dem Mindestpreis — so ist einfarbig
+  // auch bei kleinen Reliefs 25 % unter zwei Farben (Manolo 07.09.2026).
+  const roh = Math.max(RELIEF_MIN_RP, RELIEF_GRUND_RP + n * druck);
+  return Math.ceil(roh * RELIEF_FARBFAKTOR[farben] / 50) * 50;
 }
 
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
