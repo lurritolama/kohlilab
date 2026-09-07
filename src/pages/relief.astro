@@ -1,0 +1,42 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
+---
+<BaseLayout
+  title="Relief-Konfigurator — KohliLab"
+  description="Dein Dorf, dein Haus, deine Tour als 3D-gedrucktes Relief: Ausschnitt auf der Karte wählen, Seen, Wald, Fels und Schnee in Farbe, optional deine GPX-Route. Aus den swisstopo-Höhendaten, mit Live-3D-Vorschau."
+>
+  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
+  <section class="block" style="padding-top:28px">
+    <h2>Relief — dein Stück Schweiz</h2>
+    <p class="lead">
+      Wähle auf der Karte einen Ausschnitt: dein Dorf, dein Haus mit dem
+      Hausberg, die Wanderung vom letzten Sommer. Daraus wird ein Relief aus
+      den amtlichen Höhendaten der Schweiz, mit Seen, Wald, Fels und Schnee in
+      eigener Farbe — 3D-gedruckt in einem Stück, in der Grösse, die du willst.
+      Auf Wunsch liegt deine GPX-Route als Linie auf dem Gelände.
+    </p>
+    <p class="lead lead-kurz">
+      Ausschnitt auf der Karte wählen, Farben und Grösse bestimmen, bestellen — dein Stück Schweiz als Relief.
+    </p>
+    <p class="hinweis">
+      Höhen und Flächen stammen vom Bundesamt für Landestopografie
+      (swissALTI3D, swissTLM3D). Die Daten sind frei, die Quelle steht darum
+      auf jeder Vorderkante: © swisstopo.
+    </p>
+  </section>
+  <Kurzinfo />
+  <KonfigFrame app="relief-app" titel="Relief-Konfigurator" mobil="ansehen" />
+</BaseLayout>
+
+<style>
+  .test-banner{ background:#3b1a5e; color:#e5b8ff; font-family:var(--mono); font-size:12px;
+    letter-spacing:1px; text-align:center; padding:9px 14px; border-bottom:1px solid #5b2a8e; }
+  .hinweis{ color:var(--muted); font-size:14px; max-width:60em; margin-top:10px; }
+  .lead-kurz { display: none; }
+  @media (max-width: 860px) {
+    .lead, .hinweis { display: none; }
+    .lead-kurz { display: block; }
+  }
+</style>

@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <h1>Dein Warenkorb</h1>
 
     <div data-leer hidden class="korb-note">
-      Noch nichts drin. Gestalte dein Teil im <a href="/organizer">Schubladen-Organizer</a>, im <a href="/golf-tees">Golf-Tee-Konfigurator</a>, im <a href="/qr-schilder">QR-Schilder-Konfigurator</a> oder im <a href="/lochwand">Lochwand-Planer</a> — oder hol dir <a href="/ventilkappen">Ventilkappen</a> aus der Mikrofabrik.
+      Noch nichts drin. Gestalte dein Teil im <a href="/organizer">Schubladen-Organizer</a>, im <a href="/golf-tees">Golf-Tee-Konfigurator</a>, im <a href="/qr-schilder">QR-Schilder-Konfigurator</a> im <a href="/lochwand">Lochwand-Planer</a> oder im <a href="/relief">Relief-Konfigurator</a> — oder hol dir <a href="/ventilkappen">Ventilkappen</a> aus der Mikrofabrik.
     </div>
 
     <div data-inhalt hidden>
@@ -58,7 +58,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const li = document.createElement('li');
       const titel = document.createElement('span'); titel.className = 'kw-titel';
       const typ = document.createElement('span'); typ.className = 'kw-typ';
-      typ.textContent = it.typ === 'organizer' ? 'Organizer' : it.typ === 'ventilkappe' ? 'Ventilkappe' : it.typ === 'lochwand' ? 'Lochwand' : it.typ === 'tee' ? 'Golf-Tee' : 'QR-Schild';
+      typ.textContent = it.typ === 'organizer' ? 'Organizer' : it.typ === 'ventilkappe' ? 'Ventilkappe' : it.typ === 'lochwand' ? 'Lochwand' : it.typ === 'tee' ? 'Golf-Tee' : it.typ === 'relief' ? 'Relief' : 'QR-Schild';
       const name = document.createElement('span'); name.textContent = it.titel;
       titel.append(typ, name);
       const preis = document.createElement('span'); preis.className = 'kw-preis'; preis.textContent = chf(it.gesamtRappen);

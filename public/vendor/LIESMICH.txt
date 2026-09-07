@@ -60,3 +60,21 @@ Kommt je wieder eine Fremdquelle dazu, muss sie in der CSP in
 src/middleware.ts stehen, sonst blockt der Browser sie. Das ist Absicht.
 
 Stand: 11.08.2026
+
+
+RELIEF-KONFIGURATOR (07.09.2026)
+--------------------------------
+
+  leaflet.js / leaflet.css                   Leaflet 1.9.4   (Karte mit swisstopo-Kacheln;
+                                             die Bild-Verweise der CSS — Marker, Layer-
+                                             Schalter — werden nicht gebraucht)
+  geotiff.js                                 geotiff.js 2.1.3 (dist-browser, UMD; liest
+                                             swissALTI3D-COGs per HTTP-Range)
+
+  curl -sSfL https://unpkg.com/leaflet@1.9.4/dist/leaflet.js  -o public/vendor/leaflet.js
+  curl -sSfL https://unpkg.com/leaflet@1.9.4/dist/leaflet.css -o public/vendor/leaflet.css
+  curl -sSfL https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js -o public/vendor/geotiff.js
+
+Verdrahtet in public/relief-app/index.html. Die geo.admin.ch-Adressen
+(wmts, wms, data, api3) stehen dafuer in der CSP (src/middleware.ts,
+netlify.toml) — connect-src fuer Daten und Suche, img-src fuer die Kacheln.

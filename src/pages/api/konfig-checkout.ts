@@ -14,7 +14,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { SHOP_ID, VERSANDARTEN, VERSANDART_IDS, LIEFERLAENDER, type VersandartId, type Lieferland } from '../../lib/config';
-import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen, teeStueckRappen, teeFarben, teeMengeGueltig } from '../../lib/preis';
+import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen, teeStueckRappen, teeFarben, teeMengeGueltig, reliefPreisRappen } from '../../lib/preis';
 import { grammAus, farbAnzahl } from '../../lib/server/dreimf';
 import { getPaymentProvider } from '../../lib/payments';
 import { supabaseAdmin } from '../../lib/server/supabase-admin';
@@ -26,12 +26,14 @@ const ANKER: Record<string, string> = {
   ventilkappe: 'c0111ab0-0000-4000-8000-000000000003',
   lochwand: 'c0111ab0-0000-4000-8000-000000000005',      // Ankerprodukt (SQL: lochwand-anker.sql)
   tee: 'c0111ab0-0000-4000-8000-000000000006',           // Golf-Tee (SQL: 20260819_golf-tees.sql)
+  relief: 'c0111ab0-0000-4000-8000-000000000009',        // Relief aus swisstopo-Daten (SQL: 20260907_relief.sql)
 };
 const TEE_KOPF: Record<string, string> = { cup: 'Cup', flat: 'Flat', eye: 'Auge' };
 const LOCHWAND_FAMILIEN: Record<string, string> = { haken: 'Haken', wanne: 'Wanne', halter: 'Halter', klemme: 'Klemme' };
 const VENTILKAPPE_SET_RAPPEN = 1200;                 // CHF 12.— pro 4er-Set (fix)
 const WUNSCH_AUFPREIS_RAPPEN = 800;                  // Wunsch-Sujet: +CHF 8.— -> 20.— je Set (Machbarkeit wird geprüft)
 const GEWINDE_LABEL: Record<string, string> = { schrader: 'Schrader', presta: 'Presta' };
+const MAX_VORSCHAU_BYTES = 400 * 1024;               // JPEG-Draufsicht des Reliefs, fuer die Kontrolle im Admin
 const BUCKET = 'konfigurator';
 const MAX_POSITIONEN = 12;
 const MAX_DATEI_BYTES = 8 * 1024 * 1024;
@@ -74,7 +76,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (posRoh.length > MAX_POSITIONEN) fehler.push(`Maximal ${MAX_POSITIONEN} Positionen pro Bestellung.`);
 
   // ---- Positionen validieren + Preise serverseitig aus dem 3MF -----------
-  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand' | 'tee'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer }[] };
+  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand' | 'tee' | 'relief'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer; contentType?: string }[] };
   const positionen: Pos[] = [];
   posRoh.forEach((p: any, i: number) => {
     const nr = i + 1;
@@ -194,6 +196,38 @@ export const POST: APIRoute = async ({ request }) => {
           ? `Lochwand-Modul · ${zusammensetzung || '1 Modul'} · für IKEA Skådis`
           : `Lochwand-Set · ${modulBufs.length} Module (${zusammensetzung}) · für IKEA Skådis${platte ? ` ${platte}` : ''}`) + (schilder ? ` · ${schilder} Schild${schilder > 1 ? 'er' : ''}` : '');
         positionen.push({ typ, konfig: { test, platte, module, anzahl: modulBufs.length, schilder, gramm: Math.round(gramm), textModule: Math.min(modulBufs.length, Math.max(0, Math.round(textModule))), textMmUeber4: Math.min(2000, Math.max(0, textMmUeber4)) }, menge: 1, preis, titel, dateien: bufs });
+      } else if (typ === 'relief') {
+        // Relief-Konfigurator (07.09.2026): EIN Objekt (relief.3mf, Farben
+        // als colorgroup) + Draufsicht als JPEG (vorschau.jpg, nicht
+        // preisrelevant, aber Manolo sieht Ausschnitt und Farbzonen vor dem
+        // Druck). Gewicht = Vollvolumen x Fuellfaktor (Server: preis.ts),
+        // Farben aus dem 3MF gezaehlt. Menge = gleiche Kopien (1–5).
+        const menge = Math.round(Number(p?.menge));
+        if (!Number.isInteger(menge) || menge < 1 || menge > 5) { fehler.push(`Position ${nr}: Relief-Menge muss 1–5 sein.`); return; }
+        const relief = buf(p?.dateien?.relief, `${nr}/relief`);
+        const dateien: Pos['dateien'] = [{ name: `pos${nr}_relief.3mf`, buf: relief }];
+        if (typeof p?.dateien?.vorschau === 'string' && p.dateien.vorschau.length >= 32) {
+          const v = Buffer.from(p.dateien.vorschau, 'base64');
+          if (v.length > 0 && v.length <= MAX_VORSCHAU_BYTES && v[0] === 0xff && v[1] === 0xd8) dateien.push({ name: `pos${nr}_vorschau.jpg`, buf: v, contentType: 'image/jpeg' });
+        }
+        const gramm = grammAus([relief]);
+        const farben = farbAnzahl(relief);
+        const preis = reliefPreisRappen({ gramm, farben, menge });
+        const ort = typeof konfig.ort === 'string' ? konfig.ort.slice(0, 40) : '';
+        const E = Math.round(Number(konfig.E)) || 0, N = Math.round(Number(konfig.N)) || 0;
+        const km = Number(konfig.km) || 0;
+        const breite = Number(konfig.breite) || 0, hoehe = Number(konfig.hoehe) || 0;
+        const text = typeof konfig.text === 'string' ? konfig.text.slice(0, 26) : '';
+        const titel = `Relief · ${ort || `E ${E} N ${N}`} · ${km} km · ${breite.toFixed(0)}×${hoehe.toFixed(0)} mm · ${farben} Farbe${farben > 1 ? 'n' : ''}${konfig.route ? ' · mit Route' : ''}${text ? ` · «${text}»` : ''} · ${menge}×`;
+        positionen.push({ typ, konfig: {
+          E, N, km, format: typeof konfig.format === 'string' ? konfig.format.slice(0, 5) : '', ort, breite, hoehe,
+          massstab: Math.round(Number(konfig.massstab)) || 0, ueberh: Number(konfig.ueberh) || 0, sockel: Number(konfig.sockel) || 0,
+          zonen: typeof konfig.zonen === 'string' ? konfig.zonen.slice(0, 120) : '', farben: Array.isArray(konfig.farben) ? konfig.farben.slice(0, 8).map((f: unknown) => String(f).slice(0, 7)) : [],
+          schnee: konfig.schnee != null ? Number(konfig.schnee) : undefined, fels: konfig.fels != null ? Number(konfig.fels) : undefined,
+          hausH: konfig.hausH != null ? Number(konfig.hausH) : undefined, route: konfig.route === true, text,
+          quelle: typeof konfig.quelle === 'string' ? konfig.quelle.slice(0, 60) : '', raster: Math.round(Number(konfig.raster)) || 0,
+          gramm: Math.round(gramm), farbAnzahl: farben, menge,
+        }, menge, preis, titel, dateien });
       } else {
         fehler.push(`Position ${nr}: unbekannter Typ.`);
       }
@@ -230,7 +264,7 @@ export const POST: APIRoute = async ({ request }) => {
   for (const p of positionen) {
     for (const d of p.dateien) {
       const pfad = `${orderNumber}/${d.name}`;
-      const { error } = await db.storage.from(BUCKET).upload(pfad, d.buf, { contentType: 'model/3mf', upsert: true });
+      const { error } = await db.storage.from(BUCKET).upload(pfad, d.buf, { contentType: d.contentType ?? 'model/3mf', upsert: true });
       if (error) upErr.push(error.message); else alleDateien.push({ teil: d.name, pfad });
     }
   }

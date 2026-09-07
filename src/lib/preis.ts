@@ -73,6 +73,26 @@ export function teeMengeGueltig(menge: unknown): menge is number {
   return Number.isInteger(m) && m >= TEE_MIN_MENGE && m % TEE_MENGE_SCHRITT === 0;
 }
 
+/**
+ * Relief aus swisstopo-Daten (07.09.2026, Vorschlag — Manolo entscheidet die
+ * Saetze): Grundbetrag je Auftrag; Material + Maschine bei 18 g/h (Farb-
+ * wechsel bremsen) + 8 % Ausfall; 3.— je Zusatzfarbe (Spuelabfall, Wechsel-
+ * zeit). Das 3MF ist ein VOLLkoerper — gedruckt wird mit Fuellung, darum
+ * rechnet FUELL das gemessene Vollgewicht auf das reale um. Gleiche Kopien
+ * zahlen nur den Druck. Spiegelt public/relief-app/index.html (PREIS).
+ * `gramm` = Vollvolumen aus dem 3MF x Dichte (grammAus), `farben` = Anzahl
+ * m:color im 3MF (farbAnzahl).
+ */
+const RELIEF_GRUND_RP = 1500, RELIEF_G_H = 18, RELIEF_FUELL = 0.35, RELIEF_FARBE_RP = 300, RELIEF_MIN_RP = 3900;
+export function reliefPreisRappen(o: { gramm: number; farben: number; menge: number }): number {
+  const n = Math.min(5, Math.max(1, Math.round(o.menge)));
+  const g = o.gramm * RELIEF_FUELL;
+  const farben = Math.min(8, Math.max(1, Math.round(o.farben)));
+  const druck = (g * FILAMENT_RP_G + (g / RELIEF_G_H) * MASCHINE_RP_H) * (1 + AUSFALL) + (farben - 1) * RELIEF_FARBE_RP;
+  const roh = RELIEF_GRUND_RP + n * druck;
+  return Math.max(RELIEF_MIN_RP, Math.ceil(roh / 50) * 50);
+}
+
 /** Organizer: eine individuelle Wanne, Menge immer 1. */
 export function organizerPreisRappen(o: {
   gramm: number; module: number; hatText: boolean;

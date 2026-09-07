@@ -42,8 +42,11 @@ const CSP = [
   "font-src 'self' data:",
   // Sujet-Bilder liegen im öffentlichen Supabase-Bucket; blob:/data: brauchen
   // die Konfiguratoren für Vorschau und Dateiausgabe.
-  "img-src 'self' data: blob: https://*.supabase.co",
-  "connect-src 'self'",
+  // Relief-Konfigurator (07.09.2026): Kartenkacheln von wmts.geo.admin.ch als
+  // Bilder; Hoehenmodell (STAC + Cloud Optimized GeoTIFF per Range), WMS-
+  // Flaechenmasken und Ortssuche per fetch. Alles Bund, alles OGD.
+  "img-src 'self' data: blob: https://*.supabase.co https://wmts.geo.admin.ch https://wms.geo.admin.ch",
+  "connect-src 'self' https://data.geo.admin.ch https://wms.geo.admin.ch https://api3.geo.admin.ch",
   'upgrade-insecure-requests',
 ].join('; ');
 

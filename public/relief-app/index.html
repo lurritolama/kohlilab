@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KohliLab — Relief-Konfigurator</title>
+<link rel="stylesheet" href="/vendor/leaflet.css">
+<style>
+  :root{ --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
+         --ink:#e8e6e1; --mut:#9a9a93; --acc:#ff6b1a; --acc2:#ffb347;
+         --mono:Consolas,"JetBrains Mono",monospace; }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+  #panel{width:360px;min-width:320px;overflow-y:auto;border-right:1px solid var(--line);padding:14px;background:var(--bg2)}
+  #view{flex:1;position:relative;min-width:0}
+  #view canvas{display:block}
+  h1{font-size:17px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:2px}
+  h1 b{color:var(--acc)}
+  .sub{color:var(--mut);font-size:11.5px;margin-bottom:12px}
+  .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
+  .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--acc);min-width:0}
+  .row .val{font-family:var(--mono);font-size:11px;width:64px;text-align:right;color:var(--ink)}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .btns button:disabled{opacity:.4;cursor:not-allowed}
+  .exp{display:flex;gap:8px;margin-top:4px}
+  .exp button,button.primary{flex:1;background:var(--acc);border:none;color:#141517;border-radius:6px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono);letter-spacing:.5px;text-transform:uppercase}
+  .exp button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink)}
+  button:disabled{opacity:.5;cursor:wait}
+  .note{font-size:11.5px;color:var(--mut);margin-top:6px;line-height:1.45}
+  #hint{position:absolute;left:12px;top:10px;font-size:11px;color:var(--mut);background:rgba(20,21,23,.7);padding:4px 8px;border-radius:4px;pointer-events:none}
+  #hud{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:11px;color:var(--mut);background:rgba(20,21,23,.78);padding:6px 9px;border-radius:5px;pointer-events:none;line-height:1.5;max-width:calc(100% - 24px)}
+  .warn{color:#f5c518}
+  .feld{margin:7px 0}
+  .feld label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:3px}
+  input[type=text],input[type=search]{width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:13px}
+  input[type=text]:focus,input[type=search]:focus{outline:none;border-color:var(--acc)}
+  #suchliste{background:#17181b;border:1px solid var(--line2);border-radius:5px;margin-top:4px;display:none;max-height:170px;overflow-y:auto}
+  #suchliste div{padding:6px 9px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
+  #suchliste div:hover{background:#26282c;color:var(--acc2)}
+  #karte{height:250px;border:1px solid var(--line);border-radius:6px;margin-top:8px;background:#0f1012}
+  .leaflet-container{font-family:inherit;background:#0f1012}
+  .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.7)}
+  #status{font-family:var(--mono);font-size:11px;color:var(--acc2);margin-top:6px;min-height:15px;line-height:1.4}
+  #status.fehler{color:#ff6b6b}
+  .schalter{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mut);margin:6px 0;cursor:pointer}
+  .schalter input[type=checkbox]{accent-color:var(--acc)}
+  .schalter input[type=color]{width:26px;height:22px;border:1px solid var(--line2);border-radius:4px;background:none;padding:0;margin-left:auto;cursor:pointer}
+  .schalter .fk{font-family:var(--mono);font-size:10.5px;color:var(--mut);width:58px;text-align:right}
+  .schalter.aus{opacity:.55}
+  #laden.warte{background:var(--acc2)}
+  .fortschritt{height:3px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
+  .fortschritt i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+  #foto{width:100%;font-size:11.5px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>RELIEF <b>KONFIGURATOR</b></h1>
+  <div class="sub">KohliLab · dein Dorf, dein Haus, deine Tour — 3D-gedruckt aus den swisstopo-Höhendaten</div>
+
+  <div class="grp"><h2>1 · Ausschnitt</h2>
+    <input type="search" id="suche" placeholder="Ort, Adresse oder Gipfel suchen …" autocomplete="off">
+    <div id="suchliste"></div>
+    <div id="karte"></div>
+    <div class="note">Karte verschieben: der orange Rahmen ist dein Ausschnitt. Er bleibt immer in der Mitte.</div>
+    <div class="row"><label>Kantenlänge</label><input type="range" id="km" min="0.3" max="8" step="0.1"><span class="val" id="kmV"></span></div>
+    <div class="feld"><label>Seitenverhältnis</label><div class="btns" id="formatBtns"></div></div>
+    <div class="note" id="ausschnittNote"></div>
+    <div class="exp"><button id="laden" class="primary">⬇ Relief laden</button></div>
+    <div class="fortschritt"><i id="balken"></i></div>
+    <div id="status"></div>
+  </div>
+
+  <div class="grp"><h2>2 · Grösse &amp; Form</h2>
+    <div class="row"><label>Druckbreite</label><input type="range" id="breite" min="80" max="250" step="5"><span class="val" id="breiteV"></span></div>
+    <div class="row"><label>Überhöhung</label><input type="range" id="ueberh" min="1" max="3" step="0.1"><span class="val" id="ueberhV"></span></div>
+    <div class="row"><label>Sockel</label><input type="range" id="sockel" min="4" max="12" step="0.5"><span class="val" id="sockelV"></span></div>
+    <div class="row"><label>Glätten</label><input type="range" id="glatt" min="0" max="3" step="1"><span class="val" id="glattV"></span></div>
+    <div class="note" id="masseNote"></div>
+    <div class="note">Überhöhung 1.0 = naturgetreu. Im Mittelland wirkt 2.0–2.5 besser, in den Alpen 1.0–1.5.</div>
+  </div>
+
+  <div class="grp"><h2>3 · Farben</h2>
+    <div id="zonen"></div>
+    <label class="schalter" id="fluesseWrap"><input type="checkbox" id="fluesse"> Flüsse und Bäche mitdrucken (Seen immer)</label>
+    <div class="row" id="schneeRow"><label>Schneegrenze</label><input type="range" id="schnee" min="1500" max="4200" step="50"><span class="val" id="schneeV"></span></div>
+    <div class="row" id="felsRow"><label>Fels ab</label><input type="range" id="fels" min="25" max="60" step="1"><span class="val" id="felsV"></span></div>
+    <div class="row" id="hausRow"><label>Häuser</label><input type="range" id="hausH" min="3" max="15" step="1"><span class="val" id="hausHV"></span></div>
+    <div class="note" id="farbNote">Land ist immer dabei. Das AMS druckt <b>bis zu 4 Farben</b> in einem Stück — wähle deine drei Zonen dazu.</div>
+  </div>
+
+  <div class="grp"><h2>4 · Route (GPX)</h2>
+    <input type="file" id="gpx" accept=".gpx,application/gpx+xml">
+    <div class="row"><label>Linienbreite</label><input type="range" id="routeB" min="0.8" max="3" step="0.1"><span class="val" id="routeBV"></span></div>
+    <div class="row"><label>Erhöhung</label><input type="range" id="routeH" min="0" max="1.5" step="0.1"><span class="val" id="routeHV"></span></div>
+    <div class="note" id="routeNote">Wanderung, Velotour oder Lauf als Linie auf dem Gelände — GPX aus Strava, Komoot, SchweizMobil oder der Uhr.</div>
+  </div>
+
+  <div class="grp"><h2>5 · Beschriftung</h2>
+    <div class="feld"><label>Text auf der Vorderkante (erhaben)</label><input type="text" id="text" maxlength="26" placeholder="z. B. Mollis · Sommer 2026"></div>
+    <div class="note">Rechts steht immer «© swisstopo» — die Daten sind frei, die Quellenangabe ist Pflicht.</div>
+  </div>
+
+  <div class="grp"><h2>Menge &amp; Preis</h2>
+    <div class="row"><label>Menge</label><input type="range" id="menge" min="1" max="5" step="1"><span class="val" id="mengeV"></span></div>
+    <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
+    <div class="note">Preis: Grundbetrag + Material + Druckzeit + Farbwechsel, gleiche Kopien günstiger. Versand separat.</div>
+  </div>
+
+  <div class="grp"><h2>Bestellen</h2>
+    <div class="exp"><button id="teilen" class="ghost" title="Link zu dieser Einstellung kopieren">🔗 Teilen</button><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
+    <div class="note">Legt das Relief mit dem Live-Preis in den Warenkorb. Der Link merkt sich Ausschnitt und Einstellungen, <b>nicht aber die GPX-Datei</b>.</div>
+  </div>
+
+  <div class="grp" id="exportGrp"><h2>Export (Test)</h2>
+    <div class="exp"><button id="ex3mf" class="ghost">3MF</button></div>
+    <div class="note">Testphase: Datei herunterladen und selbst slicen. Ein Objekt, Farben bündig (AMS).</div>
+  </div>
+</div>
+
+<div id="view">
+  <div id="hint">Ziehen dreht die Ansicht · Mausrad zoomt</div>
+  <div id="hud"></div>
+</div>
+
+<script src="/kcart.js"></script>
+<script src="/vendor/leaflet.js"></script>
+<script src="/vendor/geotiff.js"></script>
+<script src="/vendor/jszip.min.js"></script>
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mobilModus } from '/konfig-mobil.js';
+import { reliefMesh, praegungAus, volumen, modelXml, klassifiziere, resample, resampleMaske, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
+import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, LAYER, WASSER_FILTER, gpxPunkte, routeMaske, SUCHE } from './geo.js';
+let mobil = null;
+
+// ---------- Konfiguration ----------
+// Preis (Vorschlag, Manolo entscheidet): Grundbetrag je Auftrag, Material
+// 30.–/kg, Maschine 0.50/h bei 18 g/h (Farbwechsel bremsen), 8 % Ausfall,
+// 3.– je Zusatzfarbe (Spülabfall, Wechselzeit). Das 3MF ist ein Vollkoerper;
+// gedruckt wird mit Fuellung — der Faktor 0.35 rechnet das Vollvolumen auf
+// das reale Gewicht um. Muss zu src/lib/preis.ts (reliefPreisRappen) passen.
+const PREIS = { grund: 15, filamentKg: 30, stundensatz: 0.5, durchsatz: 18, dichte: 1.27, fuell: 0.35, farbe: 3, ausfall: 0.08, min: 39 };
+const FORMATE = [['1:1', 1], ['3:2', 3 / 2], ['2:3', 2 / 3]];
+const MASTER = 480;                                 // Datenraster (laengere Seite)
+const VORSCHAU = 220;                               // 3D-Ansicht (laengere Seite)
+const PITCH_MIN = 0.45, DREIECK_BUDGET = 210000;    // Druckdatei: Groessenwache (4.5 MB je Bestellung)
+const FARBEN_MAX = 4;                               // AMS: 4 Slots
+const ZONEN = [                                     // Reihenfolge = KLASSEN in mesh.js
+  { key: 'land', name: 'Land', farbe: '#C8C2A0', fix: true },
+  { key: 'wald', name: 'Wald', farbe: '#3E7A4C' },
+  { key: 'wasser', name: 'Seen & Flüsse', farbe: '#2A6F97' },
+  { key: 'fels', name: 'Fels (steile Hänge)', farbe: '#7A7E7A' },
+  { key: 'schnee', name: 'Schnee & Gletscher', farbe: '#F4F4F0' },
+  { key: 'gebaeude', name: 'Häuser (Klötzchen)', farbe: '#B04A3A' },
+  { key: 'route', name: 'Route (GPX)', farbe: '#E63946' },
+];
+// Buehler AR (KohliLab) als Start
+const START = wgs2lv95(47.3735, 9.3235);
+
+const P = {
+  E: Math.round(START[0]), N: Math.round(START[1]), km: 2, format: '1:1',
+  breite: 180, ueberh: 1.5, sockel: 6, glatt: 1,
+  an: { wald: true, wasser: true, fels: false, schnee: false, gebaeude: false, route: false },
+  farben: Object.fromEntries(ZONEN.map((z) => [z.key, z.farbe])),
+  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true,
+  text: '', menge: 1,
+};
+let daten = null;                                   // { rect, nx, ny, h, masken, aufl, kacheln } — Masterraster
+let datenAlt = false;                               // Ausschnitt seit dem Laden veraendert
+let route = null;                                   // [[E,N],…] aus GPX
+let letzteVolCm3 = 0, letzteFarben = 1, letzteMasse = null;
+
+// ---------- Ausschnitt ----------
+function rechteck() {
+  const f = FORMATE.find((x) => x[0] === P.format)[1];
+  const w = P.km * 1000, h = w / f;
+  return { E0: P.E - w / 2, E1: P.E + w / 2, N0: P.N - h / 2, N1: P.N + h / 2, wM: w, hM: h };
+}
+function masse() {
+  const r = rechteck();
+  const W = P.breite, H = P.breite * r.hM / r.wM;
+  const massstab = Math.round(r.wM * 1000 / W);
+  return { W, H, massstab, mmJeM: W / r.wM };
+}
+
+// ---------- Karte (Leaflet, swisstopo-Kacheln) ----------
+const karte = L.map('karte', { zoomControl: true, attributionControl: true, zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 90 });
+L.tileLayer('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg', {
+  minZoom: 7, maxZoom: 18, attribution: '© swisstopo',
+}).addTo(karte);
+const rahmen = L.rectangle([[47, 9], [47.01, 9.01]], { color: '#ff6b1a', weight: 2, fill: true, fillOpacity: 0.06, interactive: false }).addTo(karte);
+function rahmenSetzen() {
+  const r = rechteck();
+  const sw = lv952wgs(r.E0, r.N0), ne = lv952wgs(r.E1, r.N1);
+  rahmen.setBounds([[sw[0], sw[1]], [ne[0], ne[1]]]);
+}
+function karteZuP(zoom) {
+  const c = lv952wgs(P.E, P.N);
+  karte.setView([c[0], c[1]], zoom ?? karte.getZoom() ?? 12, { animate: false });
+  rahmenSetzen();
+}
+let karteStill = false;
+karte.on('move', () => { if (karteStill) return; const c = karte.getCenter(); const lv = wgs2lv95(c.lat, c.lng); P.E = Math.round(lv[0]); P.N = Math.round(lv[1]); rahmenSetzen(); });
+karte.on('moveend', () => { if (karteStill) return; ausschnittGeaendert(); });
+// Zoom so, dass der Rahmen ~60 % der kuerzeren Kartenseite fuellt
+// (Web-Mercator: 156543 m/px auf Zoom 0 am Aequator).
+function zoomZuKm() {
+  const s = karte.getSize(); const px = Math.max(120, Math.min(s.x || 330, s.y || 250)) * 0.6;
+  const lat = lv952wgs(P.E, P.N)[0];
+  const f = FORMATE.find((x) => x[0] === P.format)[1];
+  const kante = P.km * 1000 * (f > 1 ? 1 : 1 / f) ;      // laengere Seite
+  return Math.max(7, Math.min(18, Math.log2(156543.03 * Math.cos(lat * Math.PI / 180) * px / kante)));
+}
+let ladeStatus = '';
+function ausschnittGeaendert() {
+  if (daten) {
+    // veraendert = Mitte um mehr als 1 % der Kante verschoben oder Kante/Format anders
+    const r = daten.rect, tol = r.wM * 0.01, n = rechteck();
+    datenAlt = Math.abs(P.E - (r.E0 + r.E1) / 2) > tol || Math.abs(P.N - (r.N0 + r.N1) / 2) > tol || Math.abs(r.wM - n.wM) > 1 || Math.abs(r.hM - n.hM) > 1;
+  }
+  syncUI(); hashSchreiben();
+  const b = $('laden'); b.classList.toggle('warte', !!datenAlt || !daten);
+  if (datenAlt) status('Ausschnitt geändert — «Relief laden» holt die neuen Höhendaten.');
+  else if (daten) status(ladeStatus);
+  if (daten) rebuildBald();                           // Warnhinweis im HUD aktualisieren
+}
+
+// ---------- Suche ----------
+let suchTimer = null;
+$('suche').addEventListener('input', () => {
+  clearTimeout(suchTimer);
+  const q = $('suche').value.trim();
+  if (q.length < 2) { $('suchliste').style.display = 'none'; return; }
+  suchTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`${SUCHE}?searchText=${encodeURIComponent(q)}&type=locations&limit=6&sr=4326`);
+      const d = await r.json();
+      const box = $('suchliste'); box.innerHTML = '';
+      for (const t of d.results || []) {
+        const a = t.attrs; if (!a || !Number.isFinite(a.lat)) continue;
+        const div = document.createElement('div');
+        // Label kommt als "<i>Ort</i> <b>Mollis</b> (GL) - Glarus Nord": Typwort weg, Tags weg
+        div.textContent = String(a.label || '').replace(/<i>[^<]*<\/i>\s*/, '').replace(/<[^>]+>/g, '').trim();
+        div.addEventListener('click', () => {
+          box.style.display = 'none'; $('suche').value = div.textContent;
+          const lv = wgs2lv95(a.lat, a.lon); P.E = Math.round(lv[0]); P.N = Math.round(lv[1]);
+          karteStill = true; karteZuP(zoomZuKm()); karteStill = false; ausschnittGeaendert();
+        });
+        box.appendChild(div);
+      }
+      box.style.display = box.children.length ? 'block' : 'none';
+    } catch (e) { /* Suche ist Komfort — schweigend */ }
+  }, 300);
+});
+document.addEventListener('click', (e) => { if (!$('suchliste').contains(e.target) && e.target !== $('suche')) $('suchliste').style.display = 'none'; });
+
+// ---------- Daten laden ----------
+let abbruch = null;
+function status(t, fehler = false) { const s = $('status'); s.textContent = t; s.classList.toggle('fehler', fehler); }
+function balken(p) { $('balken').style.width = `${Math.round(p * 100)}%`; }
+async function laden() {
+  if (abbruch) abbruch.abort();
+  abbruch = new AbortController(); const signal = abbruch.signal;
+  const r = rechteck();
+  const nx = r.wM >= r.hM ? MASTER : Math.round(MASTER * r.wM / r.hM), ny = r.wM >= r.hM ? Math.round(MASTER * r.hM / r.wM) : MASTER;
+  const b = $('laden'); b.disabled = true; b.textContent = 'lädt …'; balken(0.02);
+  status('Höhenmodell swissALTI3D wird geholt …');
+  try {
+    const [hoehen, wald, wasser, geb] = await Promise.all([
+      hoehenRaster(r, nx, ny, { signal, fortschritt: (f, n) => { balken(0.05 + 0.75 * f / n); status(`Höhenmodell: Kachel ${f} von ${n} …`); } }),
+      wmsMaske(r, nx, ny, LAYER.wald, signal).catch(() => null),
+      wmsMasken(r, nx, ny, LAYER.wasser, WASSER_FILTER, signal).catch(() => null),
+      wmsMaske(r, nx, ny, LAYER.gebaeude, signal).catch(() => null),
+    ]);
+    balken(0.9);
+    daten = { rect: r, nx, ny, h: hoehen.h, aufl: hoehen.aufl, kacheln: hoehen.kacheln, fehlt: hoehen.fehlt,
+              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: wasser ? wasser.fluesse : null, gebaeude: geb } };
+    datenAlt = false;
+    let min = Infinity, max = -Infinity; for (const v of hoehen.h) { if (v < min) min = v; if (v > max) max = v; }
+    daten.min = min; daten.max = max;
+    ladeStatus = `Geladen: ${hoehen.kacheln} Kacheln swissALTI3D (${hoehen.aufl} m) · ${min.toFixed(0)}–${max.toFixed(0)} m ü. M.` +
+      (hoehen.fehlt ? ` · ${(100 * hoehen.fehlt / hoehen.h.length).toFixed(0)} % ohne Daten (Landesgrenze)` : '') +
+      (!wald || !wasser ? ' · Flächenmasken unvollständig' : '');
+    status(ladeStatus);
+    balken(1);
+    rebuild();
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    status(e.message || 'Laden fehlgeschlagen.', true); balken(0);
+  } finally {
+    b.disabled = false; b.textContent = '⬇ Relief laden'; b.classList.toggle('warte', !daten || datenAlt);
+    abbruch = null;
+  }
+}
+$('laden').addEventListener('click', laden);
+
+// ---------- Relief bauen ----------
+function aktiveZonen() { return ZONEN.filter((z) => z.fix || P.an[z.key]); }
+function farbenZahl() { return aktiveZonen().length; }
+/** Baut Raster + Mesh in der Aufloesung `lang` (Punkte auf der laengeren Seite). */
+function bau(lang, fuerDruck = false) {
+  const m = masse(), r = daten.rect;
+  const nx = r.wM >= r.hM ? lang : Math.round(lang * r.wM / r.hM), ny = r.wM >= r.hM ? Math.round(lang * r.hM / r.wM) : lang;
+  const pitch = m.W / (nx - 1);
+  let hM = resample(daten.h, daten.nx, daten.ny, nx, ny);
+  if (P.glatt > 0) hM = glaette(hM, nx, ny, P.glatt);
+  const masken = {};
+  for (const k of ['wald', 'gebaeude']) masken[k] = daten.masken[k] ? resampleMaske(daten.masken[k], daten.nx, daten.ny, nx, ny) : null;
+  // Wasser: Seen immer, Fluesse und Baeche nur auf Wunsch (im Mittelland
+  // machen die Entwaesserungsgraeben das Relief sonst unruhig)
+  if (daten.masken.seen) {
+    const seen = resampleMaske(daten.masken.seen, daten.nx, daten.ny, nx, ny);
+    if (P.fluesse && daten.masken.fluesse) { const fl = resampleMaske(daten.masken.fluesse, daten.nx, daten.ny, nx, ny); for (let k = 0; k < seen.length; k++) if (fl[k]) seen[k] = 1; }
+    masken.wasser = seen;
+  } else masken.wasser = null;
+  const zellM = r.wM / (nx - 1);
+  if (P.an.route && route) masken.route = routeMaske(r, nx, ny, route, Math.max(0.6, P.routeB / pitch / 2));
+  const an = { ...P.an, route: P.an.route && !!route };
+  const klasse = klassifiziere({ nx, ny, hM, zellM, masken, an, schnee: P.schnee, fels: P.fels });
+  // Hoehen in mm: Terrain ab dem tiefsten Punkt, plus Haeuser, plus Route
+  const z = new Float32Array(nx * ny);
+  const s = m.mmJeM * P.ueberh;
+  for (let k = 0; k < z.length; k++) z[k] = P.sockel + (hM[k] - daten.min) * s;
+  if (an.gebaeude && masken.gebaeude) for (let k = 0; k < z.length; k++) if (masken.gebaeude[k]) z[k] += P.hausH * s;
+  if (an.route && masken.route) for (let k = 0; k < z.length; k++) if (masken.route[k]) z[k] += P.routeH;
+  // Wasser: flach ziehen (Seen sind im Modell schon eben; Fluesse leicht eingetieft)
+  // Praegung auf der Vorderkante
+  const reihen = []; for (let zz = 1.0; zz <= P.sockel - 1.0 + 1e-9; zz += 0.3) reihen.push(+zz.toFixed(3));
+  const praegung = praegungAus(schriftZellen(nx, pitch, reihen), 0.6, null);
+  // Farben kompakt: nur benutzte Klassen in die Palette
+  const benutzt = new Set([0]); for (const k of klasse) benutzt.add(k);
+  const pal = [], map = new Uint8Array(KLASSEN.length);
+  ZONEN.forEach((zn, i) => { if (benutzt.has(i)) { map[i] = pal.length; pal.push(P.farben[zn.key]); } });
+  const klasseP = new Uint8Array(klasse.length); for (let k = 0; k < klasse.length; k++) klasseP[k] = map[klasse[k]];
+  const mesh = reliefMesh({ nx, ny, pitch, z, klasse: klasseP, sockel: 0, reihen, praegung });
+  return { mesh, pal, nx, ny, pitch, m, klasse, hM };
+}
+// Schrift auf der Vorderkante: links der Wunschtext, rechts "© swisstopo".
+// Gezeichnet in 4 px/mm, dann auf die Zellen (Spalte i, Reihe r) abgetastet.
+function schriftZellen(nx, pitch, reihen) {
+  const W = (nx - 1) * pitch, S = 4;
+  const bandU = 1.0, bandO = reihen[reihen.length - 1];
+  const hoehe = Math.max(1.5, (bandO - bandU) * 0.8);
+  const c = document.createElement('canvas'); c.width = Math.ceil(W * S); c.height = Math.ceil(P.sockel * S);
+  const x = c.getContext('2d', { willReadFrequently: true });
+  x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = '#fff'; x.textBaseline = 'middle';
+  const zm = (bandU + bandO) / 2, ym = (P.sockel - zm) * S;
+  x.font = `bold ${hoehe * S}px "Segoe UI", Arial, sans-serif`;
+  const quelle = '© swisstopo';
+  const qb = x.measureText(quelle).width;
+  x.textAlign = 'right'; x.fillText(quelle, (W - 3) * S, ym);
+  const t = P.text.trim();
+  if (t) {
+    x.textAlign = 'left';
+    let f = hoehe * S; x.font = `bold ${f}px "Segoe UI", Arial, sans-serif`;
+    const platz = (W - 3) * S - qb - 6 * S - 3 * S;
+    while (x.measureText(t).width > platz && f > 4) { f *= 0.92; x.font = `bold ${f}px "Segoe UI", Arial, sans-serif`; }
+    if (x.measureText(t).width <= platz) x.fillText(t, 3 * S, ym);
+  }
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  return reihen.map((zz) => {
+    const row = new Uint8Array(nx);
+    const py = Math.min(c.height - 1, Math.max(0, Math.round((P.sockel - zz) * S)));
+    for (let i = 3; i < nx - 3; i++) {
+      const px = Math.min(c.width - 1, Math.round(i * pitch * S));
+      if (d[(py * c.width + px) * 4] > 128) row[i] = 1;
+    }
+    return row;
+  });
+}
+
+// ---------- Szene ----------
+const view = document.getElementById('view');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x141517);
+const camera = new THREE.PerspectiveCamera(36, 1, 1, 5000); camera.position.set(-120, -260, 200);
+camera.up.set(0, 0, 1);
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.minDistance = 60; controls.maxDistance = 1200; controls.maxPolarAngle = Math.PI / 2 - 0.02;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2c30, 0.9));
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+const sonne = new THREE.DirectionalLight(0xffffff, 1.1); sonne.position.set(-150, -100, 220); scene.add(sonne);
+const gruppe = new THREE.Group(); scene.add(gruppe);
+const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0, flatShading: true });
+// Grundplatte-Schatten: dezentes Raster als Tisch
+const tisch = new THREE.GridHelper(1200, 24, 0x2a2d31, 0x222528); tisch.rotation.x = Math.PI / 2; tisch.position.z = -0.5; scene.add(tisch);
+
+function geoAus(mesh, pal) {
+  // nicht indiziert, Farbe je Dreieck (Klasse) — three.js kann keine Face-Farben
+  const n = mesh.idx.length;
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const rgb = pal.map((h) => new THREE.Color(h));
+  for (let k = 0; k < n; k++) {
+    const v = mesh.idx[k] * 3; pos[k * 3] = mesh.pos[v]; pos[k * 3 + 1] = mesh.pos[v + 1]; pos[k * 3 + 2] = mesh.pos[v + 2];
+    const c = rgb[mesh.farbe[Math.floor(k / 3)]] || rgb[0]; col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function rebuild() {
+  regeln(); syncUI();
+  while (gruppe.children.length) { const c = gruppe.children.pop(); c.geometry.dispose(); }
+  if (!daten) { $('hud').innerHTML = 'Noch kein Relief geladen — Ausschnitt wählen und «Relief laden» drücken.'; preisAnzeigen(); return; }
+  const { mesh, pal, m, nx, ny } = bau(VORSCHAU);
+  gruppe.add(new THREE.Mesh(geoAus(mesh, pal), mat));
+  controls.target.set(0, 0, P.sockel + 10);
+  letzteVolCm3 = volumen(mesh) / 1000; letzteFarben = pal.length; letzteMasse = m;
+  const g = letzteVolCm3 * PREIS.dichte * PREIS.fuell;
+  const hMax = P.sockel + (daten.max - daten.min) * m.mmJeM * P.ueberh;
+  const warn = [];
+  if (datenAlt) warn.push('Ausschnitt geändert — Relief neu laden');
+  if (hMax > 120) warn.push(`sehr hoch (${hMax.toFixed(0)} mm) — Überhöhung senken`);
+  if (m.massstab > 40000) warn.push('grosser Ausschnitt: feine Formen gehen verloren');
+  if (P.an.gebaeude && m.massstab > 6000) warn.push(`Häuser bei 1:${m.massstab} nur noch Punkte`);
+  if (P.an.route && !route) warn.push('Route aktiv, aber keine GPX-Datei geladen');
+  $('hud').innerHTML = `${m.W.toFixed(0)}×${m.H.toFixed(0)}×${hMax.toFixed(0)} mm · 1:${m.massstab.toLocaleString('de-CH')} · ${P.km} km Kante · Überhöhung ${P.ueberh.toFixed(1)}× · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''} · ≈ ${g.toFixed(0)} g` +
+    (warn.length ? `<br><span class="warn">⚠ ${warn.join(' · ')}</span>` : '');
+  preisAnzeigen();
+}
+function regeln() {
+  // AMS: Land + hoechstens 3 Zonen
+  const zonen = ZONEN.filter((z) => !z.fix && P.an[z.key]);
+  while (zonen.length > FARBEN_MAX - 1) { const z = zonen.pop(); P.an[z.key] = false; }
+}
+let timer = null;
+function rebuildBald() { clearTimeout(timer); timer = setTimeout(rebuild, 60); }
+
+// ---------- Preis ----------
+function preisInfo() {
+  const g = letzteVolCm3 * PREIS.dichte * PREIS.fuell;
+  const druck = (g * PREIS.filamentKg / 1000 + (g / PREIS.durchsatz) * PREIS.stundensatz) * (1 + PREIS.ausfall) + (letzteFarben - 1) * PREIS.farbe;
+  const n = P.menge;
+  const roh = PREIS.grund + n * druck;
+  const total = daten ? Math.max(PREIS.min, Math.ceil(roh * 2) / 2) : 0;
+  return { g, druck, n, total };
+}
+function preisAnzeigen() {
+  const box = $('preisBox'); if (!box) return;
+  const pi = preisInfo(), f = (v) => v.toFixed(2);
+  box.innerHTML = daten
+    ? `≈ ${pi.g.toFixed(0)} g je Stück · Grund ${f(PREIS.grund)} + ${pi.n} × ${f(pi.druck)} Druck (${letzteFarben} Farbe${letzteFarben > 1 ? 'n' : ''})` +
+      (pi.total === PREIS.min ? ` · Mindestpreis` : '') +
+      `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`
+    : `<div style="font-size:13px;color:var(--mut)">Preis erscheint, sobald das Relief geladen ist.</div>`;
+  if (mobil) mobil.setPreis(daten ? `Total CHF ${f(pi.total)}` : 'Relief laden');
+  hashSchreiben();
+}
+
+// ---------- Export ----------
+async function dreiMF(koerper) {
+  const xml = modelXml(koerper);
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', CONTENT_TYPES); zip.folder('_rels').file('.rels', RELS); zip.folder('3D').file('3dmodel.model', xml);
+  return zip.generateAsync({ type: 'blob', mimeType: 'model/3mf', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+}
+function druckAufloesung() {
+  const m = masse();
+  const f = m.W >= m.H ? m.H / m.W : m.W / m.H;                 // kuerzere/laengere Seite
+  const ausBudget = Math.floor(Math.sqrt(DREIECK_BUDGET / (2 * f)));
+  const ausPitch = Math.floor(Math.max(m.W, m.H) / PITCH_MIN) + 1;
+  return Math.min(MASTER, ausBudget, ausPitch);
+}
+function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+function blobB64(blob) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); }); }
+// Draufsicht mit Farbzonen und Schattierung als JPEG (Kontrolle im Admin)
+function vorschauJpeg() {
+  const { klasse, hM, nx, ny, pal, m } = bau(VORSCHAU);
+  const c = document.createElement('canvas'); c.width = nx - 1; c.height = ny - 1;
+  const x = c.getContext('2d'); const id = x.createImageData(nx - 1, ny - 1);
+  const map = new Uint8Array(KLASSEN.length); { const b = new Set([0]); for (const k of klasse) b.add(k); let p = 0; ZONEN.forEach((z, i) => { if (b.has(i)) map[i] = p++; }); }
+  const rgb = pal.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  for (let cj = 0; cj < ny - 1; cj++) for (let ci = 0; ci < nx - 1; ci++) {
+    const k = klasse[cj * (nx - 1) + ci], col = rgb[map[k]] || rgb[0];
+    const dz = (hM[cj * nx + ci + 1] - hM[cj * nx + ci]) + (hM[(cj + 1) * nx + ci] - hM[cj * nx + ci]);
+    const sh = Math.max(0.55, Math.min(1.25, 1 - dz * 0.02));
+    const o = ((ny - 2 - cj) * (nx - 1) + ci) * 4;                 // Bildzeile 0 = Norden
+    id.data[o] = col[0] * sh; id.data[o + 1] = col[1] * sh; id.data[o + 2] = col[2] * sh; id.data[o + 3] = 255;
+  }
+  x.putImageData(id, 0, 0);
+  const out = document.createElement('canvas'); const S = 600 / Math.max(c.width, c.height); out.width = Math.round(c.width * S); out.height = Math.round(c.height * S);
+  const ox = out.getContext('2d'); ox.imageSmoothingEnabled = true; ox.drawImage(c, 0, 0, out.width, out.height);
+  ox.fillStyle = 'rgba(0,0,0,.55)'; ox.fillRect(0, out.height - 22, out.width, 22);
+  ox.fillStyle = '#fff'; ox.font = '12px sans-serif'; ox.fillText(`${m.W.toFixed(0)}×${m.H.toFixed(0)} mm · 1:${m.massstab} · E ${P.E} N ${P.N} · ${P.km} km · © swisstopo`, 6, out.height - 7);
+  return new Promise((res) => out.toBlob(res, 'image/jpeg', 0.85));
+}
+async function busy(btn, fn) {
+  const alt = btn.textContent; btn.textContent = 'erzeugt …'; btn.disabled = true;
+  try { await new Promise((r) => setTimeout(r, 30)); await fn(); } finally { btn.textContent = alt; btn.disabled = false; }
+}
+$('ex3mf').addEventListener('click', () => busy($('ex3mf'), async () => {
+  if (!daten) { alert('Zuerst «Relief laden».'); return; }
+  const { mesh, pal } = bau(druckAufloesung(), true);
+  download(await dreiMF([{ name: 'Relief', mesh, palette: pal }]), 'kohlilab_relief.3mf');
+}));
+$('cart').addEventListener('click', () => busy($('cart'), async () => {
+  if (!daten) { alert('Zuerst «Relief laden».'); return; }
+  if (datenAlt && !confirm('Der Ausschnitt wurde seit dem Laden verändert — bestellt wird der GELADENE Ausschnitt. Trotzdem in den Warenkorb?')) return;
+  let lang = druckAufloesung(), dateien = null, pal = null;
+  for (let versuch = 0; versuch < 4; versuch++) {
+    const k = bau(lang, true); pal = k.pal;
+    dateien = { relief: await blobB64(await dreiMF([{ name: 'Relief', mesh: k.mesh, palette: k.pal }])) };
+    if (dateien.relief.length < 3.4e6) break;
+    lang = Math.round(lang * 0.85);
+  }
+  dateien.vorschau = await blobB64(await vorschauJpeg());
+  const pi = preisInfo(), m = letzteMasse;
+  const zonen = aktiveZonen().filter((z) => !z.fix).map((z) => z.name).join(', ');
+  const ort = $('suche').value.trim().slice(0, 40);
+  const titel = `Relief · ${ort || `E ${P.E} N ${P.N}`} · ${P.km} km · ${m.W.toFixed(0)}×${m.H.toFixed(0)} mm · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''} · ${P.menge}×`;
+  const cart = (window.top && window.top.KCart) || window.KCart;
+  await cart.add({
+    typ: 'relief', titel, menge: P.menge, gesamtRappen: Math.round(pi.total * 100), stueckRappen: Math.round(pi.total * 100),
+    konfig: { E: P.E, N: P.N, km: P.km, format: P.format, ort, breite: +m.W.toFixed(1), hoehe: +m.H.toFixed(1), massstab: m.massstab,
+              ueberh: P.ueberh, sockel: P.sockel, glatt: P.glatt, zonen, farben: pal, schnee: P.an.schnee ? P.schnee : undefined,
+              fels: P.an.fels ? P.fels : undefined, hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined,
+              text: P.text.trim(), quelle: `swissALTI3D ${daten.aufl} m, ${daten.kacheln} Kacheln`, raster: lang, menge: P.menge },
+    dateien,
+  });
+  (window.top || window).location.href = '/warenkorb';
+}));
+
+// ---------- UI ----------
+function $(id) { return document.getElementById(id); }
+function mkBtns(hostId, liste, key, nach) {
+  const host = $(hostId);
+  liste.forEach(([val, lab]) => {
+    const b = document.createElement('button'); b.textContent = lab;
+    if (P[key] === val) b.classList.add('active');
+    b.addEventListener('click', () => { P[key] = val; host.querySelectorAll('button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); if (nach) nach(); });
+    host.appendChild(b);
+  });
+}
+const EINH = [['km', 'km', ' km'], ['breite', 'breite', ' mm'], ['ueberh', 'ueberh', '×'], ['sockel', 'sockel', ' mm'], ['glatt', 'glatt', ''],
+              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm']];
+function slider(id, key, nach) {
+  $(id).value = P[key];
+  $(id).addEventListener('input', () => { P[key] = parseFloat($(id).value); nach ? nach() : rebuildBald(); });
+}
+function syncUI() {
+  for (const [id, key, einh] of EINH) { const el = $(id); if (!el) continue; if (parseFloat(el.value) !== P[key]) el.value = P[key]; $(id + 'V').textContent = (Number.isInteger(P[key]) ? P[key] : P[key].toFixed(1)) + einh; }
+  const m = masse(), r = rechteck();
+  $('ausschnittNote').textContent = `Ausschnitt ${(r.wM / 1000).toFixed(1)} × ${(r.hM / 1000).toFixed(1)} km · Mitte E ${P.E} / N ${P.N} (LV95)`;
+  $('masseNote').textContent = `Relief ${m.W.toFixed(0)} × ${m.H.toFixed(0)} mm · Massstab 1:${m.massstab.toLocaleString('de-CH')} · 1 mm = ${(1 / m.mmJeM).toFixed(0)} m`;
+  $('fluesseWrap').style.display = P.an.wasser ? 'flex' : 'none';
+  if ($('fluesse').checked !== P.fluesse) $('fluesse').checked = P.fluesse;
+  $('schneeRow').style.display = P.an.schnee ? 'flex' : 'none';
+  $('felsRow').style.display = P.an.fels ? 'flex' : 'none';
+  $('hausRow').style.display = P.an.gebaeude ? 'flex' : 'none';
+  const voll = farbenZahl() >= FARBEN_MAX;
+  document.querySelectorAll('#zonen .schalter').forEach((el) => {
+    const key = el.dataset.key, cb = el.querySelector('input[type=checkbox]');
+    if (cb) { cb.checked = !!P.an[key]; cb.disabled = voll && !P.an[key]; }
+    el.classList.toggle('aus', cb ? !P.an[key] : false);
+  });
+  $('farbNote').innerHTML = voll ? `<b>4 Farben belegt</b> (AMS). Eine Zone abwählen, um eine andere zu nehmen.` : `Land ist immer dabei. Das AMS druckt <b>bis zu 4 Farben</b> in einem Stück — wähle bis zu drei Zonen dazu.`;
+  $('routeNote').textContent = route ? `Route geladen: ${route.length} Punkte. Sie wird als erhabene Linie in der Routenfarbe gedruckt.` : 'Wanderung, Velotour oder Lauf als Linie auf dem Gelände — GPX aus Strava, Komoot, SchweizMobil oder der Uhr.';
+}
+function zonenUI() {
+  const host = $('zonen'); host.innerHTML = '';
+  for (const z of ZONEN) {
+    const lab = document.createElement('label'); lab.className = 'schalter'; lab.dataset.key = z.key;
+    if (z.fix) { lab.innerHTML = `<span style="width:16px;display:inline-block"></span><span>${z.name}</span>`; }
+    else {
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!P.an[z.key];
+      cb.addEventListener('change', () => { P.an[z.key] = cb.checked; if (z.key === 'route' && cb.checked && !route) $('gpx').click(); rebuild(); });
+      lab.appendChild(cb); const sp = document.createElement('span'); sp.textContent = z.name; lab.appendChild(sp);
+    }
+    const fk = document.createElement('span'); fk.className = 'fk'; fk.textContent = P.farben[z.key].toUpperCase();
+    const col = document.createElement('input'); col.type = 'color'; col.value = P.farben[z.key];
+    col.addEventListener('input', () => { P.farben[z.key] = col.value.toUpperCase(); fk.textContent = P.farben[z.key]; rebuildBald(); });
+    lab.appendChild(fk); lab.appendChild(col);
+    host.appendChild(lab);
+  }
+}
+$('gpx').addEventListener('change', (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      route = gpxPunkte(String(r.result));
+      if (route.length < 2) { alert('In dieser GPX-Datei sind keine Trackpunkte.'); route = null; return; }
+      P.an.route = true;
+      // Ausschnitt auf die Route legen, wenn sie ausserhalb liegt
+      const r0 = rechteck();
+      const drin = route.some((p) => p[0] > r0.E0 && p[0] < r0.E1 && p[1] > r0.N0 && p[1] < r0.N1);
+      if (!drin) {
+        const Es = route.map((p) => p[0]), Ns = route.map((p) => p[1]);
+        P.E = Math.round((Math.min(...Es) + Math.max(...Es)) / 2); P.N = Math.round((Math.min(...Ns) + Math.max(...Ns)) / 2);
+        const spann = Math.max(Math.max(...Es) - Math.min(...Es), Math.max(...Ns) - Math.min(...Ns)) * 1.25 / 1000;
+        P.km = Math.min(8, Math.max(0.5, Math.ceil(spann * 10) / 10)); P.format = '1:1';
+        document.querySelectorAll('#formatBtns button').forEach((b) => b.classList.toggle('active', b.textContent === P.format));
+        karteStill = true; karteZuP(zoomZuKm()); karteStill = false;
+        status('Ausschnitt auf die Route gelegt — jetzt «Relief laden».');
+        ausschnittGeaendert();
+      }
+      rebuild();
+    } catch (err) { alert('GPX-Datei konnte nicht gelesen werden.'); }
+  };
+  r.readAsText(f);
+});
+
+// ---------- Teilen-Link (#k=r…) ----------
+const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64uLesen = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+let hashTimer = null;
+function hashSchreiben() {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(() => { try { (window.top || window).history.replaceState(null, '', '#k=r' + b64u(JSON.stringify({ v: 1, P }))); } catch (e) {} }, 250);
+}
+function hashLesen() {
+  try {
+    const mm = ((window.top || window).location.hash || location.hash).match(/#k=r(.+)/);
+    if (!mm) return false;
+    const o = JSON.parse(b64uLesen(mm[1]));
+    if (o.v !== 1 || !o.P) return false;
+    for (const k of Object.keys(P)) if (k in o.P) P[k] = (typeof P[k] === 'object' && P[k] && !Array.isArray(P[k])) ? { ...P[k], ...o.P[k] } : o.P[k];
+    P.an.route = false;                              // GPX kommt nicht mit
+    return true;
+  } catch (e) { return false; }
+}
+async function linkTeilen() {
+  await new Promise((r) => setTimeout(r, 300));
+  const url = (window.top || window).location.href;
+  if (navigator.share) { try { await navigator.share({ title: 'Mein Relief — KohliLab', url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); const b = $('teilen'); b.textContent = '✓ Link kopiert'; setTimeout(() => { b.textContent = '🔗 Teilen'; }, 2200); }
+  catch (e) { prompt('Link zu deinem Relief:', url); }
+}
+
+// ---------- Start ----------
+hashLesen();
+$('teilen').addEventListener('click', linkTeilen);
+mkBtns('formatBtns', FORMATE.map((f) => [f[0], f[0]]), 'format', () => { rahmenSetzen(); ausschnittGeaendert(); });
+slider('km', 'km', () => { rahmenSetzen(); karteStill = true; karte.setZoom(zoomZuKm(), { animate: false }); karteStill = false; ausschnittGeaendert(); });
+for (const [id, key] of EINH) if (id !== 'km') slider(id, key);
+$('menge').value = P.menge; $('mengeV').textContent = P.menge + ' Stk';
+$('menge').addEventListener('input', () => { P.menge = parseInt($('menge').value); $('mengeV').textContent = P.menge + ' Stk'; preisAnzeigen(); });
+$('text').value = P.text; $('text').addEventListener('input', () => { P.text = $('text').value; rebuildBald(); });
+$('fluesse').checked = P.fluesse; $('fluesse').addEventListener('change', () => { P.fluesse = $('fluesse').checked; rebuild(); });
+zonenUI();
+karteStill = true; karteZuP(zoomZuKm()); karteStill = false;
+window.__bau = (n) => bau(n || VORSCHAU);          // Pruef-Haken (Konsole)
+window.__daten = () => daten;
+
+mobil = mobilModus({
+  view, controls, titel: 'Relief', linkTeilen, bearbeiten: null,
+  statisch: '🔄 1 Finger drehen · 2 Finger zoomen',
+  tipps: [
+    '<b>⚙️ Menü</b> — Ort suchen, Karte verschieben, <b>Relief laden</b>, Grösse, Farben, Beschriftung, Preis und <b>In den Warenkorb</b>.',
+    'Der orange Rahmen auf der Karte ist dein Ausschnitt. Nach jeder Änderung «Relief laden» drücken.',
+  ],
+});
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); karte.invalidateSize(); }
+// Mobil: die Karte liegt im Bedienfeld, das als Bottom-Sheet auf- und
+// zugeht (Klasse panel-offen am body). Leaflet misst sich nur beim Start —
+// bei jedem Oeffnen neu messen, sonst bleibt die Karte grau/halb.
+new MutationObserver(() => {
+  if (!document.body.classList.contains('panel-offen')) return;
+  setTimeout(() => { karteStill = true; karte.invalidateSize(); karteZuP(zoomZuKm()); karteStill = false; }, 60);
+}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+addEventListener('resize', resize); resize();
+setTimeout(() => karte.invalidateSize(), 300);
+rebuild();
+laden();                                            // Startausschnitt gleich holen
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+// ---------- Export-Sperre (wie bei den anderen Konfiguratoren) ----------
+(function () {
+  const SCHLUESSEL = 'werkstatt-0310634825f0';
+  const frage = new URLSearchParams(location.search);
+  let frei = frage.get('export') === SCHLUESSEL;
+  try { if (frei) sessionStorage.setItem('kl_export', SCHLUESSEL); else frei = sessionStorage.getItem('kl_export') === SCHLUESSEL; } catch (e) {}
+  if (frei) return;
+  const gruppe = document.getElementById('exportGrp');
+  if (gruppe) gruppe.style.display = 'none';
+})();
+</script>
+</body>
+</html>
