@@ -87,7 +87,8 @@ export function teeMengeGueltig(menge: unknown): menge is number {
  */
 const RELIEF_GRUND_RP = 1500, RELIEF_G_H = 18, RELIEF_FUELL = 0.35, RELIEF_MIN_RP = 3500;
 const RELIEF_FARBFAKTOR: Record<number, number> = { 1: 0.75, 2: 1.0, 3: 1.3, 4: 1.65 };
-export function reliefPreisRappen(o: { gramm: number; farben: number; menge: number }): number {
+const RELIEF_SCHILD_RP = 250;                       // Schild (separat flach gedruckt) je Stueck, wie Lochwand
+export function reliefPreisRappen(o: { gramm: number; farben: number; menge: number; schild?: boolean }): number {
   const n = Math.min(5, Math.max(1, Math.round(o.menge)));
   const g = o.gramm * RELIEF_FUELL;
   const farben = Math.min(4, Math.max(1, Math.round(o.farben)));
@@ -95,7 +96,7 @@ export function reliefPreisRappen(o: { gramm: number; farben: number; menge: num
   // Farbfaktor auf den ganzen Preis NACH dem Mindestpreis — so ist einfarbig
   // auch bei kleinen Reliefs 25 % unter zwei Farben (Manolo 07.09.2026).
   const roh = Math.max(RELIEF_MIN_RP, RELIEF_GRUND_RP + n * druck);
-  return Math.ceil(roh * RELIEF_FARBFAKTOR[farben] / 50) * 50;
+  return Math.ceil((roh * RELIEF_FARBFAKTOR[farben] + (o.schild ? n * RELIEF_SCHILD_RP : 0)) / 50) * 50;
 }
 
 /** Organizer: eine individuelle Wanne, Menge immer 1. */

@@ -43,6 +43,11 @@
   #suchliste div{padding:6px 9px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--line)}
   #suchliste div:hover{background:#26282c;color:var(--acc2)}
   #karte{height:250px;border:1px solid var(--line);border-radius:6px;margin-top:8px;background:#0f1012}
+  /* Karte gross: ueber alles, auch ueber das Bottom-Sheet am Handy */
+  /* !important: Leaflet schreibt beim Start position:relative als Inline-Stil */
+  body.kartegross #karte{position:fixed !important;top:0;left:0;width:100vw;height:100vh;margin:0;border:0;border-radius:0;z-index:70}
+  #karteZu{display:none;position:fixed;top:12px;right:12px;z-index:71;background:var(--acc);color:#141517;border:0;border-radius:6px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  body.kartegross #karteZu{display:block}
   .leaflet-container{font-family:inherit;background:#0f1012}
   .leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.7)}
   #status{font-family:var(--mono);font-size:11px;color:var(--acc2);margin-top:6px;min-height:15px;line-height:1.4}
@@ -51,6 +56,17 @@
   .schalter input[type=checkbox]{accent-color:var(--acc)}
   .schalter input[type=color]{width:26px;height:22px;border:1px solid var(--line2);border-radius:4px;background:none;padding:0;margin-left:auto;cursor:pointer}
   .schalter .fk{font-family:var(--mono);font-size:10.5px;color:var(--mut);width:58px;text-align:right}
+  .feld .fk{font-family:var(--mono);font-size:10.5px;color:var(--acc2);margin-left:6px}
+  /* Farbfelder: feste Filamentpalette, kein RGB */
+  .swatches{display:flex;flex-wrap:wrap;gap:4px}
+  .swatches button{width:18px;height:18px;border-radius:4px;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:0 0 0 1px rgba(255,255,255,.18) inset}
+  .swatches button.active{border-color:var(--acc);box-shadow:0 0 0 1px #fff inset}
+  .zone{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px;color:var(--mut)}
+  .zone input[type=checkbox]{accent-color:var(--acc)}
+  .zone .zn{width:118px;flex:none}
+  .zone.aus{opacity:.55}
+  .zone .swatches{margin-left:auto}
+  .zone .swatches button{width:14px;height:14px;border-radius:3px}
   .schalter.aus{opacity:.55}
   #laden.warte{background:var(--acc2)}
   .fortschritt{height:3px;background:var(--line);border-radius:2px;margin-top:6px;overflow:hidden}
@@ -67,6 +83,8 @@
     <input type="search" id="suche" placeholder="Ort, Adresse oder Gipfel suchen …" autocomplete="off">
     <div id="suchliste"></div>
     <div id="karte"></div>
+    <button type="button" id="karteZu">✕ Karte schliessen</button>
+    <div class="btns" style="margin-top:6px"><button type="button" id="karteGross">⤢ Karte vergrössern</button></div>
     <div class="note">Karte verschieben: der orange Rahmen ist dein Ausschnitt. Er bleibt immer in der Mitte.</div>
     <div class="row"><label>Kantenlänge</label><input type="range" id="km" min="0.3" max="8" step="0.1"><span class="val" id="kmV"></span></div>
     <div class="feld"><label>Seitenverhältnis</label><div class="btns" id="formatBtns"></div></div>
@@ -89,6 +107,9 @@
     <div id="zonen"></div>
     <label class="schalter" id="fluesseWrap"><input type="checkbox" id="fluesse"> Flüsse und Bäche mitdrucken (Seen immer)</label>
     <div class="row" id="flussRow"><label>Flussbreite</label><input type="range" id="flussB" min="1" max="3" step="0.1"><span class="val" id="flussBV"></span></div>
+    <div class="row" id="bachRow"><label>Nebenbäche</label><input type="range" id="bachMin" min="0" max="2000" step="50"><span class="val" id="bachMinV"></span></div>
+    <label class="schalter" id="hauptWrap"><input type="checkbox" id="nurHaupt"> Nur Hauptgewässer (wie Landeskarte 1:200'000)</label>
+    <div class="note" id="bachNote"></div>
     <div class="row" id="schneeRow"><label>Schneegrenze</label><input type="range" id="schnee" min="1500" max="4200" step="50"><span class="val" id="schneeV"></span></div>
     <div class="row" id="felsRow"><label>Fels ab</label><input type="range" id="fels" min="25" max="60" step="1"><span class="val" id="felsV"></span></div>
     <div class="row" id="hausRow"><label>Häuser</label><input type="range" id="hausH" min="3" max="15" step="1"><span class="val" id="hausHV"></span></div>
@@ -102,9 +123,14 @@
     <div class="note" id="routeNote">Wanderung, Velotour oder Lauf als Linie auf dem Gelände — GPX aus Strava, Komoot, SchweizMobil oder der Uhr.</div>
   </div>
 
-  <div class="grp"><h2>5 · Beschriftung</h2>
-    <div class="feld"><label>Text auf der Vorderkante (erhaben)</label><input type="text" id="text" maxlength="26" placeholder="z. B. Mollis · Sommer 2026"></div>
-    <div class="note">Rechts steht immer «© swisstopo» — die Daten sind frei, die Quellenangabe ist Pflicht.</div>
+  <div class="grp"><h2>5 · Schild</h2>
+    <div class="feld"><label>Text auf dem Schild</label><input type="text" id="text" maxlength="26" placeholder="z. B. Mollis · Sommer 2026"></div>
+    <div class="feld"><label>Lage</label><div class="btns" id="lageBtns"></div></div>
+    <div class="feld"><label>Position</label><div class="btns" id="posBtns"></div></div>
+    <div class="row"><label>Schildhöhe</label><input type="range" id="schildH" min="5" max="14" step="0.5"><span class="val" id="schildHV"></span></div>
+    <div class="feld"><label>Schildfarbe <span class="fk" id="schildFk"></span></label><div class="swatches" id="schildFarbeSw"></div></div>
+    <div class="feld"><label>Schriftfarbe <span class="fk" id="textFk"></span></label><div class="swatches" id="textFarbeSw"></div></div>
+    <div class="note" id="schildNote"></div>
   </div>
 
   <div class="grp"><h2>Menge &amp; Preis</h2>
@@ -140,7 +166,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mobilModus } from '/konfig-mobil.js';
-import { reliefMesh, praegungAus, volumen, modelXml, klassifiziere, resample, resampleMaske, dilatiere, fluesseVerbinden, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
+import { reliefMesh, volumen, modelXml, klassifiziere, resample, resampleMaske, dilatiere, fluesseVerbinden, verduenne, stutze, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
 import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, LAYER, WASSER_FILTER, gpxPunkte, routeMaske, SUCHE } from './geo.js';
 let mobil = null;
 
@@ -153,21 +179,28 @@ let mobil = null;
 // gedruckt wird mit Fuellung — der Faktor 0.35 rechnet das Vollvolumen auf
 // das reale Gewicht um. Muss zu src/lib/preis.ts (reliefPreisRappen) passen.
 const PREIS = { grund: 15, filamentKg: 30, stundensatz: 0.5, durchsatz: 18, dichte: 1.27, fuell: 0.35, ausfall: 0.08, min: 35,
-                farbFaktor: { 1: 0.75, 2: 1.0, 3: 1.3, 4: 1.65 } };
+                farbFaktor: { 1: 0.75, 2: 1.0, 3: 1.3, 4: 1.65 }, schild: 2.5 };   // Schild wie beim Lochwand-Planer 2.50 je Stueck
 const FORMATE = [['1:1', 1], ['3:2', 3 / 2], ['2:3', 2 / 3]];
 const MASTER = 480;                                 // Datenraster (laengere Seite)
 const VORSCHAU = 220;                               // 3D-Ansicht (laengere Seite)
 const PITCH_MIN = 0.45, DREIECK_BUDGET = 210000;    // Druckdatei: Groessenwache (4.5 MB je Bestellung)
 const FARBEN_MAX = 4;                               // AMS: 4 Slots
+// Feste Filamentpalette (wie Schilder-Konfigurator) — keine freien RGB-Werte,
+// gedruckt wird, was auf der Spule ist (Manolo 08.09.2026).
+const FARBEN = [['Weiss', '#ECEFF0'], ['Hellgrau', '#C9CFD2'], ['Sand', '#E8DCC0'], ['Schwarz', '#1C1C1C'], ['Dunkelblau', '#1D3557'], ['Dunkelgrau', '#3A3E44'],
+                ['Rot', '#D8332F'], ['Orange', '#EF7D1A'], ['Gelb', '#F5C518'], ['Grün', '#37A24A'], ['Blau', '#2F6FD6'], ['Pink', '#E5459B']];
+const farbName = (hex) => (FARBEN.find((f) => f[1] === String(hex).toUpperCase()) || ['?'])[0];
 const ZONEN = [                                     // Reihenfolge = KLASSEN in mesh.js
-  { key: 'land', name: 'Land', farbe: '#C8C2A0', fix: true },
-  { key: 'wald', name: 'Wald', farbe: '#3E7A4C' },
-  { key: 'wasser', name: 'Seen & Flüsse', farbe: '#2A6F97' },
-  { key: 'fels', name: 'Fels (steile Hänge)', farbe: '#7A7E7A' },
-  { key: 'schnee', name: 'Schnee & Gletscher', farbe: '#F4F4F0' },
-  { key: 'gebaeude', name: 'Häuser (Klötzchen)', farbe: '#B04A3A' },
-  { key: 'route', name: 'Route (GPX)', farbe: '#E63946' },
+  { key: 'land', name: 'Land', farbe: '#E8DCC0', fix: true },
+  { key: 'wald', name: 'Wald', farbe: '#37A24A' },
+  { key: 'wasser', name: 'Seen & Flüsse', farbe: '#2F6FD6' },
+  { key: 'fels', name: 'Fels (steile Hänge)', farbe: '#3A3E44' },
+  { key: 'schnee', name: 'Schnee & Gletscher', farbe: '#ECEFF0' },
+  { key: 'gebaeude', name: 'Häuser (Klötzchen)', farbe: '#D8332F' },
+  { key: 'route', name: 'Route (GPX)', farbe: '#EF7D1A' },
 ];
+const LAGEN = [['liegend', 'Liegend (Sockelleiste)'], ['stehend', 'Stehend (Vorderkante)']];
+const POSITIONEN = [['links', 'Links'], ['mitte', 'Mitte'], ['rechts', 'Rechts']];
 // Buehler AR (KohliLab) als Start
 const START = wgs2lv95(47.3735, 9.3235);
 
@@ -176,13 +209,23 @@ const P = {
   breite: 180, ueberh: 1.5, sockel: 4, glatt: 1,
   an: { wald: true, wasser: true, fels: false, schnee: false, gebaeude: false, route: false },
   farben: Object.fromEntries(ZONEN.map((z) => [z.key, z.farbe])),
-  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true, flussB: 1.2,
-  text: '', menge: 1,
+  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true, flussB: 1.2, bachMin: 400, nurHaupt: false,
+  text: '', schildH: 8, schildFarbe: '#ECEFF0', textFarbe: '#1C1C1C', schildLage: 'liegend', schildPos: 'mitte', menge: 1,
 };
+// Schild (separat flach gedruckt, wie die Tafel beim Lochwand-Planer): Text
+// buendig in zwei Farben, liegt in einer Mulde auf der Sockelleiste vor dem
+// Relief — Manolo klebt es ein. "© swisstopo" steht klein rechts drauf
+// (Quellenpflicht der OGD-Lizenz).
+const SCHILD = { dicke: 1.2, mulde: 1.0, tasche: 1.4, unten: 0.8, spiel: 0.3, rand: 1.6, leisteRand: 2.0, seite: 6, pitch: 0.25, quelle: 2.0 };
+// Sockel: beim STEHENDEN Schild muss die Vorderkante hoch genug sein fuer die
+// Tasche — der Sockel waechst dann automatisch auf Schildhoehe + 2.6 mm.
+function sockelEff(schildH) { return P.schildLage === 'stehend' ? Math.max(P.sockel, schildH + 2.6) : P.sockel; }
+// x-Versatz des Schilds (links/mitte/rechts) auf der Breite W
+function schildX(W, sw) { return P.schildPos === 'links' ? -W / 2 + SCHILD.seite + sw / 2 : P.schildPos === 'rechts' ? W / 2 - SCHILD.seite - sw / 2 : 0; }
 let daten = null;                                   // { rect, nx, ny, h, masken, aufl, kacheln } — Masterraster
 let datenAlt = false;                               // Ausschnitt seit dem Laden veraendert
 let route = null;                                   // [[E,N],…] aus GPX
-let letzteVolCm3 = 0, letzteFarben = 1, letzteMasse = null;
+let letzteVolCm3 = 0, letzteFarben = 1, letzteMasse = null, letzteSchild = null;
 
 // ---------- Ausschnitt ----------
 function rechteck() {
@@ -280,25 +323,30 @@ async function laden() {
   const b = $('laden'); b.disabled = true; b.textContent = 'lädt …'; balken(0.02);
   status('Höhenmodell swissALTI3D wird geholt …');
   try {
-    const [hoehen, wald, wasser, geb] = await Promise.all([
+    const [hoehen, wald, wasser, geb, haupt] = await Promise.all([
       hoehenRaster(r, nx, ny, { signal, fortschritt: (f, n) => { balken(0.05 + 0.75 * f / n); status(`Höhenmodell: Kachel ${f} von ${n} …`); } }),
       wmsMaske(r, nx, ny, LAYER.wald, signal).catch(() => null),
       wmsMasken(r, nx, ny, LAYER.wasser, WASSER_FILTER, signal).catch(() => null),
       wmsMaske(r, nx, ny, LAYER.gebaeude, signal).catch(() => null),
+      wmsMaske(r, nx, ny, LAYER.haupt, signal).catch(() => null),
     ]);
     balken(0.9);
-    // Fluesse: eingedolte Luecken entlang des Talwegs schliessen, Reste ohne
-    // Anschluss ans Netz streichen (mesh.js fluesseVerbinden)
+    // Fluesse: Linien auf eine Zelle verduennen (Skelett), eingedolte Luecken
+    // entlang des Talwegs schliessen, Reste ohne Anschluss streichen
     let fl = null, flInfo = '';
+    const zellM = r.wM / (nx - 1);
     if (wasser) {
       status('Gewässer werden verbunden …');
       await new Promise((res) => setTimeout(res, 20));
-      const v = fluesseVerbinden(wasser.fluesse, wasser.seen, hoehen.h, nx, ny);
+      const v = fluesseVerbinden(verduenne(wasser.fluesse, nx, ny), wasser.seen, hoehen.h, nx, ny);
       fl = v.fluesse;
       if (v.ueberbrueckt || v.gestrichen) flInfo = ` · Bäche: ${v.ueberbrueckt} verbunden, ${v.gestrichen} ohne Anschluss weggelassen`;
     }
     daten = { rect: r, nx, ny, h: hoehen.h, aufl: hoehen.aufl, kacheln: hoehen.kacheln, fehlt: hoehen.fehlt,
-              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: fl, gebaeude: geb } };
+              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: fl, gebaeude: geb,
+                        // Hauptgewaesser der Landeskarte 1:200'000, generalisiert (bis ~80 m neben dem TLM-Lauf)
+                        haupt: haupt ? dilatiere(haupt, nx, ny, Math.max(2, Math.round(100 / zellM))) : null },
+              flCache: null };
     datenAlt = false;
     let min = Infinity, max = -Infinity; for (const v of hoehen.h) { if (v < min) min = v; if (v > max) max = v; }
     daten.min = min; daten.max = max;
@@ -335,10 +383,27 @@ function bau(lang, fuerDruck = false) {
   if (daten.masken.seen) {
     const seen = resampleMaske(daten.masken.seen, daten.nx, daten.ny, nx, ny);
     if (P.fluesse && daten.masken.fluesse) {
+      // Auf dem Datenraster: nur Hauptgewaesser bzw. Nebenbaeche stutzen
+      // (beides billig, aber nicht gratis — je Einstellung einmal rechnen)
+      const key = `${P.nurHaupt}|${P.bachMin}`;
+      if (!daten.flCache || daten.flCache.key !== key) {
+        let flM = daten.masken.fluesse;
+        const zellMaster = r.wM / (daten.nx - 1);
+        if (P.nurHaupt && daten.masken.haupt) {
+          // Nur was im Korridor der Landeskarte 1:200'000 liegt (+-100 m), danach
+          // die angeschnittenen Stummel der Nebenbaeche (bis 120 m) wegstutzen
+          const h = daten.masken.haupt, k = new Uint8Array(flM.length);
+          for (let q = 0; q < k.length; q++) k[q] = flM[q] & h[q];
+          flM = stutze(k, daten.nx, daten.ny, Math.round(120 / zellMaster));
+        }
+        const minLen = Math.round(P.bachMin / zellMaster);
+        if (minLen > 1) flM = stutze(flM, daten.nx, daten.ny, minLen);
+        daten.flCache = { key, mask: flM };
+      }
       // Mindestbreite: die Zellregel (>= 1 Ecke) gibt schon 2 Zellen, darueber
       // hinaus verbreitern — sonst laesst der Slicer die Linie fallen.
-      const r = Math.max(0, Math.round((P.flussB / pitch - 2) / 2));
-      const fl = dilatiere(resampleMaske(daten.masken.fluesse, daten.nx, daten.ny, nx, ny), nx, ny, r);
+      const rr = Math.max(0, Math.round((P.flussB / pitch - 2) / 2));
+      const fl = dilatiere(resampleMaske(daten.flCache.mask, daten.nx, daten.ny, nx, ny), nx, ny, rr);
       for (let k = 0; k < seen.length; k++) if (fl[k]) seen[k] = 1;
     }
     masken.wasser = seen;
@@ -347,57 +412,87 @@ function bau(lang, fuerDruck = false) {
   if (P.an.route && route) masken.route = routeMaske(r, nx, ny, route, Math.max(0.6, P.routeB / pitch / 2));
   const an = { ...P.an, route: P.an.route && !!route };
   const klasse = klassifiziere({ nx, ny, hM, zellM, masken, an, schnee: P.schnee, fels: P.fels });
+  // Schild zuerst (bestimmt beim stehenden Schild die Sockelhoehe)
+  const schild = schildBau(m.W);
+  const sockel = sockelEff(schild ? schild.H : 0);
   // Hoehen in mm: Terrain ab dem tiefsten Punkt, plus Haeuser, plus Route
   const z = new Float32Array(nx * ny);
   const s = m.mmJeM * P.ueberh;
-  for (let k = 0; k < z.length; k++) z[k] = P.sockel + (hM[k] - daten.min) * s;
+  for (let k = 0; k < z.length; k++) z[k] = sockel + (hM[k] - daten.min) * s;
   if (an.gebaeude && masken.gebaeude) for (let k = 0; k < z.length; k++) if (masken.gebaeude[k]) z[k] += P.hausH * s;
   if (an.route && masken.route) for (let k = 0; k < z.length; k++) if (masken.route[k]) z[k] += P.routeH;
-  // Wasser: flach ziehen (Seen sind im Modell schon eben; Fluesse leicht eingetieft)
-  // Praegung auf der Vorderkante
-  const reihen = []; for (let zz = 1.0; zz <= P.sockel - 1.0 + 1e-9; zz += 0.3) reihen.push(+zz.toFixed(3));
-  const praegung = praegungAus(schriftZellen(nx, pitch, reihen), 0.6, null);
+  // Schild LIEGEND: Sockelleiste vor dem Relief mit 1.0-mm-Mulde (wie eine
+  // Plakette am Denkmal). Schild STEHEND: Tasche in der Vorderwand ueber die
+  // Wandreihen (Reihenpunkte ruecken nach innen); Sockel dafuer erhoeht.
+  const liegend = schild && P.schildLage === 'liegend', stehend = schild && P.schildLage === 'stehend';
+  const xs = schild ? schildX(m.W, schild.W) : 0;
+  const leiste = liegend ? schild.H + 2 * SCHILD.leisteRand : 0;
+  const np = liegend ? Math.round(leiste / pitch) : 0;                 // zusaetzliche Zeilen im Sueden
+  const ny2 = ny + np;
+  const z2 = new Float32Array(nx * ny2), klasse2 = new Uint8Array((nx - 1) * (ny2 - 1));
+  z2.set(z, np * nx);
+  for (let cj = 0; cj < ny - 1; cj++) klasse2.set(klasse.subarray(cj * (nx - 1), (cj + 1) * (nx - 1)), (cj + np) * (nx - 1));
+  if (liegend) {
+    const x0 = xs - schild.W / 2 - SCHILD.spiel, x1 = xs + schild.W / 2 + SCHILD.spiel;
+    const y0 = SCHILD.leisteRand - SCHILD.spiel, y1 = SCHILD.leisteRand + schild.H + SCHILD.spiel;   // ab Vorderkante
+    for (let j = 0; j < np; j++) for (let i = 0; i < nx; i++) {
+      const x = i * pitch - m.W / 2, y = j * pitch;
+      z2[j * nx + i] = (x >= x0 && x <= x1 && y >= y0 && y <= y1) ? sockel - SCHILD.mulde : sockel;
+    }
+  }
+  let reihen = [], praegung = null;
+  if (stehend) {
+    const zU = SCHILD.unten - SCHILD.spiel, zO = SCHILD.unten + schild.H + SCHILD.spiel;
+    for (let zz = 0.6; zz <= zO + 0.3 + 1e-9; zz += 0.3) reihen.push(+zz.toFixed(3));
+    const x0 = xs - schild.W / 2 - SCHILD.spiel, x1 = xs + schild.W / 2 + SCHILD.spiel;
+    praegung = { tiefe: -SCHILD.tasche, klasse: null, maske: (i, rr) => { const x = i * pitch - m.W / 2, zz = reihen[rr - 1]; return x >= x0 && x <= x1 && zz >= zU - 1e-6 && zz <= zO + 1e-6; } };
+  }
   // Farben kompakt: nur benutzte Klassen in die Palette
-  const benutzt = new Set([0]); for (const k of klasse) benutzt.add(k);
+  const benutzt = new Set([0]); for (const k of klasse2) benutzt.add(k);
   const pal = [], map = new Uint8Array(KLASSEN.length);
   ZONEN.forEach((zn, i) => { if (benutzt.has(i)) { map[i] = pal.length; pal.push(P.farben[zn.key]); } });
-  const klasseP = new Uint8Array(klasse.length); for (let k = 0; k < klasse.length; k++) klasseP[k] = map[klasse[k]];
-  const mesh = reliefMesh({ nx, ny, pitch, z, klasse: klasseP, sockel: 0, reihen, praegung });
-  return { mesh, pal, nx, ny, pitch, m, klasse, hM };
+  const klasseP = new Uint8Array(klasse2.length); for (let k = 0; k < klasse2.length; k++) klasseP[k] = map[klasse2[k]];
+  const mesh = reliefMesh({ nx, ny: ny2, pitch, z: z2, klasse: klasseP, sockel: 0, reihen, praegung });
+  return { mesh, pal, nx, ny, pitch, m, klasse, hM, schild, leiste, sockel, xs, hTotal: (ny2 - 1) * pitch };
 }
-// Schrift auf der Vorderkante: links der Wunschtext, rechts "© swisstopo".
-// Gezeichnet in 4 px/mm, dann auf die Zellen (Spalte i, Reihe r) abgetastet.
-function schriftZellen(nx, pitch, reihen) {
-  const W = (nx - 1) * pitch, S = 4;
-  const bandU = 1.0, bandO = reihen[reihen.length - 1];
-  const hoehe = Math.max(1.5, (bandO - bandU) * 0.8);
-  const c = document.createElement('canvas'); c.width = Math.ceil(W * S); c.height = Math.ceil(P.sockel * S);
-  const x = c.getContext('2d', { willReadFrequently: true });
+// Schild: flache Platte mit buendigem Text (Zellfarben), separat gedruckt.
+// Hoehe nach Wunsch, aber so, dass die Tasche unter dem tiefsten Randpunkt
+// des Reliefs bleibt. Links der Wunschtext, rechts klein "© swisstopo";
+// ohne Wunschtext nur die Quelle. null = kein Platz (Sockel zu niedrig).
+function schildBau(Wrelief) {
+  const text = P.text.trim();
+  const ph = P.schildH;
+  const S = 8;                                        // Pixel je mm beim Zeichnen
+  const c = document.createElement('canvas'); c.width = 10; c.height = 10;
+  let x = c.getContext('2d');
+  const fontUser = (h) => `bold ${h * S}px "Segoe UI", Arial, sans-serif`;
+  const fontQ = `${SCHILD.quelle * S}px "Segoe UI", Arial, sans-serif`;
+  x.font = fontQ; const qb = x.measureText('© swisstopo').width / S;
+  let hUser = Math.max(2.5, ph - 2 * SCHILD.rand), wUser = 0;
+  if (text) {
+    x.font = fontUser(hUser); wUser = x.measureText(text).width / S;
+    const maxW = Wrelief - 8 - 2 * SCHILD.rand - qb - 3;
+    while (wUser > maxW && hUser > 3) { hUser *= 0.92; x.font = fontUser(hUser); wUser = x.measureText(text).width / S; }
+    if (wUser > maxW) return null;
+  }
+  const pw = Math.min(Wrelief - 8, 2 * SCHILD.rand + (text ? wUser + 3 : 0) + qb);
+  c.width = Math.ceil(pw * S); c.height = Math.ceil(ph * S);
+  x = c.getContext('2d', { willReadFrequently: true });
   x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
   x.fillStyle = '#fff'; x.textBaseline = 'middle';
-  const zm = (bandU + bandO) / 2, ym = (P.sockel - zm) * S;
-  x.font = `bold ${hoehe * S}px "Segoe UI", Arial, sans-serif`;
-  const quelle = '© swisstopo';
-  const qb = x.measureText(quelle).width;
-  x.textAlign = 'right'; x.fillText(quelle, (W - 3) * S, ym);
-  const t = P.text.trim();
-  if (t) {
-    x.textAlign = 'left';
-    let f = hoehe * S; x.font = `bold ${f}px "Segoe UI", Arial, sans-serif`;
-    const platz = (W - 3) * S - qb - 6 * S - 3 * S;
-    while (x.measureText(t).width > platz && f > 4) { f *= 0.92; x.font = `bold ${f}px "Segoe UI", Arial, sans-serif`; }
-    if (x.measureText(t).width <= platz) x.fillText(t, 3 * S, ym);
-  }
+  if (text) { x.font = fontUser(hUser); x.textAlign = 'left'; x.fillText(text, SCHILD.rand * S, c.height / 2); }
+  x.font = fontQ; x.textAlign = 'right'; x.fillText('© swisstopo', (pw - SCHILD.rand) * S, c.height / 2);
+  const p = SCHILD.pitch, nxp = Math.round(pw / p) + 1, nyp = Math.round(ph / p) + 1;
   const d = x.getImageData(0, 0, c.width, c.height).data;
-  return reihen.map((zz) => {
-    const row = new Uint8Array(nx);
-    const py = Math.min(c.height - 1, Math.max(0, Math.round((P.sockel - zz) * S)));
-    for (let i = 3; i < nx - 3; i++) {
-      const px = Math.min(c.width - 1, Math.round(i * pitch * S));
-      if (d[(py * c.width + px) * 4] > 128) row[i] = 1;
-    }
-    return row;
-  });
+  const kl = new Uint8Array((nxp - 1) * (nyp - 1));
+  for (let cj = 0; cj < nyp - 1; cj++) for (let ci = 0; ci < nxp - 1; ci++) {
+    const px = Math.min(c.width - 1, Math.round((ci + 0.5) * p * S)), py = Math.max(0, Math.min(c.height - 1, Math.round(c.height - (cj + 0.5) * p * S)));
+    if (d[(py * c.width + px) * 4] > 128) kl[cj * (nxp - 1) + ci] = 1;
+  }
+  const zz = new Float32Array(nxp * nyp).fill(SCHILD.dicke);
+  const mesh = reliefMesh({ nx: nxp, ny: nyp, pitch: p, z: zz, klasse: kl, sockel: 0, reihen: [], praegung: null });
+  const H = (nyp - 1) * p;
+  return { mesh, pal: [P.schildFarbe, P.textFarbe], W: (nxp - 1) * p, H, hUser: text ? hUser : 0, gekuerzt: text ? hUser < ph - 2 * SCHILD.rand - 1e-6 : false };
 }
 
 // ---------- Szene ----------
@@ -435,19 +530,36 @@ function rebuild() {
   regeln(); syncUI();
   while (gruppe.children.length) { const c = gruppe.children.pop(); c.geometry.dispose(); }
   if (!daten) { $('hud').innerHTML = 'Noch kein Relief geladen — Ausschnitt wählen und «Relief laden» drücken.'; preisAnzeigen(); return; }
-  const { mesh, pal, m, nx, ny } = bau(VORSCHAU);
+  const { mesh, pal, m, nx, ny, schild, hTotal, sockel, xs } = bau(VORSCHAU);
   gruppe.add(new THREE.Mesh(geoAus(mesh, pal), mat));
-  controls.target.set(0, 0, P.sockel + 10);
+  if (schild) {
+    const s = new THREE.Mesh(geoAus(schild.mesh, schild.pal), mat);
+    if (P.schildLage === 'liegend') {
+      // flach in der Mulde der Sockelleiste (vorne, Text nach Norden oben)
+      s.position.set(xs, -hTotal / 2 + SCHILD.leisteRand + schild.H / 2, sockel - SCHILD.mulde);
+    } else {
+      // stehend in der Tasche: um x gedreht (y -> z, z -> -y), Rueckseite an der Taschenwand
+      s.rotation.x = Math.PI / 2;
+      s.position.set(xs, -hTotal / 2 + SCHILD.tasche, SCHILD.unten + schild.H / 2);
+    }
+    gruppe.add(s);
+  }
+  letzteSchild = schild;
+  controls.target.set(0, 0, sockel + 10);
   letzteVolCm3 = volumen(mesh) / 1000; letzteFarben = pal.length; letzteMasse = m;
   const g = letzteVolCm3 * PREIS.dichte * PREIS.fuell;
-  const hMax = P.sockel + (daten.max - daten.min) * m.mmJeM * P.ueberh;
+  const hMax = sockel + (daten.max - daten.min) * m.mmJeM * P.ueberh;
   const warn = [];
+  if (sockel > P.sockel + 1e-6) warn.push(`Sockel für das stehende Schild auf ${sockel.toFixed(1)} mm erhöht`);
   if (datenAlt) warn.push('Ausschnitt geändert — Relief neu laden');
   if (hMax > 120) warn.push(`sehr hoch (${hMax.toFixed(0)} mm) — Überhöhung senken`);
   if (m.massstab > 40000) warn.push('grosser Ausschnitt: feine Formen gehen verloren');
   if (P.an.gebaeude && m.massstab > 6000) warn.push(`Häuser bei 1:${m.massstab} nur noch Punkte`);
   if (P.an.route && !route) warn.push('Route aktiv, aber keine GPX-Datei geladen');
-  $('hud').innerHTML = `${m.W.toFixed(0)}×${m.H.toFixed(0)}×${hMax.toFixed(0)} mm · 1:${m.massstab.toLocaleString('de-CH')} · ${P.km} km Kante · Überhöhung ${P.ueberh.toFixed(1)}× · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''} · ≈ ${g.toFixed(0)} g` +
+  if (!schild) warn.push('Text zu lang für die Schildbreite — kürzen oder Relief breiter');
+  else if (schild.gekuerzt) warn.push(`Schrift auf ${schild.hUser.toFixed(1)} mm verkleinert, damit der Text passt`);
+  $('hud').innerHTML = `${m.W.toFixed(0)}×${hTotal.toFixed(0)}×${hMax.toFixed(0)} mm · 1:${m.massstab.toLocaleString('de-CH')} · ${P.km} km Kante · Überhöhung ${P.ueberh.toFixed(1)}× · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''} · ≈ ${g.toFixed(0)} g` +
+    (schild ? ` · Schild ${schild.W.toFixed(0)}×${schild.H.toFixed(0)} mm ${P.schildLage === 'liegend' ? 'auf Sockelleiste' : 'in Tasche'}` : '') +
     (warn.length ? `<br><span class="warn">⚠ ${warn.join(' · ')}</span>` : '');
   preisAnzeigen();
 }
@@ -468,8 +580,9 @@ function preisInfo() {
   const druck = (g * PREIS.filamentKg / 1000 + (g / PREIS.durchsatz) * PREIS.stundensatz) * (1 + PREIS.ausfall);
   const n = P.menge;
   const roh = Math.max(PREIS.min, PREIS.grund + n * druck);
-  const total = daten ? Math.ceil(roh * faktor * 2) / 2 : 0;
-  return { g, druck, n, total, faktor, roh };
+  const schild = letzteSchild ? n * PREIS.schild : 0;
+  const total = daten ? Math.ceil((roh * faktor + schild) * 2) / 2 : 0;
+  return { g, druck, n, total, faktor, roh, schild };
 }
 function preisAnzeigen() {
   const box = $('preisBox'); if (!box) return;
@@ -477,7 +590,7 @@ function preisAnzeigen() {
   const farbText = letzteFarben === 1 ? 'einfarbig −25 %' : letzteFarben === 2 ? '2 Farben' : `${letzteFarben} Farben +${Math.round((pi.faktor - 1) * 100)} %`;
   box.innerHTML = daten
     ? `≈ ${pi.g.toFixed(0)} g je Stück · Grund ${f(PREIS.grund)} + ${pi.n} × ${f(pi.druck)} Druck` +
-      (pi.roh === PREIS.min ? ` · Mindestpreis ${f(PREIS.min)}` : '') + ` · ${farbText}` +
+      (pi.roh === PREIS.min ? ` · Mindestpreis ${f(PREIS.min)}` : '') + ` · ${farbText}` + (pi.schild ? ` · Schild ${f(pi.schild)}` : '') +
       `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>`
     : `<div style="font-size:13px;color:var(--mut)">Preis erscheint, sobald das Relief geladen ist.</div>`;
   if (mobil) mobil.setPreis(daten ? `Total CHF ${f(pi.total)}` : 'Relief laden');
@@ -527,31 +640,36 @@ async function busy(btn, fn) {
 }
 $('ex3mf').addEventListener('click', () => busy($('ex3mf'), async () => {
   if (!daten) { alert('Zuerst «Relief laden».'); return; }
-  const { mesh, pal } = bau(druckAufloesung(), true);
-  download(await dreiMF([{ name: 'Relief', mesh, palette: pal }]), 'kohlilab_relief.3mf');
+  const { mesh, pal, schild } = bau(druckAufloesung(), true);
+  const k = [{ name: 'Relief', mesh, palette: pal }];
+  if (schild) k.push({ name: 'Schild (separat, flach)', mesh: schild.mesh, palette: schild.pal });
+  download(await dreiMF(k), 'kohlilab_relief.3mf');
 }));
 $('cart').addEventListener('click', () => busy($('cart'), async () => {
   if (!daten) { alert('Zuerst «Relief laden».'); return; }
   if (datenAlt && !confirm('Der Ausschnitt wurde seit dem Laden verändert — bestellt wird der GELADENE Ausschnitt. Trotzdem in den Warenkorb?')) return;
-  let lang = druckAufloesung(), dateien = null, pal = null;
+  let lang = druckAufloesung(), dateien = null, pal = null, schildInfo = null;
   for (let versuch = 0; versuch < 4; versuch++) {
-    const k = bau(lang, true); pal = k.pal;
+    const k = bau(lang, true); pal = k.pal; schildInfo = k.schild;
     dateien = { relief: await blobB64(await dreiMF([{ name: 'Relief', mesh: k.mesh, palette: k.pal }])) };
-    if (dateien.relief.length < 3.4e6) break;
+    if (k.schild) dateien.schild = await blobB64(await dreiMF([{ name: 'Schild (separat, flach)', mesh: k.schild.mesh, palette: k.schild.pal }]));
+    if (dateien.relief.length < 3.3e6) break;
     lang = Math.round(lang * 0.85);
   }
   dateien.vorschau = await blobB64(await vorschauJpeg());
   const pi = preisInfo(), m = letzteMasse;
   const zonen = aktiveZonen().filter((z) => !z.fix).map((z) => z.name).join(', ');
   const ort = $('suche').value.trim().slice(0, 40);
-  const titel = `Relief · ${ort || `E ${P.E} N ${P.N}`} · ${P.km} km · ${m.W.toFixed(0)}×${m.H.toFixed(0)} mm · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''} · ${P.menge}×`;
+  const titel = `Relief · ${ort || `E ${P.E} N ${P.N}`} · ${P.km} km · ${m.W.toFixed(0)}×${m.H.toFixed(0)} mm · ${pal.length} Farbe${pal.length > 1 ? 'n' : ''}${schildInfo ? ' · mit Schild' : ''} · ${P.menge}×`;
   const cart = (window.top && window.top.KCart) || window.KCart;
   await cart.add({
     typ: 'relief', titel, menge: P.menge, gesamtRappen: Math.round(pi.total * 100), stueckRappen: Math.round(pi.total * 100),
     konfig: { E: P.E, N: P.N, km: P.km, format: P.format, ort, breite: +m.W.toFixed(1), hoehe: +m.H.toFixed(1), massstab: m.massstab,
               ueberh: P.ueberh, sockel: P.sockel, glatt: P.glatt, zonen, farben: pal, schnee: P.an.schnee ? P.schnee : undefined,
               fels: P.an.fels ? P.fels : undefined, hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined, flussB: P.an.wasser && P.fluesse ? P.flussB : undefined,
-              text: P.text.trim(), quelle: `swissALTI3D ${daten.aufl} m, ${daten.kacheln} Kacheln`, raster: lang, menge: P.menge },
+              bachMin: P.an.wasser && P.fluesse ? P.bachMin : undefined, nurHaupt: P.an.wasser && P.fluesse ? P.nurHaupt : undefined,
+              text: P.text.trim(), schild: schildInfo ? { breite: +schildInfo.W.toFixed(1), hoehe: +schildInfo.H.toFixed(1), farbe: P.schildFarbe, schrift: P.textFarbe, lage: P.schildLage, pos: P.schildPos } : null,
+              quelle: `swissALTI3D ${daten.aufl} m, ${daten.kacheln} Kacheln`, raster: lang, menge: P.menge },
     dateien,
   });
   (window.top || window).location.href = '/warenkorb';
@@ -569,7 +687,8 @@ function mkBtns(hostId, liste, key, nach) {
   });
 }
 const EINH = [['km', 'km', ' km'], ['breite', 'breite', ' mm'], ['ueberh', 'ueberh', '×'], ['sockel', 'sockel', ' mm'], ['glatt', 'glatt', ''],
-              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm'], ['flussB', 'flussB', ' mm']];
+              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm'], ['flussB', 'flussB', ' mm'],
+              ['bachMin', 'bachMin', ' m'], ['schildH', 'schildH', ' mm']];
 function slider(id, key, nach) {
   $(id).value = P[key];
   $(id).addEventListener('input', () => { P[key] = parseFloat($(id).value); nach ? nach() : rebuildBald(); });
@@ -580,35 +699,63 @@ function syncUI() {
   $('ausschnittNote').textContent = `Ausschnitt ${(r.wM / 1000).toFixed(1)} × ${(r.hM / 1000).toFixed(1)} km · Mitte E ${P.E} / N ${P.N} (LV95)`;
   $('masseNote').textContent = `Relief ${m.W.toFixed(0)} × ${m.H.toFixed(0)} mm · Massstab 1:${m.massstab.toLocaleString('de-CH')} · 1 mm = ${(1 / m.mmJeM).toFixed(0)} m`;
   $('fluesseWrap').style.display = P.an.wasser ? 'flex' : 'none';
-  $('flussRow').style.display = P.an.wasser && P.fluesse ? 'flex' : 'none';
+  const flOn = P.an.wasser && P.fluesse;
+  $('flussRow').style.display = flOn ? 'flex' : 'none';
+  $('bachRow').style.display = flOn ? 'flex' : 'none';
+  $('hauptWrap').style.display = flOn ? 'flex' : 'none';
+  $('bachNote').style.display = flOn ? 'block' : 'none';
+  if ($('nurHaupt').checked !== P.nurHaupt) $('nurHaupt').checked = P.nurHaupt;
+  $('bachMinV').textContent = P.bachMin === 0 ? 'alle' : `ab ${P.bachMin} m`;
+  $('bachNote').textContent = P.nurHaupt
+    ? 'Nur Gewässer, die auch auf der Landeskarte 1:200 000 stehen — im Hügelland bleiben dann meist ein bis drei Bäche.'
+    : `Seitenbäche, die im Ausschnitt kürzer als ${P.bachMin} m sind, werden weggelassen. Bäche, die durchs ganze Gebiet laufen, bleiben immer.`;
+  $('schildFk').textContent = farbName(P.schildFarbe); $('textFk').textContent = farbName(P.textFarbe);
+  document.querySelectorAll('#lageBtns button').forEach((b) => b.classList.toggle('active', b.dataset.val === P.schildLage));
+  document.querySelectorAll('#posBtns button').forEach((b) => b.classList.toggle('active', b.dataset.val === P.schildPos));
   if ($('fluesse').checked !== P.fluesse) $('fluesse').checked = P.fluesse;
   $('schneeRow').style.display = P.an.schnee ? 'flex' : 'none';
   $('felsRow').style.display = P.an.fels ? 'flex' : 'none';
   $('hausRow').style.display = P.an.gebaeude ? 'flex' : 'none';
   const voll = farbenZahl() >= FARBEN_MAX;
-  document.querySelectorAll('#zonen .schalter').forEach((el) => {
+  document.querySelectorAll('#zonen .zone').forEach((el) => {
     const key = el.dataset.key, cb = el.querySelector('input[type=checkbox]');
     if (cb) { cb.checked = !!P.an[key]; cb.disabled = voll && !P.an[key]; }
     el.classList.toggle('aus', cb ? !P.an[key] : false);
   });
+  for (const f of swSync) f();
+  $('schildNote').textContent = P.schildLage === 'liegend'
+    ? 'Das Schild wird separat flach gedruckt (Text bündig, zwei Farben) und liegt in einer Mulde auf der Sockelleiste vor dem Relief. Rechts steht klein «© swisstopo» — die Quellenangabe ist Pflicht.'
+    : 'Das Schild wird separat flach gedruckt und steht in einer Tasche an der Vorderkante des Sockels; der Sockel wächst dafür automatisch auf Schildhöhe plus 2.6 mm. Rechts steht klein «© swisstopo».';
   $('farbNote').innerHTML = voll ? `<b>4 Farben belegt</b> (AMS). Eine Zone abwählen, um eine andere zu nehmen.` : `Land ist immer dabei. Das AMS druckt <b>bis zu 4 Farben</b> in einem Stück — wähle bis zu drei Zonen dazu.`;
   $('routeNote').textContent = route ? `Route geladen: ${route.length} Punkte. Sie wird als erhabene Linie in der Routenfarbe gedruckt.` : 'Wanderung, Velotour oder Lauf als Linie auf dem Gelände — GPX aus Strava, Komoot, SchweizMobil oder der Uhr.';
 }
+// Farbfelder aus der festen Palette; holen() liefert den aktuellen Wert,
+// setzen(hex) uebernimmt die Wahl. Rueckgabe: Funktion, die die Markierung
+// nachzieht (z. B. nach dem Laden eines Links).
+function swatches(host, holen, setzen, titel) {
+  host.innerHTML = '';
+  const knoepfe = FARBEN.map(([name, hex]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.style.background = hex; b.title = name; b.setAttribute('aria-label', `${titel}: ${name}`);
+    b.addEventListener('click', () => { setzen(hex); sync(); rebuildBald(); });
+    host.appendChild(b); return [hex, b];
+  });
+  const sync = () => { const akt = String(holen()).toUpperCase(); for (const [hex, b] of knoepfe) b.classList.toggle('active', hex === akt); };
+  sync(); return sync;
+}
+const swSync = [];
 function zonenUI() {
   const host = $('zonen'); host.innerHTML = '';
   for (const z of ZONEN) {
-    const lab = document.createElement('label'); lab.className = 'schalter'; lab.dataset.key = z.key;
-    if (z.fix) { lab.innerHTML = `<span style="width:16px;display:inline-block"></span><span>${z.name}</span>`; }
+    const zeile = document.createElement('div'); zeile.className = 'zone'; zeile.dataset.key = z.key;
+    if (z.fix) { zeile.innerHTML = `<span style="width:16px;display:inline-block"></span><span class="zn">${z.name}</span>`; }
     else {
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!P.an[z.key];
       cb.addEventListener('change', () => { P.an[z.key] = cb.checked; if (z.key === 'route' && cb.checked && !route) $('gpx').click(); rebuild(); });
-      lab.appendChild(cb); const sp = document.createElement('span'); sp.textContent = z.name; lab.appendChild(sp);
+      zeile.appendChild(cb); const sp = document.createElement('span'); sp.className = 'zn'; sp.textContent = z.name; zeile.appendChild(sp);
     }
-    const fk = document.createElement('span'); fk.className = 'fk'; fk.textContent = P.farben[z.key].toUpperCase();
-    const col = document.createElement('input'); col.type = 'color'; col.value = P.farben[z.key];
-    col.addEventListener('input', () => { P.farben[z.key] = col.value.toUpperCase(); fk.textContent = P.farben[z.key]; rebuildBald(); });
-    lab.appendChild(fk); lab.appendChild(col);
-    host.appendChild(lab);
+    const sw = document.createElement('div'); sw.className = 'swatches'; zeile.appendChild(sw);
+    swSync.push(swatches(sw, () => P.farben[z.key], (hex) => { P.farben[z.key] = hex; }, z.name));
+    host.appendChild(zeile);
   }
 }
 $('gpx').addEventListener('change', (e) => {
@@ -675,6 +822,19 @@ $('menge').value = P.menge; $('mengeV').textContent = P.menge + ' Stk';
 $('menge').addEventListener('input', () => { P.menge = parseInt($('menge').value); $('mengeV').textContent = P.menge + ' Stk'; preisAnzeigen(); });
 $('text').value = P.text; $('text').addEventListener('input', () => { P.text = $('text').value; rebuildBald(); });
 $('fluesse').checked = P.fluesse; $('fluesse').addEventListener('change', () => { P.fluesse = $('fluesse').checked; rebuild(); });
+$('nurHaupt').checked = P.nurHaupt; $('nurHaupt').addEventListener('change', () => { P.nurHaupt = $('nurHaupt').checked; rebuild(); });
+swSync.push(swatches($('schildFarbeSw'), () => P.schildFarbe, (hex) => { P.schildFarbe = hex; }, 'Schildfarbe'));
+swSync.push(swatches($('textFarbeSw'), () => P.textFarbe, (hex) => { P.textFarbe = hex; }, 'Schriftfarbe'));
+mkBtns('lageBtns', LAGEN, 'schildLage', null); mkBtns('posBtns', POSITIONEN, 'schildPos', null);
+document.querySelectorAll('#lageBtns button, #posBtns button').forEach((b) => { b.dataset.val = [...LAGEN, ...POSITIONEN].find((x) => x[1] === b.textContent)[0]; b.addEventListener('click', rebuild); });
+// Karte gross / klein — Leaflet nach dem Umschalten neu messen
+function karteGross(an) {
+  document.body.classList.toggle('kartegross', an);
+  setTimeout(() => { karteStill = true; karte.invalidateSize(); karteZuP(zoomZuKm()); karteStill = false; }, 60);
+}
+$('karteGross').addEventListener('click', () => karteGross(true));
+$('karteZu').addEventListener('click', () => karteGross(false));
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('kartegross')) karteGross(false); });
 zonenUI();
 karteStill = true; karteZuP(zoomZuKm()); karteStill = false;
 window.__bau = (n) => bau(n || VORSCHAU);          // Pruef-Haken (Konsole)

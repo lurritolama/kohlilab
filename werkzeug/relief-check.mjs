@@ -8,7 +8,25 @@
 //                                              Projekt-Daten/kohlilab-relief
 import { zipSync, strToU8 } from 'fflate';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { reliefMesh, praegungAus, pruefe, modelXml, klassifiziere, resampleMaske, fluesseVerbinden, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+import { reliefMesh, praegungAus, pruefe, modelXml, klassifiziere, resampleMaske, fluesseVerbinden, verduenne, stutze, nurNahe, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+
+// --- Skelett, Stutzen, Hauptgewaesser -----------------------------------------
+{
+  const n = 100, m = new Uint8Array(n * n);
+  // Hauptbach 3 Zellen breit quer durchs Bild, ein kurzer (12) und ein langer (40) Seitenarm
+  for (let i = 0; i < n; i++) for (let d = -1; d <= 1; d++) m[(50 + d) * n + i] = 1;
+  for (let j = 51; j < 63; j++) m[j * n + 30] = 1;
+  for (let j = 51; j < 91; j++) m[j * n + 70] = 1;
+  const sk = verduenne(m, n, n);
+  let breit = 0; for (let i = 5; i < 95; i++) { let c = 0; for (let j = 45; j < 56; j++) c += sk[j * n + i]; if (c > 1) breit++; }
+  const st = stutze(sk, n, n, 20);
+  const kurzWeg = st[60 * n + 30] === 0, langDa = st[80 * n + 70] === 1, hauptDa = st[50 * n + 10] === 1;
+  const ref = new Uint8Array(n * n); for (let i = 0; i < n; i++) for (let j = 46; j < 55; j++) ref[j * n + i] = 1;
+  const nah = nurNahe(st, ref, n, n);
+  const ok = breit <= 2 && kurzWeg && langDa && hauptDa && nah[50 * n + 10] === 1;
+  console.log(`${ok ? 'OK ' : 'FEHLER'} Skelett/Stutzen: Spalten >1 Zelle breit ${breit}, kurzer Arm weg ${kurzWeg}, langer Arm da ${langDa}, Hauptbach da ${hauptDa}, nurNahe ${nah[50 * n + 10] === 1}`);
+  if (!ok) process.exitCode = 1;
+}
 
 // --- Fluesse: Umrechnen ohne Luecken, eingedolte Luecken schliessen ----------
 {
@@ -63,8 +81,10 @@ function bau(nx, ny, W, sockel, mitSchrift) {
   const reihen = []; for (let zz = 1.0; zz <= sockel - 1.0 + 1e-9; zz += 0.3) reihen.push(+zz.toFixed(3));
   let praegung = null;
   if (mitSchrift) {
-    const zellen = reihen.map((zz, r) => { const row = new Uint8Array(nx); for (let i = 6; i < nx - 6; i++) if (((i >> 2) + r) % 3 === 0) row[i] = 1; return row; });
-    praegung = praegungAus(zellen, 0.6, null);
+    // heute: Tasche fuer das separat gedruckte Schild (nach INNEN, 1.4 mm)
+    // ueber die mittleren 60 % der Vorderkante und die Reihen 2..R-1
+    const zellen = reihen.map((zz, r) => { const row = new Uint8Array(nx); if (r >= 1 && r < reihen.length - 1) for (let i = Math.round(nx * 0.2); i < Math.round(nx * 0.8); i++) row[i] = 1; return row; });
+    praegung = praegungAus(zellen, -1.4, null);
   }
   return reliefMesh({ nx, ny, pitch, z, klasse, sockel: 0, reihen, praegung });
 }

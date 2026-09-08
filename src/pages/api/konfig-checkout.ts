@@ -206,25 +206,34 @@ export const POST: APIRoute = async ({ request }) => {
         if (!Number.isInteger(menge) || menge < 1 || menge > 5) { fehler.push(`Position ${nr}: Relief-Menge muss 1–5 sein.`); return; }
         const relief = buf(p?.dateien?.relief, `${nr}/relief`);
         const dateien: Pos['dateien'] = [{ name: `pos${nr}_relief.3mf`, buf: relief }];
+        // Schild (08.09.2026): separat flach gedruckt, eigene Datei, wird
+        // mitgewogen und mit 2.50 je Stueck verrechnet
+        let schild: Buffer | null = null;
+        if (typeof p?.dateien?.schild === 'string' && p.dateien.schild.length >= 32) { schild = buf(p.dateien.schild, `${nr}/schild`); dateien.push({ name: `pos${nr}_schild.3mf`, buf: schild }); }
         if (typeof p?.dateien?.vorschau === 'string' && p.dateien.vorschau.length >= 32) {
           const v = Buffer.from(p.dateien.vorschau, 'base64');
           if (v.length > 0 && v.length <= MAX_VORSCHAU_BYTES && v[0] === 0xff && v[1] === 0xd8) dateien.push({ name: `pos${nr}_vorschau.jpg`, buf: v, contentType: 'image/jpeg' });
         }
-        const gramm = grammAus([relief]);
+        const gramm = grammAus(schild ? [relief, schild] : [relief]);
         const farben = farbAnzahl(relief);
-        const preis = reliefPreisRappen({ gramm, farben, menge });
+        const preis = reliefPreisRappen({ gramm, farben, menge, schild: !!schild });
         const ort = typeof konfig.ort === 'string' ? konfig.ort.slice(0, 40) : '';
         const E = Math.round(Number(konfig.E)) || 0, N = Math.round(Number(konfig.N)) || 0;
         const km = Number(konfig.km) || 0;
         const breite = Number(konfig.breite) || 0, hoehe = Number(konfig.hoehe) || 0;
         const text = typeof konfig.text === 'string' ? konfig.text.slice(0, 26) : '';
-        const titel = `Relief · ${ort || `E ${E} N ${N}`} · ${km} km · ${breite.toFixed(0)}×${hoehe.toFixed(0)} mm · ${farben} Farbe${farben > 1 ? 'n' : ''}${konfig.route ? ' · mit Route' : ''}${text ? ` · «${text}»` : ''} · ${menge}×`;
+        const titel = `Relief · ${ort || `E ${E} N ${N}`} · ${km} km · ${breite.toFixed(0)}×${hoehe.toFixed(0)} mm · ${farben} Farbe${farben > 1 ? 'n' : ''}${konfig.route ? ' · mit Route' : ''}${schild ? ` · Schild ${konfig.schild?.lage === 'stehend' ? 'stehend' : 'liegend'}${text ? ` «${text}»` : ''}` : ''} · ${menge}×`;
         positionen.push({ typ, konfig: {
           E, N, km, format: typeof konfig.format === 'string' ? konfig.format.slice(0, 5) : '', ort, breite, hoehe,
           massstab: Math.round(Number(konfig.massstab)) || 0, ueberh: Number(konfig.ueberh) || 0, sockel: Number(konfig.sockel) || 0,
           zonen: typeof konfig.zonen === 'string' ? konfig.zonen.slice(0, 120) : '', farben: Array.isArray(konfig.farben) ? konfig.farben.slice(0, 8).map((f: unknown) => String(f).slice(0, 7)) : [],
           schnee: konfig.schnee != null ? Number(konfig.schnee) : undefined, fels: konfig.fels != null ? Number(konfig.fels) : undefined,
           hausH: konfig.hausH != null ? Number(konfig.hausH) : undefined, route: konfig.route === true, text,
+          bachMin: konfig.bachMin != null ? Number(konfig.bachMin) : undefined, nurHaupt: konfig.nurHaupt === true ? true : undefined,
+          schild: schild && konfig.schild && typeof konfig.schild === 'object'
+            ? { breite: Number(konfig.schild.breite) || 0, hoehe: Number(konfig.schild.hoehe) || 0, farbe: String(konfig.schild.farbe ?? '').slice(0, 7), schrift: String(konfig.schild.schrift ?? '').slice(0, 7),
+                lage: konfig.schild.lage === 'stehend' ? 'stehend' : 'liegend', pos: ['links', 'rechts'].includes(konfig.schild.pos) ? konfig.schild.pos : 'mitte' }
+            : null,
           quelle: typeof konfig.quelle === 'string' ? konfig.quelle.slice(0, 60) : '', raster: Math.round(Number(konfig.raster)) || 0,
           gramm: Math.round(gramm), farbAnzahl: farben, menge,
         }, menge, preis, titel, dateien });

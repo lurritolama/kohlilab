@@ -196,9 +196,17 @@ export async function wmsMasken(rect, nx, ny, layer, filter, signal) {
 export const LAYER = {
   wald: 'ch.swisstopo.swisstlm3d-wald',
   wasser: 'ch.swisstopo.swisstlm3d-gewaessernetz',
+  haupt: 'ch.swisstopo.vec200-hydrography',          // Landeskarte 1:200'000: nur die Hauptgewaesser
   gebaeude: 'ch.swisstopo.vec25-gebaeude',
 };
-export const WASSER_FILTER = { seen: (r) => r > 100, fluesse: (r) => r <= 100 };
+// Gewaesser-Layer, Farben gemessen (08.09.2026): Seen als Flaeche
+// (158,186,255), Wasserlaeufe als Linie (0,0,253..255), Seeufer als dunklere
+// Linie (0,92,230), dazu graue Punktreihen (102,102,102) und Antialiasing.
+// Nur die ersten beiden sind Wasser — Grau lief vorher als "See" durch.
+export const WASSER_FILTER = {
+  seen: (r, g, b) => r > 130 && r < 185 && g > 160 && g < 210 && b > 230,
+  fluesse: (r, g, b) => r < 40 && g < 40 && b > 200,
+};
 
 // ---------- GPX ----------
 /** Trackpunkte einer GPX-Datei als [[E,N], …] (LV95). */

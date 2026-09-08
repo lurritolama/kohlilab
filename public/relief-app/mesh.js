@@ -249,14 +249,129 @@ export function resampleMaske(src, sx, sy, nx, ny) {
   }
   return out;
 }
-/** Maske um r Zellen verbreitern (Quadrat). */
+/** Maske um r Zellen verbreitern (Quadrat; zwei getrennte Durchgaenge, damit
+ *  auch r = 20 auf dem Datenraster in Millisekunden geht). */
 export function dilatiere(m, nx, ny, r) {
   if (r <= 0) return m;
-  const out = new Uint8Array(nx * ny);
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-    if (!m[j * nx + i]) continue;
-    for (let dj = -r; dj <= r; dj++) { const jj = j + dj; if (jj < 0 || jj >= ny) continue;
-      for (let di = -r; di <= r; di++) { const ii = i + di; if (ii >= 0 && ii < nx) out[jj * nx + ii] = 1; } }
+  const h = new Uint8Array(nx * ny), out = new Uint8Array(nx * ny);
+  for (let j = 0; j < ny; j++) {
+    let lauf = 0;                                     // Zellen seit der letzten gesetzten Quellzelle
+    for (let i = 0; i < nx; i++) { if (m[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) h[j * nx + i] = 1; }
+    lauf = r + 1;
+    for (let i = nx - 1; i >= 0; i--) { if (m[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) h[j * nx + i] = 1; }
+  }
+  for (let i = 0; i < nx; i++) {
+    let lauf = r + 1;
+    for (let j = 0; j < ny; j++) { if (h[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) out[j * nx + i] = 1; }
+    lauf = r + 1;
+    for (let j = ny - 1; j >= 0; j--) { if (h[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) out[j * nx + i] = 1; }
+  }
+  return out;
+}
+
+/**
+ * Linien auf eine Zelle Breite verduennen (Zhang-Suen). Der WMS zeichnet
+ * Baeche 2–3 Pixel breit mit Antialiasing; fuer Laengenmass, Verzweigungen
+ * und Stutzen braucht es ein Skelett.
+ */
+export function verduenne(m, nx, ny) {
+  const a = Uint8Array.from(m);
+  const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny) ? 0 : a[j * nx + i];
+  for (let pass = 0; pass < 80; pass++) {
+    let geaendert = false;
+    for (let step = 0; step < 2; step++) {
+      const weg = [];
+      for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+        if (!a[j * nx + i]) continue;
+        const p2 = at(i, j - 1), p3 = at(i + 1, j - 1), p4 = at(i + 1, j), p5 = at(i + 1, j + 1), p6 = at(i, j + 1), p7 = at(i - 1, j + 1), p8 = at(i - 1, j), p9 = at(i - 1, j - 1);
+        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (B < 2 || B > 6) continue;
+        const s = [p2, p3, p4, p5, p6, p7, p8, p9, p2]; let A = 0;
+        for (let k = 0; k < 8; k++) if (s[k] === 0 && s[k + 1] === 1) A++;
+        if (A !== 1) continue;
+        if (step === 0 ? (p2 * p4 * p6 !== 0 || p4 * p6 * p8 !== 0) : (p2 * p4 * p8 !== 0 || p2 * p6 * p8 !== 0)) continue;
+        weg.push(j * nx + i);
+      }
+      for (const k of weg) a[k] = 0;
+      if (weg.length) geaendert = true;
+    }
+    if (!geaendert) break;
+  }
+  return a;
+}
+
+/**
+ * Nebenbaeche stutzen: Endaeste des Skeletts, die kuerzer als minLen Zellen
+ * sind, werden entfernt (bis zur Verzweigung). Ein Bach, der das Gebiet
+ * durchquert, hat keine Enden und bleibt immer. Mehrere Durchgaenge, weil
+ * nach dem Stutzen neue kurze Enden entstehen koennen.
+ */
+export function stutze(m, nx, ny, minLen) {
+  if (minLen <= 1) return m;
+  const a = Uint8Array.from(m);
+  const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny) ? 0 : a[j * nx + i];
+  const nb = (k) => {
+    const i = k % nx, j = (k - i) / nx, out = [];
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+      if (a[jj * nx + ii]) out.push(jj * nx + ii);
+    }
+    return out;
+  };
+  // Verzweigungsgrad = Zahl der 0->1-Uebergaenge rund um die Zelle (wie bei
+  // Zhang-Suen). Die blosse Nachbarzahl trog: Treppenstufen eines
+  // 8er-Skeletts haben 3 Nachbarn, sind aber keine Verzweigung — das Stutzen
+  // brach dort ab und liess lange Nebenbaeche stehen (08.09.2026).
+  const grad = (k) => {
+    const i = k % nx, j = (k - i) / nx;
+    const s = [at(i, j - 1), at(i + 1, j - 1), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1), at(i - 1, j + 1), at(i - 1, j), at(i - 1, j - 1)];
+    let A = 0; for (let q = 0; q < 8; q++) if (s[q] === 0 && s[(q + 1) % 8] === 1) A++;
+    return A;
+  };
+  for (let pass = 0; pass < 6; pass++) {
+    let geaendert = false;
+    const enden = []; for (let k = 0; k < a.length; k++) if (a[k] && grad(k) === 1) enden.push(k);
+    for (const e of enden) {
+      if (!a[e]) continue;
+      const pfad = [e]; const drin = new Set([e]);
+      let cur = e, ende = 'spitze';
+      for (;;) {
+        const n = nb(cur).filter((q) => !drin.has(q));
+        if (n.length === 0) { ende = 'spitze'; break; }
+        // Verzweigung erreicht (Grad >= 3): der Knoten selbst bleibt stehen
+        const knoten = n.find((q) => grad(q) >= 3);
+        if (knoten !== undefined) { ende = 'knoten'; break; }
+        const next = n[0];
+        cur = next; pfad.push(cur); drin.add(cur);
+        if (pfad.length >= minLen) { ende = 'lang'; break; }
+      }
+      if (ende === 'lang') continue;
+      for (const k of pfad) a[k] = 0;
+      geaendert = true;
+    }
+    if (!geaendert) break;
+  }
+  return a;
+}
+
+/** Nur die Komponenten von m behalten, die die Referenzmaske ref beruehren. */
+export function nurNahe(m, ref, nx, ny) {
+  const N = nx * ny, gesehen = new Uint8Array(N), out = new Uint8Array(N);
+  const stack = [];
+  for (let s = 0; s < N; s++) {
+    if (!m[s] || gesehen[s]) continue;
+    const zellen = []; let trifft = false;
+    gesehen[s] = 1; stack.push(s);
+    while (stack.length) {
+      const k = stack.pop(); zellen.push(k); if (ref[k]) trifft = true;
+      const i = k % nx, j = (k - i) / nx;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+        const q = jj * nx + ii; if (m[q] && !gesehen[q]) { gesehen[q] = 1; stack.push(q); }
+      }
+    }
+    if (trifft) for (const k of zellen) out[k] = 1;
   }
   return out;
 }
