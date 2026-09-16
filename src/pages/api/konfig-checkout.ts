@@ -14,8 +14,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { SHOP_ID, VERSANDARTEN, VERSANDART_IDS, LIEFERLAENDER, type VersandartId, type Lieferland } from '../../lib/config';
-import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen, teeStueckRappen, teeFarben, teeMengeGueltig, reliefPreisRappen } from '../../lib/preis';
-import { grammAus, farbAnzahl } from '../../lib/server/dreimf';
+import { organizerPreisRappen, schildGesamtRappen, lochwandPreisRappen, teeStueckRappen, teeFarben, teeMengeGueltig, reliefPreisRappen, schrankPreisRappen } from '../../lib/preis';
+import { grammAus, farbAnzahl, objektAnzahl } from '../../lib/server/dreimf';
 import { getPaymentProvider } from '../../lib/payments';
 import { supabaseAdmin } from '../../lib/server/supabase-admin';
 import type { MailBestellung } from '../../lib/server/mail-templates';
@@ -27,6 +27,7 @@ const ANKER: Record<string, string> = {
   lochwand: 'c0111ab0-0000-4000-8000-000000000005',      // Ankerprodukt (SQL: lochwand-anker.sql)
   tee: 'c0111ab0-0000-4000-8000-000000000006',           // Golf-Tee (SQL: 20260819_golf-tees.sql)
   relief: 'c0111ab0-0000-4000-8000-000000000009',        // Relief aus swisstopo-Daten (SQL: 20260907_relief.sql)
+  schrank: 'c0111ab0-0000-4000-8000-00000000000a',       // Küchenschrank-Einsatz (SQL: 20260914_schrank.sql)
 };
 const TEE_KOPF: Record<string, string> = { cup: 'Cup', flat: 'Flat', eye: 'Auge' };
 const LOCHWAND_FAMILIEN: Record<string, string> = { haken: 'Haken', wanne: 'Wanne', halter: 'Halter', klemme: 'Klemme' };
@@ -76,7 +77,7 @@ export const POST: APIRoute = async ({ request }) => {
   if (posRoh.length > MAX_POSITIONEN) fehler.push(`Maximal ${MAX_POSITIONEN} Positionen pro Bestellung.`);
 
   // ---- Positionen validieren + Preise serverseitig aus dem 3MF -----------
-  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand' | 'tee' | 'relief'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer; contentType?: string }[] };
+  type Pos = { typ: 'schild' | 'organizer' | 'ventilkappe' | 'lochwand' | 'tee' | 'relief' | 'schrank'; konfig: any; menge: number; preis: number; titel: string; dateien: { name: string; buf: Buffer; contentType?: string }[] };
   const positionen: Pos[] = [];
   posRoh.forEach((p: any, i: number) => {
     const nr = i + 1;
@@ -237,6 +238,43 @@ export const POST: APIRoute = async ({ request }) => {
           quelle: typeof konfig.quelle === 'string' ? konfig.quelle.slice(0, 60) : '', raster: Math.round(Number(konfig.raster)) || 0,
           gramm: Math.round(gramm), farbAnzahl: farben, menge,
         }, menge, preis, titel, dateien });
+      } else if (typ === 'schrank') {
+        // Küchenschrank-Einsatz (14.09.2026): GITTER aus Trennwänden, die per
+        // Schwalbenschwanz ineinandergreifen — alle Trennwände in EINER Datei
+        // (trennwaende.3mf, ein Objekt je Druckteil, nummeriert = Steck-
+        // Reihenfolge), optional die Bodenplatte mit Schwalbenschwanz-Nuten
+        // (boden.3mf). Preis aus dem gemessenen Gewicht beider Dateien +
+        // Anzahl Druckteile (aus dem 3MF gezählt, nicht dem Client geglaubt)
+        // + Beschriftung. Menge 1.
+        // Grosse Platten kommen in Stücken (Puzzle-Schwalbenschwanz): jedes
+        // Stück ist ein Objekt im 3MF und zählt als Druckstück für den Preis.
+        const tw = buf(p?.dateien?.trennwaende, `${nr}/trennwaende`);
+        const dateien: Pos['dateien'] = [{ name: `pos${nr}_trennwaende.3mf`, buf: tw }];
+        const stueckeWaende = objektAnzahl(tw);
+        if (stueckeWaende < 1) { fehler.push(`Position ${nr}: keine Trennwand in der Druckdatei.`); return; }
+        const trennwaende = Math.min(stueckeWaende, Math.max(1, Math.round(Number(konfig.trennwaende) || stueckeWaende)));
+        let boden = false, stueckeBoden = 0;
+        if (typeof p?.dateien?.boden === 'string' && p.dateien.boden.length >= 32) { const bb = buf(p.dateien.boden, `${nr}/boden`); dateien.push({ name: `pos${nr}_boden.3mf`, buf: bb }); boden = true; stueckeBoden = Math.max(1, objektAnzahl(bb)); }
+        const stuecke = stueckeWaende + stueckeBoden;
+        const gramm = grammAus(dateien.map((d) => d.buf));
+        const textFaecher = Number(konfig.textFaecher) || 0;
+        const textMmUeber4 = Number(konfig.textMmUeber4) || 0;
+        const preis = schrankPreisRappen({ gramm, teile: stuecke, textFaecher, textMmUeber4 });
+        const masse = typeof konfig.masse === 'string' ? konfig.masse.slice(0, 20) : '';
+        const waende = (Array.isArray(konfig.waende) ? konfig.waende : []).slice(0, 60)
+          .map((w: any) => ({ dir: w?.dir === 'h' ? 'h' : 'v', lage: Number(w?.lage) || 0, laenge: Number(w?.laenge) || 0, leisten: Number(w?.leisten) || 0, nuten: Number(w?.nuten) || 0, kreuz: Number(w?.kreuz) || 0, stuecke: Math.max(1, Math.round(Number(w?.stuecke) || 1)) }));
+        const texte = (Array.isArray(konfig.texte) ? konfig.texte : []).slice(0, 60)
+          .map((t: any) => ({ text: typeof t?.text === 'string' ? t.text.slice(0, 20) : '', gr: Number(t?.gr) || 0 })).filter((t: any) => t.text);
+        const test = true;   // Testphase (wie Lochwand): im Admin, in der Mail und auf dem Pi als TEST erkennbar
+        const titel = `TEST · Küchenschrank-Einsatz${masse ? ` · ${masse} mm` : ''} · ${trennwaende} ${trennwaende === 1 ? 'Trennwand' : 'Trennwände'}${boden ? ' + Bodenplatte' : ''}${stuecke > trennwaende + (boden ? 1 : 0) ? ` (${stuecke} Druckstücke)` : ''}${texte.length ? ` · ${texte.length} Beschriftung${texte.length > 1 ? 'en' : ''}` : ''}`;
+        positionen.push({ typ, konfig: {
+          test, masse, schrank: typeof konfig.schrank === 'string' ? konfig.schrank.slice(0, 20) : '', ts: Number(konfig.ts) || 0, boden,
+          bodenDicke: boden ? Number(konfig.bodenDicke) || 0 : undefined, bodenNuten: boden ? (konfig.bodenNuten === 'h' ? 'h' : 'v') : undefined,
+          trennwaende, stuecke, stueckeBoden, faecher: Math.min(200, Math.max(0, Math.round(Number(konfig.faecher) || 0))), waende, texte,
+          textFaecher: Math.min(60, Math.max(0, Math.round(textFaecher))), textMmUeber4: Math.min(600, Math.max(0, textMmUeber4)),
+          farben: (konfig.farben && typeof konfig.farben === 'object') ? Object.fromEntries(Object.entries(konfig.farben).filter(([, v]) => v != null).slice(0, 3).map(([k, v]) => [k.slice(0, 10), String(v).slice(0, 7)])) : {},
+          gramm: Math.round(gramm),
+        }, menge: 1, preis, titel, dateien });
       } else {
         fehler.push(`Position ${nr}: unbekannter Typ.`);
       }

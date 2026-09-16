@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KohliLab — Küchenschrank-Einsatz nach Mass</title>
+<style>
+  :root{ --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
+         --ink:#e8e6e1; --mut:#9a9a93; --acc:#ff6b1a; --acc2:#ffb347;
+         --mono:Consolas,"JetBrains Mono",monospace; }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,sans-serif;height:100vh;display:flex;overflow:hidden}
+  #panel{width:340px;min-width:300px;overflow-y:auto;border-right:1px solid var(--line);padding:14px;background:var(--bg2)}
+  #view{flex:1;position:relative;min-width:0}
+  #view canvas{display:block}
+  h1{font-size:17px;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;margin-bottom:2px}
+  h1 b{color:var(--acc)}
+  .sub{color:var(--mut);font-size:11.5px;margin-bottom:12px}
+  .grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:10px}
+  .grp h2{font-family:var(--mono);font-size:10.5px;letter-spacing:1.8px;color:var(--acc2);text-transform:uppercase;font-weight:500;margin-bottom:9px}
+  .val.tippbar{cursor:text;text-decoration:underline dotted rgba(255,107,26,.55);text-underline-offset:2px}
+  .val.tippbar:hover{color:var(--acc)}
+  .valInp{width:60px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--acc2);border:1px solid var(--acc);border-radius:4px;padding:2px 5px}
+  .row{display:flex;align-items:center;gap:8px;margin:7px 0}
+  .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--acc)}
+  .row .val{font-family:var(--mono);font-size:11px;width:56px;text-align:right;color:var(--ink)}
+  .btns{display:flex;flex-wrap:wrap;gap:6px}
+  .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
+  .btns button:disabled{opacity:.4;cursor:not-allowed}
+  .sw{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+  .sw button{width:26px;height:26px;border-radius:6px;border:2px solid var(--line);cursor:pointer}
+  .sw button.active{border-color:var(--acc);box-shadow:0 0 0 2px rgba(255,107,26,.35)}
+  .feld{margin:7px 0}
+  .feld label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:3px}
+  .exp{display:flex;gap:8px;margin-top:4px}
+  .exp button{flex:1;background:var(--acc);border:none;color:#141517;font-weight:700;font-family:var(--mono);font-size:12px;letter-spacing:.5px;padding:11px;border-radius:6px;cursor:pointer;text-transform:uppercase}
+  .exp button.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink);font-weight:500}
+  .exp button:disabled{opacity:.45;cursor:not-allowed}
+  #hud{position:absolute;left:12px;bottom:12px;right:12px;font-family:var(--mono);font-size:11px;color:var(--acc2);background:rgba(20,21,23,.85);border:1px solid var(--line);border-radius:6px;padding:8px 11px;pointer-events:none;line-height:1.5}
+  #topbar{position:absolute;top:12px;left:12px;display:flex;gap:8px;flex-wrap:wrap}
+  #topbar button{background:rgba(20,21,23,.85);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  #topbar button.active{border-color:var(--acc);color:var(--acc)}
+  #topbar button:disabled{opacity:.4}
+  .note{font-size:11px;color:var(--mut);margin-top:6px;line-height:1.45}
+  .warn{color:#f5c518}
+  #menu{position:absolute;display:none;background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:8px;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.5);max-height:78vh;overflow-y:auto;min-width:215px}
+  #menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--ink);padding:7px 10px;font-size:12.5px;cursor:pointer;border-radius:5px}
+  #menu button:hover{background:#17181b;color:var(--acc)}
+  #menu button:disabled{color:var(--line2);cursor:not-allowed}
+  #menu .mtitle{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--mut);padding:2px 10px 6px}
+  #lieferBox{font-size:12.5px;line-height:1.55;margin-bottom:8px}
+  .lief-badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:700;padding:5px 10px;border-radius:6px;border:1px solid var(--line2);color:#7bd88f;border-color:#2f6b3d;background:#14251a}
+  .lief-badge.lose{color:var(--acc2);border-color:#6b4a10;background:#2a2008}
+  .lieferbtn{width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:8px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  .lieferbtn:hover{border-color:var(--acc);color:var(--acc)}
+  #modal-bg{position:fixed;inset:0;background:rgba(8,9,10,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  #modal-bg.on{display:flex}
+  #modal{background:var(--bg2);border:1px solid var(--line2);border-radius:12px;max-width:520px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto}
+  #modal h3{font-size:19px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  #modal .msub{color:var(--mut);font-size:12.5px;margin-bottom:16px}
+  #modal p{font-size:13px;color:var(--mut);line-height:1.6;margin-top:10px}
+  #modal p b, #modal li b{color:var(--ink)}
+  #modal ol{margin:10px 0 0 18px;font-size:13px;color:var(--mut);line-height:1.6}
+  #modal-btns{display:flex;gap:10px;margin-top:18px}
+  #modal-btns button{flex:1;border:none;border-radius:7px;padding:12px;font-size:13px;font-weight:700;font-family:var(--mono);letter-spacing:.5px;cursor:pointer;text-transform:uppercase}
+  .m-primary{background:var(--acc);color:#141517}
+  .m-primary:hover{background:var(--acc2)}
+  .m-ghost{background:transparent;border:1px solid var(--line2)!important;color:var(--ink)}
+  #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .lbl{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10.5px;color:#e8e6e1;background:rgba(20,21,23,.72);border:1px solid rgba(74,79,86,.8);border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .lbl.haupt{color:var(--acc2);border-color:var(--acc);font-size:11.5px;padding:3px 9px}
+  .lbl.nr{color:#141517;background:var(--acc2);border-color:var(--acc2);font-weight:700;font-size:10px;padding:0 5px}
+  .lbl .mz{pointer-events:auto;cursor:text;text-decoration:underline dotted rgba(255,107,26,.75);text-underline-offset:2px}
+  .lbl .mz:hover{color:var(--acc)}
+  .lbl input{pointer-events:auto;width:4ch;background:#17181b;border:1px solid var(--acc);color:var(--acc2);border-radius:3px;font-family:var(--mono);font-size:inherit;padding:0 2px;text-align:center;outline:none}
+  #sperrbanner{ position:absolute; left:12px; right:12px; top:56px; z-index:22;
+    background:#3a1416; border:1px solid #e24b4a; border-radius:10px; padding:14px 16px; max-height:60%; overflow-y:auto; }
+  #sperrbanner h4{ margin:0 0 7px; font-size:15px; font-weight:700; color:#f7c1c1; }
+  #sperrbanner p{ margin:0 0 6px; font-size:12.5px; line-height:1.55; color:#f0999a; }
+  #sperrbanner b{ color:#fceceb; font-weight:600; }
+  .mobil #sperrbanner{ top:auto; bottom:8px; left:8px; right:8px; max-height:52%; }
+  .mobil #topbar button{ font-size:11px; padding:5px 7px; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>KÜCHENSCHRANK-<b>EINSATZ</b></h1>
+  <div class="sub">nach Mass · KohliLab · 3D-gedruckt · Gitter aus steckbaren Trennwänden</div>
+
+  <div class="grp"><h2>1 · Dein Schrank (Innenmass)</h2>
+    <div class="row"><label>Breite</label><input type="range" id="sb" min="80" max="600" step="1"><span class="val" id="sbV"></span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="st" min="80" max="450" step="1"><span class="val" id="stV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="sh" min="30" max="500" step="1"><span class="val" id="shV"></span></div>
+    <div class="note">Miss den Schrank innen aus: zwischen den Seitenwänden, von der Vorderkante bis zur Rückwand, vom Tablar bis zum nächsten Boden. Der Schrank ist nur die Bühne in der Vorschau — gedruckt wird das Gitter.</div>
+  </div>
+
+  <div class="grp"><h2>2 · Aussenmass des Gitters</h2>
+    <div class="row"><label>Breite</label><input type="range" id="b" min="60" max="450" step="1"><span class="val" id="bV"></span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="t" min="60" max="350" step="1"><span class="val" id="tV"></span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="h" min="20" max="350" step="1"><span class="val" id="hV"></span></div>
+    <div class="note"><b>Zahl anklicken und eintippen</b> — auf den Millimeter genau, der Regler ist fürs Grobe. Das Gitter steht frei im Schrank und ist höchstens so gross wie der Schrank innen — die Vorschau zeigt, wie viel Luft bleibt. Platten, die nicht aufs Druckbett passen (290 × 310 mm), kommen in <b>Stücken mit Puzzle-Schwalbenschwanz</b> — die Vorschau zeigt die Nähte.</div>
+  </div>
+
+  <div class="grp"><h2>3 · Aufbau</h2>
+    <div class="row"><label title="Dicke der Trennwände — die Schwalbenschwanz-Leiste ist nie dicker als die Wand, die Nut nie tiefer als die halbe Wand">Wanddicke</label><input type="range" id="ts" min="4" max="6" step="0.5"><span class="val" id="tsV"></span></div>
+    <div class="row"><label>Bodenplatte</label><div class="btns" id="bodenArt" style="flex:1"><button data-boden="0">keine</button><button data-boden="1">mit Schwalbenschwanz-Nuten</button></div></div>
+    <div class="row" id="bodenDickeRow"><label>Plattenstärke</label><input type="range" id="bodenDicke" min="2.5" max="5" step="0.5"><span class="val" id="bodenDickeV"></span></div>
+    <div class="row" id="bodenNutenRow"><label title="Richtung der Nuten in der Bodenplatte — die Trennwände dieser Richtung tragen unten eine Leiste">Nuten</label><div class="btns" id="bodenNuten" style="flex:1"><button data-dir="v">längs</button><button data-dir="h">quer</button></div></div>
+    <div class="note">Die Trennwände greifen untereinander mit <b>Schwalbenschwänzen</b> ineinander und halten sich selbst. Die <b>Bodenplatte</b> ist optional: Nuten im 10-mm-Raster, an der Kante offen — das fertige Gitter wird als Ganzes hineingeschoben und kann nicht mehr verrutschen.</div>
+  </div>
+
+  <div class="grp"><h2>4 · Vorlage</h2>
+    <div class="btns" id="vorlagen"></div>
+    <div class="note">Vorlagen sind Startpunkte — danach frei umbauen.</div>
+  </div>
+
+  <div class="grp"><h2>5 · Fächer &amp; Trennwände</h2>
+    <div class="btns" style="margin-bottom:8px"><button id="plusV">＋ Längswand einfügen</button><button id="plusH">＋ Querwand einfügen</button></div>
+    <div class="note" style="margin-top:0">Die Knöpfe teilen das grösste Fach. Genauer geht es in der Vorschau: In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Beschriften, <b>Trennwand ziehen</b> zum Verschieben (rastet alle 10 mm ein), <b>Trennwand anklicken</b> zum Entfernen. Stösst eine Trennwand an eine andere, entsteht ein Schwalbenschwanz; kreuzt sie eine, ein Steckkreuz. Die Nummern zeigen die Steck-Reihenfolge.</div>
+  </div>
+
+  <div class="grp"><h2>6 · Farbe</h2>
+    <div class="feld"><label>Trennwände</label><div class="sw" id="swFarbeTrenn"></div></div>
+    <div class="feld" id="farbeBodenFeld"><label>Bodenplatte</label><div class="sw" id="swFarbeBoden"></div></div>
+    <div class="feld"><label>Beschriftung (erhaben auf der Wand)</label><div class="sw" id="swFarbeText"></div></div>
+    <div class="note">Trennwände und Bodenplatte sind je einfarbig. Fächer mit einer Querwand dahinter lassen sich über das Fach-Menü <b>beschriften</b> — die Schrift steht erhaben und farbig vorne auf dieser Querwand.</div>
+  </div>
+
+  <div class="grp"><h2>7 · Preis</h2>
+    <div id="preisBox" style="font-family:var(--mono);font-size:11.5px;line-height:1.7;color:var(--mut)"></div>
+    <div class="note">Rechnet live: Material (30.–/kg) + Druckzeit (0.50/h) + Grundpreis 9.50 + 1.50 je Druckstück (jede Trennwand, jedes Plattenstück) + Beschriftung. In den Druckkosten stecken 8 % Reserve für misslungene Drucke. Versand separat.</div>
+  </div>
+
+  <div class="grp" id="lieferGrp"><h2>Lieferung</h2>
+    <div id="lieferBox"></div>
+    <button id="btnLiefer" class="lieferbtn">ⓘ Wie wird das geliefert und zusammengesteckt?</button>
+  </div>
+
+  <div class="grp"><h2>Bestellen</h2>
+    <div class="exp"><button id="cart" style="flex:2">🛒 In den Warenkorb</button></div>
+    <div class="note">Legt dein Gitter mit dem Live-Preis in den Warenkorb. Bezahlt wird bequem per QR-Rechnung nach der Bestellung.</div>
+  </div>
+
+  <div class="grp" id="exportGrp"><h2>Export (Test)</h2>
+    <div class="exp"><button id="ex3mf" class="ghost">3MF</button></div>
+    <div class="note">Testphase: Trennwände (und Bodenplatte) als 3MF herunterladen und selbst slicen.</div>
+  </div>
+</div>
+
+<div id="view">
+  <div id="sperrbanner" hidden></div>
+  <div id="topbar">
+    <button id="btnPlan">◱ Draufsicht</button>
+    <button id="btnMass" class="active">⌀ Masse</button>
+    <button id="btnExplode">⇤⇥ Teile trennen</button>
+    <button id="btnUndo" disabled>↶ Rückgängig</button>
+    <button id="btnRedo" disabled>↷ Wiederholen</button>
+    <button id="btnTeilen" title="Aktuelle Konfiguration als Link kopieren — am anderen Gerät weitermachen">🔗 Teilen</button>
+  </div>
+  <div id="labels"></div>
+  <div id="hud"></div>
+  <div id="menu"></div>
+</div>
+
+<div id="modal-bg">
+  <div id="modal">
+    <div id="modal-inhalt"></div>
+    <div id="modal-btns"></div>
+  </div>
+</div>
+
+<!-- Bibliotheken liegen bei UNS (public/vendor) — Begründung in organizer-app/index.html -->
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+<script src="/vendor/jszip.min.js"></script>
+<script src="/kcart.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { mobilModus, MOBIL } from '/konfig-mobil.js';
+import { modelXml, CONTENT_TYPES, RELS } from './dreimf.js';
+import { aufteilung, teilMesh, bodenMesh, verschoben, teilLage, fachAn, gruppen, grundflaeche,
+         RASTER, FACH_MIN, BETT } from './geometrie.js';
+
+// ---------- Konstanten ----------
+const PALETTE = ['#eceff0','#c9cfd2','#1c1c1c','#d8332f','#2f6fd6','#ef7d1a'];
+const FARBNAMEN = ['Weiss','Hellgrau','Schwarz','Rot','Blau','Orange'];
+// Preisrechnung (live, Vorschlag — Manolo entscheidet die Sätze; die
+// Übergabe lässt die Preisgestaltung offen). Spiegel: src/lib/preis.ts
+// schrankPreisRappen (dort mit dem aus dem 3MF gemessenen Gewicht).
+const PREIS = {
+  grund: 9.5, filamentKg: 30, stundensatz: 0.5, durchsatz: 25, dichte: 1.27,
+  teil: 1.5,             // je Druckteil: Bett-Belegung, Kontrolle der Passung
+  text: 2, textJeMm: 0.4, min: 16, ausfall: 0.08,
+};
+const triangulate = (outer, holes) => THREE.ShapeUtils.triangulateShape(outer.map((p) => new THREE.Vector2(p[0], p[1])), holes.map((h) => h.map((p) => new THREE.Vector2(p[0], p[1]))));
+
+const P = { sb: 300, st: 300, sh: 120, b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNuten: 'v',
+            farbeTrenn: '#c9cfd2', farbeBoden: '#eceff0', farbeText: '#1c1c1c' };
+let trenn = [];          // [{ id, dir, c, m }] — Teilstücke; kreuzende werden zu einem Druckteil
+let texte = [];          // [{ x, y, txt, gr }] — Anker im Fach, Schrift auf der Querwand dahinter
+let naechsteId = 1;
+
+// ---------- Rückgängig ----------
+const undoStack = [], redoStack = [];
+const stand = () => JSON.stringify({ trenn, texte, naechsteId });
+const setzeStand = (s) => { const o = JSON.parse(s); trenn = o.trenn; texte = o.texte; naechsteId = o.naechsteId; };
+function snapshot() { undoStack.push(stand()); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; syncTopbar(); }
+function undo() { if (!undoStack.length) return; redoStack.push(stand()); setzeStand(undoStack.pop()); rebuild(); }
+function redo() { if (!redoStack.length) return; undoStack.push(stand()); setzeStand(redoStack.pop()); rebuild(); }
+function syncTopbar() { btnUndo.disabled = !undoStack.length; btnRedo.disabled = !redoStack.length; }
+
+// ---------- Beschriftung: Canvas-Maske -> Läufe in mm (Organizer-Muster) ----------
+const maskCache = new Map();
+function textMask(txt, hMm, res) {
+  const key = txt + '|' + hMm + '|' + res;
+  if (maskCache.has(key)) return maskCache.get(key);
+  const hPx = hMm / res / 0.72;
+  const mess = document.createElement('canvas').getContext('2d');
+  mess.font = `${hPx}px "Arial Black", Arial, sans-serif`;
+  const wPx = Math.min(1600, Math.ceil(mess.measureText(txt).width) + 6);
+  const c = document.createElement('canvas'); c.width = wPx; c.height = Math.ceil(hPx * 1.5);
+  const x = c.getContext('2d');
+  x.font = `${hPx}px "Arial Black", Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#fff';
+  x.fillText(txt, c.width / 2, c.height / 2);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  const pix = (px, py) => px >= 0 && py >= 0 && px < c.width && py < c.height && d[(py * c.width + px) * 4 + 3] > 127;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, leer = true;
+  for (let py = 0; py < c.height; py++) for (let px = 0; px < c.width; px++) if (pix(px, py)) { leer = false; if (px < minX) minX = px; if (px > maxX) maxX = px; if (py < minY) minY = py; if (py > maxY) maxY = py; }
+  let out = null;
+  if (!leer) {
+    const cols = maxX - minX + 1, rows = maxY - minY + 1;
+    const laeufe = [];
+    for (let j = 0; j < rows; j++) {
+      let start = -1;
+      for (let i = 0; i <= cols; i++) {
+        const an = i < cols && pix(minX + i, maxY - j);
+        if (an && start < 0) start = i;
+        if (!an && start >= 0) { laeufe.push([start, i, j]); start = -1; }
+      }
+    }
+    out = { cols, rows, res, w: cols * res, h: rows * res, laeufe };
+  }
+  maskCache.set(key, out);
+  return out;
+}
+// Beschriftungen planen: Fach → Querwand dahinter (f.b.hinten) → Druckteil,
+// das diese Wand enthält. Schrift zentriert über der Fachbreite, senkrecht
+// mittig in der Wandhöhe; zu breite Schrift wird verkleinert (min 4 mm).
+function textePlanen(A) {
+  const out = [];
+  const z0 = P.boden ? P.bodenDicke : 0, th = P.h - z0;
+  for (const t of texte) {
+    const f = fachAn(A, t.x, t.y);
+    if (!f || f.b.hinten.typ !== 'trenn') continue;
+    const teil = A.teile.find((q) => q.glieder.some((g) => g.id === f.b.hinten.id));
+    if (!teil) continue;
+    const txt = (t.txt || '').trim(); if (!txt) continue;
+    const breit = f.x1 - f.x0 - 8, hoch = th - 4;
+    let gr = t.gr || 7, mk = null;
+    for (; gr >= 4; gr -= 0.5) { mk = textMask(txt, gr, Math.max(0.3, gr / 22)); if (!mk) break; if (mk.w <= breit && mk.h <= hoch) break; }
+    if (!mk || mk.w > breit || mk.h > hoch) continue;
+    const cx = (f.x0 + f.x1) / 2, cz = z0 + th / 2;
+    const x0 = cx - mk.w / 2, zz0 = cz - mk.h / 2;
+    out.push({ fach: f, teil, gr, laeufe: mk.laeufe.map(([i0, i1, j]) => [x0 + i0 * mk.res, x0 + i1 * mk.res, zz0 + j * mk.res, zz0 + (j + 1) * mk.res]) });
+  }
+  return out;
+}
+
+// ---------- Szene ----------
+const view = document.getElementById('view');
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x141517);
+const camera = new THREE.PerspectiveCamera(38, 1, 1, 5000); camera.position.set(0, -420, 380);
+camera.up.set(0, 0, 1);      // Z ist oben — sonst kippt das Bild, sobald die Kamera seitlich steht (Orbit um die Hochachse)
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxDistance = 1600; controls.minDistance = 100;
+// Mausrad-Zoom selbst: OrbitControls rechnet die Schrittweite aus deltaY und
+// devicePixelRatio — auf manchen Rechnern gab das nur «ganz nah» oder «ganz
+// weit», nichts dazwischen (Manolo, 14.09.2026; gleiche Lösung wie im
+// Lochwand-Planer). Hier zählt nur die Richtung, jede Raste = 8 %.
+renderer.domElement.addEventListener('wheel', (ev) => {
+  ev.preventDefault(); ev.stopImmediatePropagation();
+  const richtung = Math.sign(ev.deltaY); if (!richtung) return;
+  const faktor = richtung > 0 ? 1.08 : 1 / 1.08;
+  const abstand = camera.position.distanceTo(controls.target);
+  const neu = Math.min(controls.maxDistance, Math.max(controls.minDistance, abstand * faktor));
+  // Richtung ZUERST merken — copy() setzt die Position aufs Ziel, danach wäre
+  // der Richtungsvektor null (Kamera sprang auf den Mindestabstand, 14.09.)
+  const richtungsVektor = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).addScaledVector(richtungsVektor, neu);
+  controls.update();
+}, { passive: false, capture: true });
+scene.add(new THREE.HemisphereLight(0xffffff, 0x333638, 1.05));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+const key = new THREE.DirectionalLight(0xffffff, 1.0); key.position.set(200, 300, 400); scene.add(key);
+let grp = null, korpus = null, aktuelle = null, gewaehlt = null, explode = false;
+
+function dreiGeo(mesh) {
+  const n = mesh.idx.length, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const pal = mesh.palette.map((h) => new THREE.Color(h));
+  for (let k = 0; k < n; k++) {
+    const i = mesh.idx[k] * 3; pos[k * 3] = mesh.pos[i]; pos[k * 3 + 1] = mesh.pos[i + 1]; pos[k * 3 + 2] = mesh.pos[i + 2];
+    const c = pal[mesh.farbe[Math.floor(k / 3)]] || pal[0]; col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+function lageMatrix(l) {
+  const m = new THREE.Matrix4();
+  m.set(l.X[0], l.Y[0], l.Z[0], l.ursprung[0],
+        l.X[1], l.Y[1], l.Z[1], l.ursprung[1],
+        l.X[2], l.Y[2], l.Z[2], l.ursprung[2],
+        0, 0, 0, 1);
+  return m;
+}
+
+function baueAlles() {
+  const A = aufteilung(P, trenn);
+  for (const w of A.waende) { const t = trenn.find((x) => x.id === w.id); if (t) t.m = w.mNeu; }
+  const tx = textePlanen(A);
+  const farben = { trenn: P.farbeTrenn, text: P.farbeText };
+  const teile = A.teile.map((teil) => ({ teil, t: teilMesh(P, A, teil, triangulate, farben, tx.filter((x) => x.teil === teil)) }));
+  const boden = P.boden ? bodenMesh(P, A, triangulate, P.farbeBoden) : null;
+  const volMm3 = teile.reduce((s, x) => s + x.t.volMm3, 0) + (boden ? boden.volMm3 : 0);
+  const stuecke = teile.reduce((s, x) => s + x.t.stuecke.length, 0) + (boden ? boden.stuecke.length : 0);
+  return { A, teile, boden, texte: tx, volMm3, stuecke, gruppen: gruppen(A) };
+}
+
+// Der Korpus ist reine Darstellung (wird nicht gedruckt): Bretter 16 mm,
+// Innenmass = P.sb × P.st × P.sh, Innenboden auf z = 0, vorne offen.
+const KORPUS_FARBE = 0xcfc8ba, KORPUS_KANTE = 0x6a6f76;
+function baueKorpus() {
+  if (korpus) { scene.remove(korpus); korpus.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
+  korpus = new THREE.Group();
+  const d = 16, B = P.sb, T = P.st, H = P.sh;
+  const brett = (w, l, h, x, y, z, opacity, order) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, l, h), new THREE.MeshStandardMaterial({ color: KORPUS_FARBE, roughness: 0.85, metalness: 0, transparent: true, opacity, depthWrite: opacity > 0.5, side: THREE.DoubleSide }));
+    m.position.set(x, y, z); m.renderOrder = order;
+    korpus.add(m);
+    const k = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: KORPUS_KANTE, transparent: true, opacity: 0.7 }));
+    k.position.copy(m.position); k.renderOrder = order + 1; korpus.add(k);
+    return m;
+  };
+  brett(B + 2 * d, T + d, d, 0, d / 2, -d / 2, 0.58, 1);                      // Boden (Tablar)
+  brett(B + 2 * d, d, H + 2 * d, 0, T / 2 + d / 2, H / 2, 0.2, 3);           // Rückwand
+  brett(d, T + d, H + 2 * d, -(B + d) / 2, d / 2, H / 2, 0.14, 4);            // Seite links
+  brett(d, T + d, H + 2 * d, (B + d) / 2, d / 2, H / 2, 0.14, 4);             // Seite rechts
+  const deckel = brett(B + 2 * d, T + d, d, 0, d / 2, H + d / 2, 0.05, 5);   // Deckel fast nur als Kanten    // Deckel (nächster Boden)
+  deckel.visible = !planModus; deckel.userData.deckel = true;
+  scene.add(korpus);
+}
+function rebuild() {
+  // Das Gitter passt in den Schrank: Innenmass ist die Obergrenze (Auftrag 15.09.2026)
+  P.b = Math.min(P.b, P.sb); P.t = Math.min(P.t, P.st); P.h = Math.min(P.h, P.sh);
+  P.bodenDicke = Math.min(P.bodenDicke, P.h - 10);
+  syncUI(); syncTopbar();
+  if (grp) { scene.remove(grp); grp.traverse((o) => o.geometry && o.geometry.dispose()); }
+  aktuelle = baueAlles();
+  grp = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.03, side: THREE.DoubleSide });
+  // Schrankausschnitt als Bühne (Auftrag 15.09.2026): Boden, Rückwand, zwei
+  // Seiten und Deckel halbtransparent nach dem Innenmass; vorne offen. Nur
+  // der Boden ist Klickfläche für die Fächer (in grp), der Rest liegt in
+  // `korpus` und fängt keine Klicks — sonst käme man von oben nicht durch
+  // den Deckel an die Fächer.
+  baueKorpus();
+  const bodenKlick = new THREE.Mesh(new THREE.BoxGeometry(P.sb, P.st, 1), new THREE.MeshBasicMaterial({ visible: false }));
+  bodenKlick.position.set(0, 0, -0.55); bodenKlick.userData.art = 'boden'; grp.add(bodenKlick);
+  // Explosions-Ansicht (wie «Module trennen» beim Organizer): Teile in Steck-
+  // Reihenfolge nach oben gestaffelt, Stücke einer Platte auseinandergezogen
+  const EX = 16;
+  if (aktuelle.boden) {
+    const nb = aktuelle.boden.stuecke.length;
+    aktuelle.boden.stuecke.forEach((st, i) => {
+      const bm = new THREE.Mesh(dreiGeo(st.mesh), mat); bm.userData.art = 'boden';
+      if (explode && nb > 1) { const ia = aktuelle.boden.laengs ? 'x' : 'y', ie = aktuelle.boden.laengs ? 'y' : 'x';
+        const ka = Math.round((st.a0 + st.a1) / 2 / 50), ke = Math.round((st.e0 + st.e1) / 2 / 50);   // grobe Rangfolge
+        bm.position[ia] = Math.sign(st.a0 + st.a1) * EX * 0.7; bm.position[ie] = Math.sign(st.e0 + st.e1) * EX * 0.7; }
+      grp.add(bm);
+    });
+  }
+  aktuelle.teile.forEach(({ teil, t }, i) => {
+    const ausgewaehlt = gewaehlt != null && teil.glieder.some((g) => g.id === gewaehlt);
+    const material = ausgewaehlt ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, emissive: 0xff6b1a, emissiveIntensity: 0.35, side: THREE.DoubleSide }) : mat;
+    const hebe = explode ? (aktuelle.boden ? 24 : 0) + 30 * i : 0;
+    teil.versatz = hebe;
+    for (const st of t.stuecke) {
+      const m = new THREE.Mesh(dreiGeo(st.mesh), material);
+      const lage = lageMatrix(t.lage);
+      if (explode) {                       // Stücke längs (X) und in der Höhe (Y) auseinander, Teil anheben
+        const dX = st.spalte * EX + (st.xa > 0 && st.spalte === 0 ? EX * 0.5 : 0), dY = st.reihe * EX;
+        const T = new THREE.Matrix4().makeTranslation(dX, dY, 0);
+        lage.multiply(T);
+        lage.premultiply(new THREE.Matrix4().makeTranslation(0, 0, hebe));
+      }
+      m.matrixAutoUpdate = false; m.matrix.copy(lage); m.userData.art = 'trenn'; m.userData.teil = teil;
+      grp.add(m); m.updateMatrixWorld(true);
+    }
+  });
+  // ungültige Trennwände (Kollision mit einer älteren) rot als Geist anzeigen
+  const z0 = P.boden ? P.bodenDicke : 0, th = P.h - z0;
+  for (const id of aktuelle.A.ungueltig) {
+    const w = trenn.find((x) => x.id === id); if (!w) continue;
+    const g = w.dir === 'v' ? new THREE.BoxGeometry(P.ts, P.t, th) : new THREE.BoxGeometry(P.b, P.ts, th);
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xe24b4a, transparent: true, opacity: 0.55 }));
+    m.position.set(w.dir === 'v' ? w.c : 0, w.dir === 'v' ? 0 : w.c, z0 + th / 2); m.userData.art = 'geist'; m.userData.id = id;
+    grp.add(m);
+  }
+  scene.add(grp);
+  baueLabels();
+  preisAnzeigen();
+  lieferAnzeigen();
+  sperrAnzeigen();
+  hashSchreiben();
+  const A = aktuelle.A;
+  const tris = aktuelle.teile.reduce((s, x) => s + x.t.stuecke.reduce((q, st) => q + st.mesh.idx.length / 3, 0), 0) + (aktuelle.boden ? aktuelle.boden.stuecke.reduce((q, st) => q + st.mesh.idx.length / 3, 0) : 0);
+  const n = aktuelle.teile.length;
+  document.getElementById('btnExplode').style.display = n ? '' : 'none';
+  document.getElementById('hud').innerHTML =
+    `Schrank innen ${P.sb}×${P.st}×${P.sh} · Gitter ${P.b}×${P.t}×${P.h} mm (Luft ${((P.sb - P.b) / 2).toFixed(0)} seitlich · ${((P.st - P.t) / 2).toFixed(0)} vorne/hinten · ${(P.sh - P.h).toFixed(0)} oben) · ${A.faecher.length} ${A.faecher.length === 1 ? 'Fach' : 'Fächer'} · ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${aktuelle.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'} · ${(tris / 1000).toFixed(1)}k Dreiecke`;
+}
+
+// ---------- Sperre ----------
+function sperrGrund() {
+  const g = [];
+  if (aktuelle && aktuelle.A.ungueltig.length) g.push(`<p><b>${aktuelle.A.ungueltig.length === 1 ? 'Eine Trennwand liegt' : aktuelle.A.ungueltig.length + ' Trennwände liegen'} auf einer anderen</b> (rot) — verschieben oder entfernen.</p>`);
+  if (aktuelle && !aktuelle.teile.length) g.push(`<p><b>Noch keine Trennwand.</b> Fach anklicken und teilen — oder eine Vorlage wählen.</p>`);
+  if (aktuelle && aktuelle.gruppen > 1 && !P.boden) g.push(`<p><b>Das Gitter hängt nicht zusammen</b> (${aktuelle.gruppen} lose Gruppen). Verbinde die Trennwände mit einer Querwand — oder wähle die Bodenplatte, sie hält alles.</p>`);
+  return g;
+}
+function sperrAnzeigen() {
+  const box = document.getElementById('sperrbanner'), g = sperrGrund();
+  box.hidden = !g.length;
+  if (g.length) box.innerHTML = `<h4>⚠ So lässt sich das nicht drucken</h4>${g.join('')}`;
+  for (const id of ['cart', 'ex3mf']) { const b = document.getElementById(id); b.disabled = g.length > 0; b.title = g.length ? 'Bitte zuerst die Meldung im Bild beheben.' : ''; }
+}
+
+// ---------- Live-Preis ----------
+function preisInfo() {
+  const g = aktuelle.volMm3 / 1000 * PREIS.dichte;
+  const material = g * PREIS.filamentKg / 1000;
+  const stunden = g / PREIS.durchsatz;
+  const maschine = stunden * PREIS.stundensatz;
+  const risiko = (material + maschine) * PREIS.ausfall;
+  const n = aktuelle.stuecke;
+  const zTeile = n * PREIS.teil;
+  const zText = aktuelle.texte.reduce((s, t) => s + PREIS.text + Math.max(0, t.gr - 4) * PREIS.textJeMm, 0);
+  const roh = PREIS.grund + material + maschine + risiko + zTeile + zText;
+  const total = Math.max(PREIS.min, Math.ceil(roh * 2) / 2);
+  return { g, stunden, material, maschine, risiko, zTeile, zText, n, total };
+}
+function preisAnzeigen() {
+  const pi = preisInfo(), f = (v) => v.toFixed(2);
+  const druck = pi.material + pi.maschine + pi.risiko;
+  const offen = !!document.querySelector('#preisBox details[open]');
+  document.getElementById('preisBox').innerHTML =
+    `≈ ${pi.g.toFixed(0)} g · Druckzeit ≈ ${pi.stunden.toFixed(1)} h<br>` +
+    `Druck &amp; Material ${f(druck)} · Grundpreis ${f(PREIS.grund)}` +
+    (pi.zTeile ? ` · ${pi.n} Stück +${f(pi.zTeile)}` : '') + (pi.zText ? ` · Beschriftung +${f(pi.zText)}` : '') +
+    `<div style="font-size:16px;color:var(--acc2);margin-top:3px;font-weight:700">Total CHF ${f(pi.total)}</div>` +
+    `<details${offen ? ' open' : ''} style="margin-top:4px"><summary style="cursor:pointer;opacity:.8">ⓘ Wie setzt sich das zusammen?</summary>` +
+    `Material ${f(pi.material)} · Druckzeit ${f(pi.maschine)} · <span title="Deckt misslungene Drucke: Material, Maschinenzeit und Nacharbeit">Reserve für Fehldrucke (8 %) ${f(pi.risiko)}</span></details>`;
+  if (mobil) mobil.setPreis(`Total CHF ${f(pi.total)}`);
+}
+
+// ---------- Lieferung ----------
+const teilNr = (id) => aktuelle.teile.findIndex((x) => x.teil.glieder.some((g) => g.id === id)) + 1;
+function lieferAnzeigen() {
+  const n = aktuelle.teile.length, lose = aktuelle.gruppen > 1 && !P.boden;
+  const geteilt = aktuelle.teile.filter((x) => x.t.stuecke.length > 1).length + (aktuelle.boden && aktuelle.boden.stuecke.length > 1 ? 1 : 0);
+  document.getElementById('lieferBox').innerHTML =
+    `<span class="lief-badge${lose ? ' lose' : ''}">📦 ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}${lose ? ' · lose' : ''}</span>` +
+    (geteilt ? `<div style="color:var(--acc2);font-size:11.5px;margin-top:7px;line-height:1.5">${geteilt} Platte${geteilt > 1 ? 'n sind' : ' ist'} grösser als das Druckbett und ${geteilt > 1 ? 'kommen' : 'kommt'} in Stücken mit Puzzle-Schwalbenschwanz — flach zusammendrücken, dann wie eine Platte stecken.</div>` : '') +
+    (n ? `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Alle Teile kommen lose, nummeriert wie im Bild. Zusammenstecken in der Reihenfolge der Nummern, jeweils von oben${P.boden ? ' — zum Schluss das Gitter in die Bodenplatte schieben' : ''}. «⇤⇥ Teile trennen» über der Vorschau zeigt die Einzelteile.</div>` : '');
+}
+function schliesseModal() { document.getElementById('modal-bg').classList.remove('on'); }
+// Echter Schnappschuss der getrennten Teile fürs Liefer-Modal (wie beim
+// Organizer): einmal explodiert rendern, Bild auslesen, alles zurückstellen.
+function schnappschussTeile() {
+  if (renderer.domElement.width < 50 || renderer.domElement.height < 50 || !aktuelle.teile.length) return null;
+  const exAlt = explode, camPos = camera.position.clone(), tgt = controls.target.clone();
+  explode = true; rebuild();
+  const box = new THREE.Box3().setFromObject(grp);
+  const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+  const r = Math.max(sz.x, sz.y) * 0.75 + sz.z * 0.8;
+  camera.position.set(c.x + r * 0.35, c.y - r * 1.05, c.z + r * 0.75); camera.lookAt(c); camera.updateMatrixWorld(true);
+  renderer.render(scene, camera);
+  let url = null;
+  try { url = renderer.domElement.toDataURL('image/png'); } catch (e) {}
+  const labels = aktuelle.teile.map(({ teil }, k) => {
+    const m = (teil.lo + teil.hi) / 2;
+    const p = new THREE.Vector3(teil.dir === 'v' ? teil.c : m, teil.dir === 'v' ? m : teil.c, P.h + 4 + (teil.versatz || 0));
+    p.project(camera);
+    return { n: k + 1, x: (p.x + 1) / 2 * 100, y: (1 - p.y) / 2 * 100 };
+  });
+  explode = exAlt; camera.position.copy(camPos); controls.target.copy(tgt); rebuild();
+  return url ? { url, labels } : null;
+}
+function zeigeLieferModal() {
+  const inhalt = document.getElementById('modal-inhalt'), btns = document.getElementById('modal-btns');
+  const n = aktuelle.teile.length;
+  const snap = schnappschussTeile();
+  const bild = snap ? `<div style="position:relative;margin:6px 0 2px"><img src="${snap.url}" alt="Deine Teile, getrennt dargestellt" style="width:100%;border-radius:8px;border:1px solid #3a3e44;display:block">${snap.labels.map((l) => `<span style="position:absolute;left:${l.x}%;top:${l.y}%;transform:translate(-50%,-100%);background:rgba(20,21,23,.82);color:#ffb347;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap">Trennwand ${l.n}</span>`).join('')}</div><div style="font-size:11px;color:var(--mut);margin-bottom:4px">So kommen die Teile bei dir an — in dieser Reihenfolge von oben zusammenstecken.</div>` : '';
+  const schritte = aktuelle.teile.map(({ teil, t }, i) => {
+    const an = (e) => (e.typ === 'rand' ? null : `Trennwand ${teilNr(e.id)}`);
+    const verb = [];
+    const lo = an(teil.endeLo), hi = an(teil.endeHi);
+    if (lo) verb.push(`Schwalbenschwanz in ${lo}`); if (hi) verb.push(`Schwalbenschwanz in ${hi}`);
+    if (teil.kreuz.length) verb.push(`Steckkreuz mit ${teil.kreuz.map((c) => `Trennwand ${teilNr(aktuelle.A.waende.find((w) => w.dir !== teil.dir && Math.abs(w.c - c) < 1e-6 && w.lo <= teil.c && w.hi >= teil.c).id)}`).join(', ')}`);
+    return `<li><b>Trennwand ${i + 1}</b> (${teil.dir === 'v' ? 'längs' : 'quer'}, ${t.L.toFixed(0)} × ${t.th.toFixed(0)} mm${t.stuecke.length > 1 ? `, <b>${t.stuecke.length} Stücke</b> mit Puzzle-Schwalbenschwanz` : ''}): ${verb.length ? verb.join(' · ') : 'frei stehend'}${teil.nuten.length ? ` · ${teil.nuten.length} Nut${teil.nuten.length > 1 ? 'en' : ''} für spätere Wände` : ''}${teil.schlitzeOben.length ? ` · ${teil.schlitzeOben.length} Steckschlitz${teil.schlitzeOben.length > 1 ? 'e' : ''}` : ''}${t.bodenLeiste ? ' · Leiste für die Bodenplatte' : ''}</li>`;
+  }).join('');
+  inhalt.innerHTML = `<h3>So wird geliefert</h3><div class="msub">${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}, alles lose — nichts zu schrauben, nichts zu kleben</div>${bild}
+    <p>Wo eine Trennwand an einer anderen endet, greifen sie mit einem <b>Schwalbenschwanz</b> ineinander: die durchgehende Wand hat eine senkrechte Nut, die anstossende eine Leiste am Ende — <b>von oben einschieben</b>, sitzt. Wo zwei Wände sich kreuzen, ein <b>Steckkreuz</b> (halbhohe Schlitze). Jede Wand lässt sich wieder herausziehen und in eine andere Nut setzen.</p>
+    ${n ? `<ol>${schritte}</ol>` : '<p>Noch keine Trennwände — Fach anklicken zum Teilen.</p>'}
+    ${P.boden ? `<p><b>Bodenplatte${aktuelle.boden.stuecke.length > 1 ? ` (${aktuelle.boden.stuecke.length} Stücke, lose nebeneinander — das Gitter hält sie zusammen)` : ''}:</b> Nuten ${P.bodenNuten === 'v' ? 'längs' : 'quer'} im 10-mm-Raster, an der Kante offen. Das fertig gesteckte Gitter als Ganzes ${P.bodenNuten === 'v' ? 'von vorne' : 'von der Seite'} hineinschieben — die Trennwände ${P.bodenNuten === 'v' ? 'längs' : 'quer'} tragen unten die passende Leiste.</p>` : ''}
+    <p style="font-size:12px">Die Passung (0.2 mm Spiel) ist noch im Drucktest. Sitzt eine Wand zu stramm, hilft ein Tropfen Spülmittel — zu locker: sag es uns, wir drucken nach.</p>`;
+  btns.innerHTML = '';
+  const ok = document.createElement('button'); ok.className = 'm-primary'; ok.textContent = 'Alles klar'; ok.onclick = schliesseModal; btns.append(ok);
+  document.getElementById('modal-bg').classList.add('on');
+}
+document.getElementById('btnLiefer').addEventListener('click', zeigeLieferModal);
+document.getElementById('modal-bg').addEventListener('click', (e) => { if (e.target === document.getElementById('modal-bg')) schliesseModal(); });
+
+// ---------- Live-Bemassung ----------
+const labelHost = document.getElementById('labels');
+let labelDaten = [], zeigeMasse = true;
+function machEditierbar(span, titel, anwenden) {
+  span.className = 'mz'; span.title = titel;
+  span.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+  span.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const alt = span.textContent, inp = document.createElement('input');
+    inp.type = 'text'; inp.inputMode = 'decimal'; inp.value = alt; inp.style.width = Math.max(4, alt.length + 1) + 'ch';
+    span.replaceWith(inp); inp.focus(); inp.select();
+    let fertig = false;
+    const ende = (ueb) => { if (fertig) return; fertig = true; const w = parseFloat(String(inp.value).replace(',', '.')); if (ueb && isFinite(w) && w > 0) anwenden(w); else baueLabels(); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') ende(true); else if (e.key === 'Escape') ende(false); });
+    inp.addEventListener('blur', () => ende(true));
+  });
+}
+function baueLabels() {
+  labelHost.innerHTML = ''; labelDaten = [];
+  if (!zeigeMasse) return;
+  const A = aktuelle.A, z0 = P.boden ? P.bodenDicke : 0;
+  const mk = (cls) => { const d = document.createElement('div'); d.className = 'lbl' + (cls ? ' ' + cls : ''); labelHost.appendChild(d); return d; };
+  const zahl = (t) => { const s = document.createElement('span'); s.textContent = t; return s; };
+  const haupt = mk('haupt');
+  const zB = zahl(String(P.b)), zT = zahl(String(P.t)), zH = zahl(String(P.h));
+  machEditierbar(zB, 'Aussenbreite in mm', (v) => { P.b = klemm(v, 60, 450); rebuild(); });
+  machEditierbar(zT, 'Aussentiefe in mm', (v) => { P.t = klemm(v, 60, 350); rebuild(); });
+  machEditierbar(zH, 'Aussenhöhe in mm', (v) => { P.h = klemm(v, 20, 350); rebuild(); });
+  haupt.append(zB, ' × ', zT, ' × ', zH, ' mm aussen');
+  labelDaten.push({ el: haupt, p: new THREE.Vector3(0, -P.t / 2 - 22, 0) });
+  for (const f of A.faecher) {
+    const el = mk(); el.textContent = `${(f.x1 - f.x0).toFixed(0)}×${(f.y1 - f.y0).toFixed(0)}`;
+    labelDaten.push({ el, p: new THREE.Vector3((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, z0 + 1) });
+  }
+  aktuelle.teile.forEach(({ teil }, i) => {
+    const el = mk('nr'); el.textContent = String(i + 1);
+    const m = (teil.lo + teil.hi) / 2;
+    labelDaten.push({ el, p: new THREE.Vector3(teil.dir === 'v' ? teil.c : m, teil.dir === 'v' ? m : teil.c, P.h + 2 + (teil.versatz || 0)) });
+  });
+}
+function updateLabels() {
+  if (!labelDaten.length) return;
+  const w = view.clientWidth, h = view.clientHeight, v = new THREE.Vector3();
+  for (const ld of labelDaten) {
+    v.copy(ld.p).project(camera);
+    if (v.z > 1) { ld.el.style.display = 'none'; continue; }
+    ld.el.style.display = 'block'; ld.el.style.left = ((v.x + 1) / 2 * w) + 'px'; ld.el.style.top = ((1 - v.y) / 2 * h) + 'px';
+  }
+}
+document.getElementById('btnMass').addEventListener('click', () => { zeigeMasse = !zeigeMasse; document.getElementById('btnMass').classList.toggle('active', zeigeMasse); baueLabels(); });
+document.getElementById('btnExplode').addEventListener('click', () => { explode = !explode; document.getElementById('btnExplode').classList.toggle('active', explode); menu.style.display = 'none'; rebuild(); });
+// Einfügen ohne Klick ins Bild: teilt das grösste Fach, das die Teilung zulässt
+function fuegeEin(dir) {
+  const A = aktuelle.A;
+  const kandidaten = A.faecher.filter((f) => teilLage(A, f, dir) != null).sort((p, q) => (q.x1 - q.x0) * (q.y1 - q.y0) - (p.x1 - p.x0) * (p.y1 - p.y0));
+  if (!kandidaten.length) { hudLive(`⚠ Kein Fach ist breit genug für eine weitere ${dir === 'v' ? 'Längs' : 'Quer'}wand (mindestens ${2 * FACH_MIN} mm).`); return; }
+  neueTrennwand(kandidaten[0], dir);
+}
+document.getElementById('plusV').addEventListener('click', () => fuegeEin('v'));
+document.getElementById('plusH').addEventListener('click', () => fuegeEin('h'));
+
+// ---------- Interaktion: Fach anklicken, Trennwand ziehen ----------
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+const menu = document.getElementById('menu');
+const ebene = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+let drag = null, downAt = null, lastBuild = 0;
+function strahl(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1; ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+}
+function pick(ev) {
+  strahl(ev);
+  const hit = grp ? ray.intersectObjects(grp.children)[0] : null;
+  return hit ? { obj: hit.object, x: hit.point.x, y: hit.point.y, z: hit.point.z } : null;
+}
+// Schnitt mit einer waagrechten Ebene auf Höhe des Anfasspunkts — nicht mit
+// dem Boden: der Strahl träfe den Boden hinter der Trennwand, sie spränge nach hinten.
+function ebenenPunkt(ev, z) {
+  strahl(ev);
+  ebene.constant = -z;
+  const p = new THREE.Vector3();
+  return ray.ray.intersectPlane(ebene, p) ? p : null;
+}
+// Teilstück eines Druckteils unter dem Zeiger (für Menü und Ziehen)
+function gliedAn(teil, p) {
+  const u = teil.dir === 'v' ? p.y : p.x;
+  return teil.glieder.find((g) => u >= g.lo - 3 && u <= g.hi + 3) || teil.glieder[0];
+}
+window.__dbgKlick = (x, y) => { const p = pick({ clientX: x, clientY: y }); return p ? { art: p.obj.userData.art, teil: p.obj.userData.teil?.id, fach: !!fachAn(aktuelle.A, p.x, p.y) } : null; };
+renderer.domElement.addEventListener('pointerdown', (ev) => {
+  menu.style.display = 'none';
+  if (mobil && !mobil.bearbeiten()) { downAt = null; return; }
+  const p = pick(ev); if (!p) { downAt = null; return; }
+  downAt = { x: ev.clientX, y: ev.clientY, p };
+  const art = p.obj.userData.art;
+  if ((art === 'trenn' || art === 'geist') && !explode) {
+    const ids = art === 'trenn' ? p.obj.userData.teil.glieder.map((g) => g.id) : [p.obj.userData.id];
+    const ws = trenn.filter((x) => ids.includes(x.id)); if (!ws.length) return;
+    snapshot();
+    drag = { ws, glied: art === 'trenn' ? gliedAn(p.obj.userData.teil, p) : null, bewegt: false, z: p.z };
+    controls.enabled = false;
+  }
+});
+renderer.domElement.addEventListener('pointermove', (ev) => {
+  if (!drag) return;
+  const p = ebenenPunkt(ev, drag.z); if (!p) return;
+  const w0 = drag.ws[0];
+  const linien = w0.dir === 'v' ? aktuelle.A.rasterX : aktuelle.A.rasterY;
+  if (!linien.length) return;
+  const ziel = w0.dir === 'v' ? p.x : p.y;
+  const c = linien.reduce((b, l) => (Math.abs(l - ziel) < Math.abs(b - ziel) ? l : b), linien[0]);
+  if (c === w0.c) return;
+  // Kandidat prüfen: keine Trennwand darf dadurch ungültig werden (alle
+  // Teilstücke des Druckteils wandern gemeinsam)
+  const alt = drag.ws.map((w) => w.c);
+  drag.ws.forEach((w) => { w.c = c; });
+  const A = aufteilung(P, trenn);
+  if (A.ungueltig.length) { drag.ws.forEach((w, i) => { w.c = alt[i]; }); return; }
+  drag.bewegt = true;
+  const I = A.grund;
+  const now = performance.now();
+  if (now - lastBuild > 60) { lastBuild = now; rebuild(); }
+  hudLive(`Trennwand bei ${(w0.dir === 'v' ? c - I.x0 : c - I.y0).toFixed(0)} mm ${w0.dir === 'v' ? 'von links' : 'von vorne'} · rastet alle ${RASTER} mm ein`);
+});
+addEventListener('pointerup', (ev) => {
+  if (drag) {
+    const d = drag; drag = null; controls.enabled = true;
+    if (!d.bewegt) { undoStack.pop(); syncTopbar(); }
+    rebuild();
+    if (!d.bewegt && downAt && Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) <= 6) zeigeTrennMenu(d.ws, ev.clientX, ev.clientY);
+    downAt = null; return;
+  }
+  if (!downAt) return;
+  const bewegt = Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 6;
+  const p = downAt.p; downAt = null;
+  if (bewegt || !p || p.obj.userData.art !== 'boden') return;
+  const f = fachAn(aktuelle.A, p.x, p.y);
+  if (f) zeigeMenu(f, ev.clientX, ev.clientY);
+});
+function hudLive(s) { document.getElementById('hud').innerHTML = s; }
+function platziereMenu(cx, cy) {
+  const vr = view.getBoundingClientRect();
+  menu.style.maxHeight = (vr.height - 16) + 'px'; menu.style.display = 'block';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(cx - vr.left, vr.width - mw - 8)) + 'px';
+  menu.style.top = Math.max(8, Math.min(cy - vr.top, vr.height - mh - 8)) + 'px';
+}
+const mb = (txt, fn, dis, title) => { const el = document.createElement('button'); el.textContent = txt; el.disabled = !!dis; if (title) el.title = title;
+  el.addEventListener('click', () => { menu.style.display = 'none'; fn && fn(); }); menu.appendChild(el); return el; };
+function neueTrennwand(f, dir) {
+  const c = teilLage(aktuelle.A, f, dir); if (c == null) return;
+  snapshot();
+  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (f.y0 + f.y1) / 2 : (f.x0 + f.x1) / 2 });
+  rebuild();
+}
+function zeigeMenu(f, cx, cy) {
+  const bw = (f.x1 - f.x0).toFixed(0), bt = (f.y1 - f.y0).toFixed(0);
+  menu.innerHTML = `<div class="mtitle">FACH ${bw} × ${bt} MM</div>`;
+  const kannV = teilLage(aktuelle.A, f, 'v') != null, kannH = teilLage(aktuelle.A, f, 'h') != null;
+  mb('◫  Senkrecht teilen (Trennwand längs)', () => neueTrennwand(f, 'v'), !kannV, kannV ? '' : `Zu schmal — Fächer sind mindestens ${FACH_MIN} mm breit`);
+  mb('⊟  Waagrecht teilen (Trennwand quer)', () => neueTrennwand(f, 'h'), !kannH, kannH ? '' : `Zu kurz — Fächer sind mindestens ${FACH_MIN} mm tief`);
+  const kannText = f.b.hinten.typ === 'trenn';
+  const t = texte.find((x) => x.x > f.x0 && x.x < f.x1 && x.y > f.y0 && x.y < f.y1);
+  mb((t ? '● ' : '') + '✎  Beschriften …', () => zeigeLabelMenu(f, cx, cy), !kannText, kannText ? '' : 'Beschriftet wird die Querwand hinter dem Fach — dieses Fach hat keine');
+  platziereMenu(cx, cy);
+}
+function zeigeTrennMenu(ws, cx, cy) {
+  gewaehlt = ws[0].id; rebuild();
+  const nr = teilNr(ws[0].id);
+  const teil = aktuelle.teile.find((x) => x.teil.glieder.some((g) => g.id === ws[0].id));
+  menu.innerHTML = `<div class="mtitle">TRENNWAND ${nr || '(ungültig)'} · ${ws[0].dir === 'v' ? 'LÄNGS' : 'QUER'}${teil ? ` · ${teil.t.L.toFixed(0)} MM` : ''}</div>`;
+  mb('✕  Trennwand entfernen', () => { snapshot(); const ids = ws.map((w) => w.id); trenn = trenn.filter((x) => !ids.includes(x.id)); gewaehlt = null; rebuild(); });
+  mb('↔  Verschieben: Trennwand mit der Maus ziehen', () => {}, true);
+  mb('✓  Schliessen', () => { gewaehlt = null; rebuild(); });
+  platziereMenu(cx, cy);
+}
+function zeigeLabelMenu(f, cx, cy) {
+  const alt = texte.find((x) => x.x > f.x0 && x.x < f.x1 && x.y > f.y0 && x.y < f.y1);
+  menu.innerHTML = `<div class="mtitle">FACH BESCHRIFTEN (erhaben auf der Querwand dahinter)</div>`;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.maxLength = 16; inp.placeholder = 'z. B. Tassen · Teller · Bretter'; inp.value = alt?.txt || '';
+  inp.style.cssText = 'width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:12.5px;margin:4px 0 8px';
+  menu.appendChild(inp);
+  let gr = alt?.gr || 7;
+  const grRow = document.createElement('div'); grRow.className = 'row'; grRow.style.padding = '0 4px';
+  grRow.innerHTML = `<label style="width:74px">Schriftgrösse</label>`;
+  const grInp = document.createElement('input'); grInp.type = 'range'; grInp.min = 4; grInp.max = 14; grInp.step = 0.5; grInp.value = gr;
+  const grVal = document.createElement('span'); grVal.className = 'val'; grVal.textContent = gr + ' mm';
+  grInp.addEventListener('input', () => { gr = parseFloat(grInp.value); grVal.textContent = gr + ' mm'; });
+  grRow.appendChild(grInp); grRow.appendChild(grVal); menu.appendChild(grRow);
+  const hint = document.createElement('div'); hint.style.cssText = 'font-size:10.5px;color:var(--mut);padding:0 6px 8px;max-width:240px;line-height:1.45';
+  hint.textContent = 'Eine Schriftfarbe für das ganze Gitter (Gruppe 6). Zu lange Texte werden automatisch kleiner, bis sie ins Fach passen.';
+  menu.appendChild(hint);
+  const ok = document.createElement('button'); ok.textContent = '✓  Übernehmen';
+  ok.addEventListener('click', () => { menu.style.display = 'none'; snapshot();
+    texte = texte.filter((x) => x !== alt);
+    if (inp.value.trim()) texte.push({ x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2, txt: inp.value.trim(), gr });
+    rebuild(); });
+  menu.appendChild(ok);
+  if (alt) { const del = document.createElement('button'); del.textContent = '✕  Beschriftung entfernen';
+    del.addEventListener('click', () => { menu.style.display = 'none'; snapshot(); texte = texte.filter((x) => x !== alt); rebuild(); }); menu.appendChild(del); }
+  platziereMenu(cx, cy); inp.focus();
+}
+
+// ---------- Draufsicht, Tastatur ----------
+let planModus = false, camSave = null;
+document.getElementById('btnPlan').addEventListener('click', () => {
+  planModus = !planModus; document.getElementById('btnPlan').classList.toggle('active', planModus);
+  if (korpus) korpus.traverse((o) => { if (o.userData.deckel) o.visible = !planModus; });
+  if (planModus) { camSave = { p: camera.position.clone(), t: controls.target.clone() }; camera.position.set(0, -1, Math.max(P.sb, P.st) * 1.3 + P.sh); controls.target.set(0, 0, 0); controls.enableRotate = false; }
+  else { if (camSave) { camera.position.copy(camSave.p); controls.target.copy(camSave.t); } controls.enableRotate = !(mobil && mobil.bearbeiten()); }
+  controls.update();
+});
+const btnUndo = document.getElementById('btnUndo'), btnRedo = document.getElementById('btnRedo');
+btnUndo.addEventListener('click', undo); btnRedo.addEventListener('click', redo);
+document.getElementById('btnTeilen').addEventListener('click', linkTeilen);
+addEventListener('keydown', (ev) => {
+  if (ev.target && /input|textarea/i.test(ev.target.tagName)) return;
+  if (ev.ctrlKey && ev.key === 'z') { ev.preventDefault(); undo(); }
+  if (ev.ctrlKey && (ev.key === 'y' || ev.key === 'Z')) { ev.preventDefault(); redo(); }
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && gewaehlt != null) {
+    const teil = aktuelle.teile.find((x) => x.teil.glieder.some((g) => g.id === gewaehlt));
+    const ids = teil ? teil.teil.glieder.map((g) => g.id) : [gewaehlt];
+    snapshot(); trenn = trenn.filter((x) => !ids.includes(x.id)); gewaehlt = null; menu.style.display = 'none'; rebuild();
+  }
+  if (ev.key === 'Escape') { gewaehlt = null; menu.style.display = 'none'; rebuild(); }
+});
+
+// ---------- Vorlagen (arbeiten mit dem aktuellen Raster) ----------
+// Jede Vorlage baut die Trennwände nacheinander über das Raster auf — so
+// stimmen die Lagen, egal welche Masse gewählt sind. Gegenüberliegende
+// Teilstücke an derselben Lage werden zu einem Druckteil (Steckkreuz).
+function teileFach(f, dir, anteil) {
+  const A = aufteilung(P, trenn);
+  const ff = A.faecher.find((x) => x.x0 <= f.x0 + 1e-6 && x.x1 >= f.x1 - 1e-6 && x.y0 <= f.y0 + 1e-6 && x.y1 >= f.y1 - 1e-6) || f;
+  const lo = dir === 'v' ? ff.x0 : ff.y0, hi = dir === 'v' ? ff.x1 : ff.y1;
+  const zielC = lo + (hi - lo) * anteil;
+  const linien = (dir === 'v' ? A.rasterX : A.rasterY).filter((c) => c - lo >= FACH_MIN - 1e-6 && hi - c >= FACH_MIN - 1e-6);
+  if (!linien.length) return null;
+  const c = linien.reduce((b, l) => (Math.abs(l - zielC) < Math.abs(b - zielC) ? l : b), linien[0]);
+  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (ff.y0 + ff.y1) / 2 : (ff.x0 + ff.x1) / 2 });
+  const A2 = aufteilung(P, trenn);
+  return A2.faecher.filter((x) => x.x0 >= ff.x0 - 1e-6 && x.x1 <= ff.x1 + 1e-6 && x.y0 >= ff.y0 - 1e-6 && x.y1 <= ff.y1 + 1e-6);
+}
+const VORLAGEN = {
+  'Leer': () => {},
+  // Querwand mitte, zwei längs durchgehend (Steckkreuze) → 2×3 Fächer
+  'Teller & Schüsseln': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return;
+    for (const g of t) { const u = teileFach(g, 'v', 1 / 3); if (u) teileFach(u[1], 'v', 0.5); } },
+  // Querwand mitte, vorne und hinten viele schmale Fächer für Bretter/Bleche
+  'Bretter & Bleche': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return;
+    for (const g of t) { let r = g; const n = Math.max(1, Math.min(6, Math.floor((g.x1 - g.x0) / 30) - 1));
+      for (let i = 0; i < n; i++) { const u = teileFach(r, 'v', 30 / (r.x1 - r.x0)); if (!u) break; r = u[1]; } } },
+  // Raster 2×2: Querwand mitte, Längswand durchgehend
+  'Vorräte 2×2': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return; teileFach(t[0], 'v', 0.5); teileFach(t[1], 'v', 0.5); },
+  // Querwand bei 30 %, hinten zwei Längswände mit Schwalbenschwanz (T-Stösse)
+  'Deckel & Dosen': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.3); if (!t) return; const u = teileFach(t[1], 'v', 1 / 3); if (u) teileFach(u[1], 'v', 0.5); },
+};
+const vh = document.getElementById('vorlagen');
+Object.keys(VORLAGEN).forEach((name) => {
+  const b = document.createElement('button'); b.textContent = name;
+  b.addEventListener('click', () => { snapshot(); trenn = []; texte = []; VORLAGEN[name](); gewaehlt = null; rebuild(); });
+  vh.appendChild(b);
+});
+
+// ---------- Export / Warenkorb ----------
+async function dreiMF(koerper) {
+  const xml = modelXml(koerper, 'KohliLab Schrank-Einsatz');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', CONTENT_TYPES); zip.folder('_rels').file('.rels', RELS); zip.folder('3D').file('3dmodel.model', xml);
+  return zip.generateAsync({ type: 'blob', mimeType: 'model/3mf', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+}
+// Trennwände liegend nebeneinander in EINER Datei, je Wand ein Objekt
+function trennKoerper() {
+  const out = []; let dx = 0;
+  aktuelle.teile.forEach(({ teil, t }, i) => {
+    const k = t.stuecke.length;
+    t.stuecke.forEach((st, j) => { out.push({ name: `Trennwand ${i + 1} (${teil.dir === 'v' ? 'längs' : 'quer'})${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: verschoben(st.mesh, dx - st.xa, -st.ya, 0) }); dx += (st.xb - st.xa) + 14; });
+  });
+  return out;
+}
+function bodenKoerper() {
+  const k = aktuelle.boden.stuecke.length;
+  return aktuelle.boden.stuecke.map((st, j) => ({ name: `Bodenplatte${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: st.mesh }));
+}
+function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+function blobB64(blob) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); }); }
+async function busy(btn, fn) { const alt = btn.textContent; btn.textContent = 'erzeugt …'; btn.disabled = true;
+  try { await new Promise((r) => setTimeout(r, 30)); await fn(); } finally { btn.textContent = alt; btn.disabled = false; } }
+document.getElementById('ex3mf').addEventListener('click', () => busy(document.getElementById('ex3mf'), async () => {
+  download(await dreiMF(trennKoerper()), 'kohlilab_schrank_trennwaende.3mf');
+  if (aktuelle.boden) { await new Promise((r) => setTimeout(r, 400)); download(await dreiMF(bodenKoerper()), 'kohlilab_schrank_boden.3mf'); }
+}));
+async function inWarenkorb() {
+  const dateien = { trennwaende: await blobB64(await dreiMF(trennKoerper())) };
+  if (aktuelle.boden) dateien.boden = await blobB64(await dreiMF(bodenKoerper()));
+  const pi = preisInfo(), rappen = Math.round(pi.total * 100);
+  const n = aktuelle.teile.length, I = aktuelle.A.grund;
+  const cart = (window.top && window.top.KCart) || window.KCart;
+  await cart.add({
+    typ: 'schrank', titel: `Küchenschrank-Einsatz · ${P.b}×${P.t}×${P.h} mm · ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''}`,
+    menge: 1, gesamtRappen: rappen, stueckRappen: rappen,
+    konfig: { masse: `${P.b}×${P.t}×${P.h}`, schrank: `${P.sb}×${P.st}×${P.sh}`, ts: P.ts, boden: P.boden, bodenDicke: P.boden ? P.bodenDicke : undefined, bodenNuten: P.boden ? P.bodenNuten : undefined,
+              trennwaende: n, stuecke: aktuelle.stuecke, bodenStuecke: aktuelle.boden ? aktuelle.boden.stuecke.length : 0, faecher: aktuelle.A.faecher.length,
+              waende: aktuelle.teile.map(({ teil, t }) => ({ dir: teil.dir, lage: +(teil.dir === 'v' ? teil.c - I.x0 : teil.c - I.y0).toFixed(1), laenge: +t.L.toFixed(1),
+                                                            leisten: t.leisten.filter(Boolean).length, nuten: teil.nuten.length, kreuz: teil.kreuz.length + teil.schlitzeOben.length, stuecke: t.stuecke.length })),
+              texte: aktuelle.texte.map((t) => ({ text: texte.find((x) => fachAn(aktuelle.A, x.x, x.y) === t.fach)?.txt || '', gr: t.gr })),
+              textFaecher: aktuelle.texte.length, textMmUeber4: +aktuelle.texte.reduce((s, t) => s + Math.max(0, t.gr - 4), 0).toFixed(1),
+              farben: { trenn: P.farbeTrenn, boden: P.boden ? P.farbeBoden : undefined, text: P.farbeText } },
+    dateien,
+  });
+  (window.top || window).location.href = '/warenkorb';
+}
+document.getElementById('cart').addEventListener('click', () => busy(document.getElementById('cart'), inWarenkorb));
+
+// ---------- UI ----------
+const $ = (id) => document.getElementById(id);
+const klemm = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
+const klemmF = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v * 2) / 2));
+function slider(id, key) { $(id).value = P[key]; $(id).addEventListener('input', () => { P[key] = parseFloat($(id).value); rebuild(); }); }
+function syncUI() {
+  $('bodenDickeRow').style.display = P.boden ? '' : 'none';
+  $('bodenNutenRow').style.display = P.boden ? '' : 'none';
+  $('farbeBodenFeld').style.display = P.boden ? '' : 'none';
+  $('b').max = Math.min(450, P.sb); $('t').max = Math.min(350, P.st); $('h').max = Math.min(350, P.sh);
+  for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts'], ['bodenDicke', 'bodenDicke']]) {
+    if (parseFloat($(id).value) !== P[key]) $(id).value = P[key];
+    $(id + 'V').textContent = P[key] + ' mm';
+  }
+  $('bodenArt').querySelectorAll('button').forEach((b) => b.classList.toggle('active', (b.dataset.boden === '1') === P.boden));
+  $('bodenNuten').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.dir === P.bodenNuten));
+}
+function farbUI(hostId, key) {
+  const host = $(hostId);
+  PALETTE.forEach((hex, i) => {
+    const b = document.createElement('button'); b.style.background = hex; b.title = FARBNAMEN[i]; b.setAttribute('aria-label', FARBNAMEN[i]);
+    if (P[key] === hex) b.classList.add('active');
+    b.addEventListener('click', () => { P[key] = hex; host.querySelectorAll('button').forEach((x) => x.classList.remove('active')); b.classList.add('active'); rebuild(); });
+    host.appendChild(b);
+  });
+}
+function tippbar(spanId, titel, anwenden) {
+  const span = $(spanId); span.classList.add('tippbar'); span.title = titel;
+  span.addEventListener('click', () => {
+    if (span.style.display === 'none') return;
+    const inp = document.createElement('input'); inp.type = 'text'; inp.inputMode = 'decimal'; inp.className = 'valInp'; inp.value = parseFloat(span.textContent);
+    span.style.display = 'none'; span.after(inp); inp.focus(); inp.select();
+    let fertig = false;
+    const ende = (ueb) => { if (fertig) return; fertig = true; const w = parseFloat(String(inp.value).replace(',', '.')); inp.remove(); span.style.display = ''; if (ueb && isFinite(w)) anwenden(w); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') ende(true); else if (e.key === 'Escape') ende(false); });
+    inp.addEventListener('blur', () => ende(true));
+  });
+}
+for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts'], ['bodenDicke', 'bodenDicke']]) slider(id, key);
+tippbar('sbV', 'Schrankbreite innen eintippen (80–600 mm)', (v) => { P.sb = klemm(v, 80, 600); rebuild(); });
+tippbar('stV', 'Schranktiefe innen eintippen (80–450 mm)', (v) => { P.st = klemm(v, 80, 450); rebuild(); });
+tippbar('shV', 'Schrankhöhe innen eintippen (30–500 mm)', (v) => { P.sh = klemm(v, 30, 500); rebuild(); });
+$('bodenArt').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { P.boden = b.dataset.boden === '1'; rebuild(); }));
+$('bodenNuten').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { P.bodenNuten = b.dataset.dir; rebuild(); }));
+tippbar('bV', 'Breite eintippen (60–450 mm)', (v) => { P.b = klemm(v, 60, 450); rebuild(); });
+tippbar('tV', 'Tiefe eintippen (60–350 mm)', (v) => { P.t = klemm(v, 60, 350); rebuild(); });
+tippbar('hV', 'Höhe eintippen (20–350 mm)', (v) => { P.h = klemm(v, 20, 350); rebuild(); });
+tippbar('tsV', 'Wanddicke eintippen (4–6 mm)', (v) => { P.ts = klemmF(v, 4, 6); rebuild(); });
+tippbar('bodenDickeV', 'Plattenstärke eintippen (2.5–5 mm)', (v) => { P.bodenDicke = klemmF(v, 2.5, 5); rebuild(); });
+farbUI('swFarbeTrenn', 'farbeTrenn'); farbUI('swFarbeBoden', 'farbeBoden'); farbUI('swFarbeText', 'farbeText');
+
+// ---------- Konfiguration als Link (#k=), wie beim Organizer ----------
+const b64u = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const b64uLesen = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+function konfigObjekt() { return { v: 2, P: { ...P }, trenn, texte, n: naechsteId }; }
+let hashTimer = null;
+function hashSchreiben() {
+  clearTimeout(hashTimer);
+  hashTimer = setTimeout(async () => {
+    try {
+      const json = JSON.stringify(konfigObjekt()); let s;
+      if (window.CompressionStream) { const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); s = 'z' + b64u(new Uint8Array(buf)); }
+      else s = 'j' + b64u(new TextEncoder().encode(json));
+      (window.top || window).history.replaceState(null, '', '#k=' + s);
+    } catch (e) {}
+  }, 250);
+}
+async function hashLesen() {
+  try {
+    const m2 = ((window.top || window).location.hash || location.hash).match(/#k=(.+)/);
+    if (!m2) return false;
+    const art = m2[1][0], bytes = b64uLesen(m2[1].slice(1));
+    const json = art === 'z' ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text() : new TextDecoder().decode(bytes);
+    const o = JSON.parse(json);
+    if (o.v !== 2 || !Array.isArray(o.trenn)) return false;       // v1 = frühere Wannen-Fassung, nicht mehr lesbar
+    Object.assign(P, o.P || {}); trenn = o.trenn; texte = Array.isArray(o.texte) ? o.texte : []; naechsteId = o.n || (Math.max(0, ...trenn.map((t) => t.id)) + 1);
+    return true;
+  } catch (e) { return false; }
+}
+async function linkTeilen() {
+  const url = (window.top || window).location.href;
+  if (navigator.share) { try { await navigator.share({ title: 'Mein Küchenschrank-Einsatz — KohliLab', url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); hudLive('🔗 Link kopiert — z. B. an dich selbst mailen und am anderen Gerät weitermachen.'); }
+  catch (e) { prompt('Link zu deiner Konfiguration:', url); }
+}
+
+// ---------- Mobil-Modus (gemeinsames Modul) ----------
+const mobil = mobilModus({
+  view, controls, titel: 'Küchenschrank-Einsatz', linkTeilen,
+  bearbeiten: { tippDreh: '🔄 1 Finger drehen · 2 Finger zoomen', tippEdit: '✏️ Fach antippen = teilen · Trennwand ziehen = verschieben · 2 Finger = zoomen' },
+  tipps: ['<b>🔄 Drehen</b> — 1 Finger dreht das Gitter, 2 Finger zoomen.',
+          '<b>✏️ Bearbeiten</b> — Fach antippen öffnet das Menü: teilen, beschriften. Trennwände lassen sich direkt ziehen und rasten alle 10 mm ein.',
+          '<b>⚙️ Menü</b> — Masse, Aufbau, Vorlagen, Farben, Preis und <b>In den Warenkorb</b>.'],
+});
+
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize);
+hashLesen().then((ok) => {
+  if (!ok) VORLAGEN['Teller & Schüsseln']();
+  rebuild();
+  // Start-Kamera: leicht seitlich, durch die offene Front in den Schrank hinein
+  const d = Math.max(P.sb, P.st); camera.position.set(d * 0.3, -d * 2.1, P.sh * 0.8 + d * 0.25); controls.target.set(0, 0, P.sh * 0.35);
+  resize();
+});
+(function loop() { requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x + 80, camera.position.y + 120, Math.abs(camera.position.z) + 260); updateLabels(); renderer.render(scene, camera); })();
+
+// Prüf-Haken (wie bei den anderen Konfiguratoren)
+window.__P = P; window.__trenn = () => trenn; window.__A = () => aktuelle.A; window.__bau = () => aktuelle; window.__rebuild = rebuild;
+window.__setze = (o) => { Object.assign(P, o.P || {}); if (o.trenn) trenn = o.trenn; if (o.texte) texte = o.texte; naechsteId = Math.max(naechsteId, ...trenn.map((t) => t.id + 1)); rebuild(); };
+window.__proj = (x, y, z) => { const v = new THREE.Vector3(x, y, z).project(camera); const r = renderer.domElement.getBoundingClientRect(); return [+(r.left + (v.x + 1) / 2 * r.width).toFixed(0), +(r.top + (1 - v.y) / 2 * r.height).toFixed(0)]; };
+window.__cam = () => [camera.position.toArray(), controls.target.toArray()];
+window.__kamera = (p, t) => { camera.position.fromArray(p); controls.target.fromArray(t); controls.update(); camera.updateMatrixWorld(true); };
+
+// ---------- Export-Sperre (wie Organizer: Hürde, kein Schutz) ----------
+(function () {
+  const SCHLUESSEL = 'werkstatt-0310634825f0';
+  const frage = new URLSearchParams(location.search);
+  let frei = frage.get('export') === SCHLUESSEL;
+  try { if (frei) sessionStorage.setItem('kl_export', SCHLUESSEL); else frei = sessionStorage.getItem('kl_export') === SCHLUESSEL; } catch (e) {}
+  if (frei) return;
+  const gruppe = document.getElementById('exportGrp');
+  if (gruppe) gruppe.style.display = 'none';
+})();
+</script>
+</body>
+</html>

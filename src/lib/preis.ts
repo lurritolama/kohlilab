@@ -127,6 +127,28 @@ export function organizerPreisRappen(o: {
   return Math.max(1600, Math.ceil(roh / 50) * 50);             // min 16.–, Rundung 0.50
 }
 
+/**
+ * Küchenschrank-Einsatz (14.09.2026, Vorschlag — die Übergabe lässt die
+ * Preisgestaltung offen, Manolo entscheidet): wie der Organizer (Grund 9.50,
+ * Material + Maschine bei 25 g/h + 8 % Ausfall, min 16.–, Rundung 0.50),
+ * dazu 1.50 je DRUCKTEIL (jede Trennwand und die Bodenplatte sind eigene
+ * Teile: Bett-Belegung, Passung prüfen) und die Beschriftungs-Sätze des
+ * Organizers. Spiegelt public/schrank-app/index.html (PREIS). `gramm` =
+ * gemessen über alle Druckdateien.
+ */
+const SCHRANK_JE_TEIL_RP = 150;
+export function schrankPreisRappen(o: { gramm: number; teile: number; textFaecher?: number; textMmUeber4?: number }): number {
+  const n = Math.min(61, Math.max(1, Math.round(o.teile)));
+  const textFaecher = Math.min(60, Math.max(0, Math.round(o.textFaecher ?? 0)));
+  const textMm = Math.min(600, Math.max(0, o.textMmUeber4 ?? 0));
+  const text = textFaecher * TEXT_RP_JE_FACH + textMm * TEXT_RP_JE_MM;
+  const material = o.gramm * FILAMENT_RP_G;
+  const maschine = (o.gramm / 25) * MASCHINE_RP_H;
+  const druck = (material + maschine) * (1 + AUSFALL);
+  const roh = 950 + druck + n * SCHRANK_JE_TEIL_RP + text;
+  return Math.max(1600, Math.ceil(roh / 50) * 50);
+}
+
 /** Schild-Rohpreis PRO STÜCK (ohne Grundpreis, ohne Staffel). */
 export function schildStueckRohRappen(s: { gramm: number; zusatzFarben: number }): number {
   return s.gramm * FILAMENT_RP_G + (s.gramm / 15) * MASCHINE_RP_H + s.zusatzFarben * 200;

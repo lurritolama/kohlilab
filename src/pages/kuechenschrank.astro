@@ -1,0 +1,43 @@
+---
+// Küchenschrank-Einsätze nach Mass (14.09.2026, Grundkonfigurator):
+// freistehende Einsätze für den Schrank-Korpus — Wanne mit Schwalben-
+// schwanz-Nuten im 10-mm-Raster, steckbare Trennwände. Abgrenzung zum
+// Schubladen-Organizer: der bleibt für Schubladen. Spezialeinsätze
+// (Küchenrolle, Tempos, Folien) docken später an dasselbe Raster an.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KonfigFrame from '../components/KonfigFrame.astro';
+import Kurzinfo from '../components/Kurzinfo.astro';
+---
+<BaseLayout
+  title="Küchenschrank-Einsatz nach Mass — KohliLab"
+  description="Gitter-Einsatz für den Küchenschrank nach Mass, 3D-gedruckt: Schrank ausmessen, Fächer mit steckbaren Trennwänden einteilen, direkt in 3D — für Teller, Bretter, Vorräte, Deckel. Trennwände jederzeit umsetzbar."
+>
+  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
+  <section class="block" style="padding-top:28px">
+    <h2>Küchenschrank-Einsatz nach Mass</h2>
+    <p class="lead">
+      Miss deinen Schrank innen aus, gib die Masse ein — und teile die Fächer
+      direkt in 3D ein: Fach anklicken zum Teilen, Trennwände einfach
+      verschieben. Das Gitter wird frei in den Schrank gestellt, nichts wird
+      geschraubt oder geklemmt. Die Trennwände greifen mit Schwalbenschwänzen
+      und Steckkreuzen ineinander, im 10-mm-Raster, und lassen sich jederzeit
+      umsetzen — für Teller, Bretter, Vorräte, Deckel und alles, was im Schrank
+      Ordnung braucht.
+    </p>
+    <p class="lead lead-kurz">
+      Masse eingeben, Fächer in 3D einteilen, bestellen — Trennwände steckbar und umsetzbar.
+    </p>
+  </section>
+  <Kurzinfo />
+  <KonfigFrame app="schrank-app" titel="Küchenschrank-Einsatz-Konfigurator" mobil="ansehen" />
+</BaseLayout>
+
+<style>
+  .test-banner{ background:#3b1a5e; color:#e5b8ff; font-family:var(--mono); font-size:12px;
+    letter-spacing:1px; text-align:center; padding:9px 14px; border-bottom:1px solid #5b2a8e; }
+  .lead-kurz { display: none; }
+  @media (max-width: 860px) {
+    .lead { display: none; }
+    .lead-kurz { display: block; }
+  }
+</style>

@@ -49,6 +49,12 @@ export function grammAus(bufs: Buffer[]): number {
   return (mm3 / 1000) * DICHTE; // mm³ -> cm³ -> g
 }
 
+/** Anzahl Objekte (Druckteile) im 3MF — z. B. Trennwände des Schrank-Einsatzes. */
+export function objektAnzahl(buf: Buffer): number {
+  const xml = modelXml(buf);
+  return (xml.match(/<object\s/g) ?? []).length;
+}
+
 /** Anzahl verschiedener Farben im 3MF (m:color-Einträge). */
 export function farbAnzahl(buf: Buffer): number {
   const xml = modelXml(buf);
