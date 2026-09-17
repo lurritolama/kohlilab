@@ -7,7 +7,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <h1>Dein Warenkorb</h1>
 
     <div data-leer hidden class="korb-note">
-      Noch nichts drin. Gestalte dein Teil im <a href="/organizer">Schubladen-Organizer</a>, im <a href="/kuechenschrank">Küchenschrank-Einsatz</a>, im <a href="/golf-tees">Golf-Tee-Konfigurator</a>, im <a href="/qr-schilder">QR-Schilder-Konfigurator</a> im <a href="/lochwand">Lochwand-Planer</a> oder im <a href="/relief">Relief-Konfigurator</a> — oder hol dir <a href="/ventilkappen">Ventilkappen</a> aus der Mikrofabrik.
+      Noch nichts drin. Gestalte dein Teil im <a href="/organizer">Schubladen-Organizer</a>, im <a href="/kuechenschrank">Küchenschrank-Einsatz</a>, im <a href="/golf-tees">Golf-Tee-Konfigurator</a>, im <a href="/qr-schilder">QR-Schilder-Konfigurator</a>, im <a href="/lochwand">Lochwand-Planer</a> oder im <a href="/relief">Relief-Konfigurator</a> — oder hol dir <a href="/ventilkappen">Ventilkappen</a> aus der Mikrofabrik.
     </div>
 
     <div data-inhalt hidden>
@@ -15,8 +15,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div class="kw-summe"><span>Zwischensumme (ohne Versand)</span><b data-subtotal>–</b></div>
       <div class="kw-aktionen">
         <a class="btn ghost" href="/#produkte">Weiter gestalten</a>
-        <a class="btn primary" href="/checkout">Zur Kasse</a>
+        <a class="btn primary" href="/checkout" data-kasse>Zur Kasse</a>
       </div>
+      <p class="kw-testhinweis" data-testhinweis hidden>🧪 Im Warenkorb liegt eine Position aus einem Konfigurator in der <b>Testphase</b> — dort ist bestellen noch nicht möglich. Bitte diese Position entfernen; die übrigen kannst du bestellen.</p>
       <p class="note-klein">Menge und Optionen stellst du im jeweiligen Konfigurator ein. Zum Ändern das Teil entfernen und neu gestalten.</p>
     </div>
   </section>
@@ -27,6 +28,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   .kw-liste { list-style:none; margin:0 0 18px; padding:0; }
   .kw-liste :global(li) { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:10px; }
   .kw-liste :global(.kw-titel) { flex:1 1 260px; font-weight:600; color:var(--ink); }
+  .kw-liste :global(.kw-test) { display:block; font-family:var(--mono); font-size:11px; letter-spacing:.5px; color:#c9a6ec; margin-top:3px; }
+  .kw-testhinweis { font-size:13px; line-height:1.55; color:#e5b8ff; background:#3b1a5e; border:1px solid #5b2a8e; border-radius:8px; padding:9px 12px; margin-top:12px; }
+  .kw-testhinweis b { color:#f4e9ff; }
+  :global(a.btn.gesperrt) { pointer-events:none; opacity:.4; filter:grayscale(.7); }
   .kw-liste :global(.kw-typ) { font-family:var(--mono); font-size:11px; letter-spacing:1.5px; color:var(--acc2); text-transform:uppercase; display:block; margin-bottom:3px; }
   .kw-liste :global(.kw-preis) { font-family:var(--mono); color:var(--acc2); min-width:96px; text-align:right; }
   .kw-liste :global(.kw-weg) { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; }
@@ -38,6 +43,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 </style>
 
 <script>
+  import { inTestphase } from '../lib/testphase';
   const KC = () => (window as any).KCart;
   const chf = (r: number) => 'CHF ' + new Intl.NumberFormat('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(r / 100);
 
@@ -52,15 +58,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     if (inhalt) inhalt.hidden = items.length === 0;
     if (!liste) return;
     liste.textContent = '';
-    let sub = 0;
+    let sub = 0, testPositionen = 0;
     for (const it of items) {
       sub += it.gesamtRappen;
+      const test = inTestphase(it.typ);
+      if (test) testPositionen++;
       const li = document.createElement('li');
       const titel = document.createElement('span'); titel.className = 'kw-titel';
       const typ = document.createElement('span'); typ.className = 'kw-typ';
-      typ.textContent = it.typ === 'organizer' ? 'Organizer' : it.typ === 'ventilkappe' ? 'Ventilkappe' : it.typ === 'lochwand' ? 'Lochwand' : it.typ === 'tee' ? 'Golf-Tee' : it.typ === 'relief' ? 'Relief' : it.typ === 'schrank' ? 'Schrank-Einsatz' : 'QR-Schild';
+      typ.textContent = it.typ === 'organizer' ? 'Organizer' : it.typ === 'ventilkappe' ? 'Ventilkappe' : it.typ === 'lochwand' ? 'Lochwand' : it.typ === 'tee' ? 'Golf-Tee' : it.typ === 'lithophane' ? 'Lithophane' : it.typ === 'namensschild' ? 'Schild' : it.typ === 'relief' ? 'Relief' : it.typ === 'schrank' ? 'Schrank-Einsatz' : 'QR-Schild';
       const name = document.createElement('span'); name.textContent = it.titel;
       titel.append(typ, name);
+      if (test) { const t = document.createElement('span'); t.className = 'kw-test'; t.textContent = 'Testphase — noch nicht bestellbar'; titel.append(t); }
       const preis = document.createElement('span'); preis.className = 'kw-preis'; preis.textContent = chf(it.gesamtRappen);
       const weg = document.createElement('button'); weg.className = 'kw-weg'; weg.type = 'button'; weg.textContent = '✕'; weg.title = 'Entfernen';
       weg.addEventListener('click', async () => { await KC().remove(it.id); render(); });
@@ -68,6 +77,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       liste.append(li);
     }
     if (subEl) subEl.textContent = chf(sub);
+    // Testphase: solange eine solche Position im Korb liegt, geht es nicht zur Kasse
+    const kasse = document.querySelector('[data-kasse]') as HTMLAnchorElement | null;
+    const hinweis = document.querySelector('[data-testhinweis]') as HTMLElement | null;
+    if (kasse) { kasse.classList.toggle('gesperrt', testPositionen > 0); kasse.setAttribute('aria-disabled', testPositionen > 0 ? 'true' : 'false'); }
+    if (hinweis) hinweis.hidden = testPositionen === 0;
   }
   render();
 </script>

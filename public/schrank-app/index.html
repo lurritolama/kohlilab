@@ -21,6 +21,9 @@
   .val.tippbar{cursor:text;text-decoration:underline dotted rgba(255,107,26,.55);text-underline-offset:2px}
   .val.tippbar:hover{color:var(--acc)}
   .valInp{width:60px;font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--acc2);border:1px solid var(--acc);border-radius:4px;padding:2px 5px}
+  .valInp.mm{width:58px;text-align:right;border-color:var(--line2)}
+  .valInp.mm:focus{border-color:var(--acc);outline:none}
+  .einheit{font-family:var(--mono);font-size:11px;color:var(--mut);width:22px}
   .row{display:flex;align-items:center;gap:8px;margin:7px 0}
   .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
   .row input[type=range]{flex:1;accent-color:var(--acc)}
@@ -90,25 +93,23 @@
   <div class="sub">nach Mass · KohliLab · 3D-gedruckt · Gitter aus steckbaren Trennwänden</div>
 
   <div class="grp"><h2>1 · Dein Schrank (Innenmass)</h2>
-    <div class="row"><label>Breite</label><input type="range" id="sb" min="80" max="600" step="1"><span class="val" id="sbV"></span></div>
-    <div class="row"><label>Tiefe</label><input type="range" id="st" min="80" max="450" step="1"><span class="val" id="stV"></span></div>
-    <div class="row"><label>Höhe</label><input type="range" id="sh" min="30" max="500" step="1"><span class="val" id="shV"></span></div>
+    <div class="row"><label>Breite</label><input type="range" id="sb" min="80" max="600" step="1"><input type="number" class="valInp mm" id="sbV" min="80" max="600" step="1"><span class="einheit">mm</span></div>
+    <div class="row"><label>Tiefe</label><input type="range" id="st" min="80" max="450" step="1"><input type="number" class="valInp mm" id="stV" min="80" max="450" step="1"><span class="einheit">mm</span></div>
+    <div class="row"><label>Höhe</label><input type="range" id="sh" min="30" max="500" step="1"><input type="number" class="valInp mm" id="shV" min="30" max="500" step="1"><span class="einheit">mm</span></div>
     <div class="note">Miss den Schrank innen aus: zwischen den Seitenwänden, von der Vorderkante bis zur Rückwand, vom Tablar bis zum nächsten Boden. Der Schrank ist nur die Bühne in der Vorschau — gedruckt wird das Gitter.</div>
   </div>
 
-  <div class="grp"><h2>2 · Aussenmass des Gitters</h2>
-    <div class="row"><label>Breite</label><input type="range" id="b" min="60" max="450" step="1"><span class="val" id="bV"></span></div>
-    <div class="row"><label>Tiefe</label><input type="range" id="t" min="60" max="350" step="1"><span class="val" id="tV"></span></div>
-    <div class="row"><label>Höhe</label><input type="range" id="h" min="20" max="350" step="1"><span class="val" id="hV"></span></div>
-    <div class="note"><b>Zahl anklicken und eintippen</b> — auf den Millimeter genau, der Regler ist fürs Grobe. Das Gitter steht frei im Schrank und ist höchstens so gross wie der Schrank innen — die Vorschau zeigt, wie viel Luft bleibt. Platten, die nicht aufs Druckbett passen (290 × 310 mm), kommen in <b>Stücken mit Puzzle-Schwalbenschwanz</b> — die Vorschau zeigt die Nähte.</div>
+  <div class="grp"><h2>2 · Aussenmass des Einsatzes</h2>
+    <div class="row"><label>Breite</label><input type="range" id="b" min="60" max="450" step="1"><input type="number" class="valInp mm" id="bV" min="60" max="450" step="1"><span class="einheit">mm</span></div>
+    <div class="row"><label title="Höhe des Regal-Einsatzes im Schrank">Höhe</label><input type="range" id="t" min="60" max="350" step="1"><input type="number" class="valInp mm" id="tV" min="60" max="350" step="1"><span class="einheit">mm</span></div>
+    <div class="row"><label title="Tiefe der Böden und Trennwände, von vorne nach hinten">Tiefe</label><input type="range" id="h" min="20" max="350" step="1"><input type="number" class="valInp mm" id="hV" min="20" max="350" step="1"><span class="einheit">mm</span></div>
+    <div class="note"><b>Millimeter direkt ins Feld tippen</b> — der Regler ist fürs Grobe. Der Einsatz steht als Regal frei im Schrank, mit dem Rücken an der Rückwand, und ist höchstens so gross wie der Schrank innen — die Vorschau zeigt, wie viel Luft bleibt. Platten, die nicht aufs Druckbett passen (290 × 310 mm), kommen in <b>Stücken mit Puzzle-Schwalbenschwanz</b> — die Vorschau zeigt die Nähte.</div>
   </div>
 
   <div class="grp"><h2>3 · Aufbau</h2>
     <div class="row"><label title="Dicke der Trennwände — die Schwalbenschwanz-Leiste ist nie dicker als die Wand, die Nut nie tiefer als die halbe Wand">Wanddicke</label><input type="range" id="ts" min="4" max="6" step="0.5"><span class="val" id="tsV"></span></div>
-    <div class="row"><label>Bodenplatte</label><div class="btns" id="bodenArt" style="flex:1"><button data-boden="0">keine</button><button data-boden="1">mit Schwalbenschwanz-Nuten</button></div></div>
-    <div class="row" id="bodenDickeRow"><label>Plattenstärke</label><input type="range" id="bodenDicke" min="2.5" max="5" step="0.5"><span class="val" id="bodenDickeV"></span></div>
-    <div class="row" id="bodenNutenRow"><label title="Richtung der Nuten in der Bodenplatte — die Trennwände dieser Richtung tragen unten eine Leiste">Nuten</label><div class="btns" id="bodenNuten" style="flex:1"><button data-dir="v">längs</button><button data-dir="h">quer</button></div></div>
-    <div class="note">Die Trennwände greifen untereinander mit <b>Schwalbenschwänzen</b> ineinander und halten sich selbst. Die <b>Bodenplatte</b> ist optional: Nuten im 10-mm-Raster, an der Kante offen — das fertige Gitter wird als Ganzes hineingeschoben und kann nicht mehr verrutschen.</div>
+    <div class="row"><label title="Feste Wand am Rand des Einsatzes — gibt langen Böden und Trennwänden Halt">Aussenwände</label><div class="btns" id="aussenWaende" style="flex:1"><button data-seite="unten" id="aw-unten">unten</button><button data-seite="oben" id="aw-oben">oben</button><button data-seite="links" id="aw-links">links</button><button data-seite="rechts" id="aw-rechts">rechts</button></div></div>
+    <div class="note">Zwischenböden und senkrechte Trennwände greifen mit <b>Schwalbenschwänzen</b> ineinander und halten sich selbst; alles wird von vorne gesteckt. <b>Aussenwände</b> je Seite zuschalten, wenn lange Böden (ab etwa 300 mm) Geschirr tragen sollen — sie bilden einen Rahmen.</div>
   </div>
 
   <div class="grp"><h2>4 · Vorlage</h2>
@@ -117,15 +118,14 @@
   </div>
 
   <div class="grp"><h2>5 · Fächer &amp; Trennwände</h2>
-    <div class="btns" style="margin-bottom:8px"><button id="plusV">＋ Längswand einfügen</button><button id="plusH">＋ Querwand einfügen</button></div>
-    <div class="note" style="margin-top:0">Die Knöpfe teilen das grösste Fach. Genauer geht es in der Vorschau: In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Beschriften, <b>Trennwand ziehen</b> zum Verschieben (rastet alle 10 mm ein), <b>Trennwand anklicken</b> zum Entfernen. Stösst eine Trennwand an eine andere, entsteht ein Schwalbenschwanz; kreuzt sie eine, ein Steckkreuz. Die Nummern zeigen die Steck-Reihenfolge.</div>
+    <div class="btns" style="margin-bottom:8px"><button id="plusV">＋ Trennwand senkrecht</button><button id="plusH">＋ Zwischenboden</button></div>
+    <div class="note" style="margin-top:0">Die Knöpfe teilen das grösste Fach. Genauer geht es in der Vorschau: In der Vorschau: <b>Fach anklicken</b> zum Teilen oder Beschriften, <b>Teil ziehen</b> zum Verschieben (millimetergenau), <b>Trennwand anklicken</b> zum Entfernen. Stösst ein Teil an ein anderes, entsteht ein Schwalbenschwanz; kreuzen sie sich, ein Steckkreuz. Die Nummern zeigen die Steck-Reihenfolge, alles von vorne.</div>
   </div>
 
   <div class="grp"><h2>6 · Farbe</h2>
     <div class="feld"><label>Trennwände</label><div class="sw" id="swFarbeTrenn"></div></div>
-    <div class="feld" id="farbeBodenFeld"><label>Bodenplatte</label><div class="sw" id="swFarbeBoden"></div></div>
     <div class="feld"><label>Beschriftung (erhaben auf der Wand)</label><div class="sw" id="swFarbeText"></div></div>
-    <div class="note">Trennwände und Bodenplatte sind je einfarbig. Fächer mit einer Querwand dahinter lassen sich über das Fach-Menü <b>beschriften</b> — die Schrift steht erhaben und farbig vorne auf dieser Querwand.</div>
+    <div class="note">Alle Teile haben eine Farbe. Fächer mit einem Zwischenboden darunter lassen sich über das Fach-Menü <b>beschriften</b> — die Schrift steht erhaben und farbig vorne auf dem Boden des Fachs.</div>
   </div>
 
   <div class="grp"><h2>7 · Preis</h2>
@@ -145,14 +145,14 @@
 
   <div class="grp" id="exportGrp"><h2>Export (Test)</h2>
     <div class="exp"><button id="ex3mf" class="ghost">3MF</button></div>
-    <div class="note">Testphase: Trennwände (und Bodenplatte) als 3MF herunterladen und selbst slicen.</div>
+    <div class="note">Testphase: alle Teile als 3MF herunterladen und selbst slicen — jedes Druckstück ein eigenes Objekt.</div>
   </div>
 </div>
 
 <div id="view">
   <div id="sperrbanner" hidden></div>
   <div id="topbar">
-    <button id="btnPlan">◱ Draufsicht</button>
+    <button id="btnPlan">▣ Frontansicht</button>
     <button id="btnMass" class="active">⌀ Masse</button>
     <button id="btnExplode">⇤⇥ Teile trennen</button>
     <button id="btnUndo" disabled>↶ Rückgängig</button>
@@ -198,16 +198,16 @@ const PREIS = {
 };
 const triangulate = (outer, holes) => THREE.ShapeUtils.triangulateShape(outer.map((p) => new THREE.Vector2(p[0], p[1])), holes.map((h) => h.map((p) => new THREE.Vector2(p[0], p[1]))));
 
-const P = { sb: 300, st: 300, sh: 120, b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNuten: 'v',
+const P = { sb: 300, st: 300, sh: 120, b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNuten: 'v', aussen: { unten: false, oben: false, links: false, rechts: false },
             farbeTrenn: '#c9cfd2', farbeBoden: '#eceff0', farbeText: '#1c1c1c' };
 let trenn = [];          // [{ id, dir, c, m }] — Teilstücke; kreuzende werden zu einem Druckteil
-let texte = [];          // [{ x, y, txt, gr }] — Anker im Fach, Schrift auf der Querwand dahinter
+let texte = [];          // [{ x, y, txt, gr }] — Anker im Fach, Schrift vorne auf dem Zwischenboden darunter
 let naechsteId = 1;
 
 // ---------- Rückgängig ----------
 const undoStack = [], redoStack = [];
-const stand = () => JSON.stringify({ trenn, texte, naechsteId });
-const setzeStand = (s) => { const o = JSON.parse(s); trenn = o.trenn; texte = o.texte; naechsteId = o.naechsteId; };
+const stand = () => JSON.stringify({ trenn, texte, naechsteId, aussen: P.aussen });
+const setzeStand = (s) => { const o = JSON.parse(s); trenn = o.trenn; texte = o.texte; naechsteId = o.naechsteId; if (o.aussen) P.aussen = o.aussen; };
 function snapshot() { undoStack.push(stand()); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; syncTopbar(); }
 function undo() { if (!undoStack.length) return; redoStack.push(stand()); setzeStand(undoStack.pop()); rebuild(); }
 function redo() { if (!redoStack.length) return; undoStack.push(stand()); setzeStand(redoStack.pop()); rebuild(); }
@@ -247,25 +247,27 @@ function textMask(txt, hMm, res) {
   maskCache.set(key, out);
   return out;
 }
-// Beschriftungen planen: Fach → Querwand dahinter (f.b.hinten) → Druckteil,
-// das diese Wand enthält. Schrift zentriert über der Fachbreite, senkrecht
-// mittig in der Wandhöhe; zu breite Schrift wird verkleinert (min 4 mm).
+// Beschriftungen planen: Fach → Zwischenboden darunter (f.b.vorne) → Druckteil,
+// das diesen Boden enthält. Schrift zentriert über der Fachbreite, vorne auf
+// dem Boden; zu breite Schrift wird verkleinert (min 4 mm).
 function textePlanen(A) {
   const out = [];
   const z0 = P.boden ? P.bodenDicke : 0, th = P.h - z0;
   for (const t of texte) {
     const f = fachAn(A, t.x, t.y);
-    if (!f || f.b.hinten.typ !== 'trenn') continue;
-    const teil = A.teile.find((q) => q.glieder.some((g) => g.id === f.b.hinten.id));
+    if (!f || f.b.vorne.typ !== 'trenn') continue;
+    const teil = A.teile.find((q) => q.glieder.some((g) => g.id === f.b.vorne.id));
     if (!teil) continue;
     const txt = (t.txt || '').trim(); if (!txt) continue;
     const breit = f.x1 - f.x0 - 8, hoch = th - 4;
     let gr = t.gr || 7, mk = null;
     for (; gr >= 4; gr -= 0.5) { mk = textMask(txt, gr, Math.max(0.3, gr / 22)); if (!mk) break; if (mk.w <= breit && mk.h <= hoch) break; }
     if (!mk || mk.w > breit || mk.h > hoch) continue;
-    const cx = (f.x0 + f.x1) / 2, cz = z0 + th / 2;
-    const x0 = cx - mk.w / 2, zz0 = cz - mk.h / 2;
-    out.push({ fach: f, teil, gr, laeufe: mk.laeufe.map(([i0, i1, j]) => [x0 + i0 * mk.res, x0 + i1 * mk.res, zz0 + j * mk.res, zz0 + (j + 1) * mk.res]) });
+    // vorne auf dem Boden (Gitter-z = Tiefe, z0+th ist die Vorderkante); Zeilen
+    // von vorne nach hinten, damit die Schrift von vorne lesbar ist
+    const cx = (f.x0 + f.x1) / 2, zVorn = z0 + th - 4;
+    const x0 = cx - mk.w / 2;
+    out.push({ fach: f, teil, gr, laeufe: mk.laeufe.map(([i0, i1, j]) => [x0 + i0 * mk.res, x0 + i1 * mk.res, zVorn - (j + 1) * mk.res, zVorn - j * mk.res]) });
   }
   return out;
 }
@@ -323,7 +325,7 @@ function lageMatrix(l) {
 
 function baueAlles() {
   const A = aufteilung(P, trenn);
-  for (const w of A.waende) { const t = trenn.find((x) => x.id === w.id); if (t) t.m = w.mNeu; }
+  for (const w of A.waende) { const t = trenn.find((x) => x.id === w.id); if (t) { t.m = w.mNeu; if (w.zwNeu) t.zw = w.zwNeu; } }
   const tx = textePlanen(A);
   const farben = { trenn: P.farbeTrenn, text: P.farbeText };
   const teile = A.teile.map((teil) => ({ teil, t: teilMesh(P, A, teil, triangulate, farben, tx.filter((x) => x.teil === teil)) }));
@@ -354,16 +356,40 @@ function baueKorpus() {
   brett(d, T + d, H + 2 * d, (B + d) / 2, d / 2, H / 2, 0.14, 4);             // Seite rechts
   const deckel = brett(B + 2 * d, T + d, d, 0, d / 2, H + d / 2, 0.05, 5);   // Deckel fast nur als Kanten    // Deckel (nächster Boden)
   deckel.visible = !planModus; deckel.userData.deckel = true;
+  // Öffnung: oranger Rahmen an der Vorderkante + Tür, links angeschlagen und
+  // weit aufgeschwenkt — so ist klar, wo der Schrank offen ist (Manolo 16.09.2026)
+  const rahmen = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-(B / 2 + d), -T / 2, -d), new THREE.Vector3(B / 2 + d, -T / 2, -d), new THREE.Vector3(B / 2 + d, -T / 2, H + d), new THREE.Vector3(-(B / 2 + d), -T / 2, H + d), new THREE.Vector3(-(B / 2 + d), -T / 2, -d)]);
+  const rl = new THREE.Line(rahmen, new THREE.LineBasicMaterial({ color: 0xff6b1a, transparent: true, opacity: 0.85 })); rl.renderOrder = 7; korpus.add(rl);
+  const tuer = new THREE.Group(); tuer.position.set(-(B / 2 + d), -T / 2 - 4, 0); tuer.rotation.z = THREE.MathUtils.degToRad(-105);
+  const tb = new THREE.Mesh(new THREE.BoxGeometry(B + 2 * d, d, H + 2 * d), new THREE.MeshStandardMaterial({ color: KORPUS_FARBE, roughness: 0.85, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+  tb.position.set((B + 2 * d) / 2, -d / 2, H / 2); tb.renderOrder = 6; tuer.add(tb);
+  const tk = new THREE.LineSegments(new THREE.EdgesGeometry(tb.geometry), new THREE.LineBasicMaterial({ color: KORPUS_KANTE, transparent: true, opacity: 0.6 })); tk.position.copy(tb.position); tuer.add(tk);
+  tuer.userData.deckel = true;             // in der Draufsicht mit dem Deckel ausblenden
+  korpus.add(tuer);
   scene.add(korpus);
 }
+// Das Gitter steht als Regal: Gitter-y → Höhe, Gitter-z → Tiefe (z = 0 an
+// der Schrank-Rückwand, Verbindungen zeigen nach vorne). Alles, was in
+// Gitterkoordinaten gebaut wird (Teile, Rückwand, Klickfläche, Labels),
+// läuft durch diese Matrix; Klicks und Ziehen rechnen mit der Inversen.
+function regalMatrix() {
+  const m = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+  m.setPosition(0, P.st / 2, P.t / 2);
+  return m;
+}
+let regalM = regalMatrix(), regalInv = regalM.clone().invert();
 function rebuild() {
   // Das Gitter passt in den Schrank: Innenmass ist die Obergrenze (Auftrag 15.09.2026)
-  P.b = Math.min(P.b, P.sb); P.t = Math.min(P.t, P.st); P.h = Math.min(P.h, P.sh);
+  P.b = Math.min(P.b, P.sb); P.t = Math.min(P.t, P.sh); P.h = Math.min(P.h, P.st);   // Gitter-t = Höhe, Gitter-h = Tiefe
+  P.boden = false;                       // Rückwand gestrichen (Manolo 16.09.2026) — Geometrie bleibt für später erhalten
   P.bodenDicke = Math.min(P.bodenDicke, P.h - 10);
   syncUI(); syncTopbar();
   if (grp) { scene.remove(grp); grp.traverse((o) => o.geometry && o.geometry.dispose()); }
   aktuelle = baueAlles();
   grp = new THREE.Group();
+  regalM = regalMatrix(); regalInv = regalM.clone().invert();
+  grp.matrixAutoUpdate = false; grp.matrix.copy(regalM);
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.03, side: THREE.DoubleSide });
   // Schrankausschnitt als Bühne (Auftrag 15.09.2026): Boden, Rückwand, zwei
   // Seiten und Deckel halbtransparent nach dem Innenmass; vorne offen. Nur
@@ -371,7 +397,8 @@ function rebuild() {
   // `korpus` und fängt keine Klicks — sonst käme man von oben nicht durch
   // den Deckel an die Fächer.
   baueKorpus();
-  const bodenKlick = new THREE.Mesh(new THREE.BoxGeometry(P.sb, P.st, 1), new THREE.MeshBasicMaterial({ visible: false }));
+  // Klickfläche für die Fächer: unsichtbare Platte am Rücken des Einsatzes (Gitter-z ≈ 0)
+  const bodenKlick = new THREE.Mesh(new THREE.BoxGeometry(P.b, P.t, 1), new THREE.MeshBasicMaterial({ visible: false }));
   bodenKlick.position.set(0, 0, -0.55); bodenKlick.userData.art = 'boden'; grp.add(bodenKlick);
   // Explosions-Ansicht (wie «Module trennen» beim Organizer): Teile in Steck-
   // Reihenfolge nach oben gestaffelt, Stücke einer Platte auseinandergezogen
@@ -402,6 +429,10 @@ function rebuild() {
       }
       m.matrixAutoUpdate = false; m.matrix.copy(lage); m.userData.art = 'trenn'; m.userData.teil = teil;
       grp.add(m); m.updateMatrixWorld(true);
+      if (t.stuecke.length > 1) {          // geteilte Platte: Nähte und Puzzle-Zapfen als dunkle Kanten zeigen
+        const k = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 30), new THREE.LineBasicMaterial({ color: 0x3a3e44, transparent: true, opacity: 0.85 }));
+        k.matrixAutoUpdate = false; k.matrix.copy(lage); k.userData.art = 'kante'; k.raycast = () => {}; grp.add(k); k.updateMatrixWorld(true);
+      }
     }
   });
   // ungültige Trennwände (Kollision mit einer älteren) rot als Geist anzeigen
@@ -413,7 +444,7 @@ function rebuild() {
     m.position.set(w.dir === 'v' ? w.c : 0, w.dir === 'v' ? 0 : w.c, z0 + th / 2); m.userData.art = 'geist'; m.userData.id = id;
     grp.add(m);
   }
-  scene.add(grp);
+  scene.add(grp); grp.updateMatrixWorld(true);
   baueLabels();
   preisAnzeigen();
   lieferAnzeigen();
@@ -423,22 +454,55 @@ function rebuild() {
   const tris = aktuelle.teile.reduce((s, x) => s + x.t.stuecke.reduce((q, st) => q + st.mesh.idx.length / 3, 0), 0) + (aktuelle.boden ? aktuelle.boden.stuecke.reduce((q, st) => q + st.mesh.idx.length / 3, 0) : 0);
   const n = aktuelle.teile.length;
   document.getElementById('btnExplode').style.display = n ? '' : 'none';
+  const langOhne = !Object.values(P.aussen).some(Boolean) && aktuelle.teile.some(({ t }) => t.L > 300);
+  document.getElementById('lieferHinweis')?.remove();
   document.getElementById('hud').innerHTML =
-    `Schrank innen ${P.sb}×${P.st}×${P.sh} · Gitter ${P.b}×${P.t}×${P.h} mm (Luft ${((P.sb - P.b) / 2).toFixed(0)} seitlich · ${((P.st - P.t) / 2).toFixed(0)} vorne/hinten · ${(P.sh - P.h).toFixed(0)} oben) · ${A.faecher.length} ${A.faecher.length === 1 ? 'Fach' : 'Fächer'} · ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${aktuelle.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'} · ${(tris / 1000).toFixed(1)}k Dreiecke`;
+    (langOhne ? `<span class="warn">⚠ Böden oder Trennwände über 300 mm ohne Aussenwand tragen wenig Last — Aussenwände unter «3 · Aufbau» zuschalten.</span><br>` : '') + `Schrank innen ${P.sb}×${P.st}×${P.sh} · Einsatz B ${P.b} × T ${P.h} × H ${P.t} mm (Luft ${((P.sb - P.b) / 2).toFixed(0)} seitlich · ${(P.st - P.h).toFixed(0)} vorne · ${(P.sh - P.t).toFixed(0)} oben) · ${A.faecher.length} ${A.faecher.length === 1 ? 'Fach' : 'Fächer'} · ${n} Teil${n === 1 ? '' : 'e'}${aktuelle.boden ? ' + Rückwand' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'} · ${(tris / 1000).toFixed(1)}k Dreiecke`;
 }
 
 // ---------- Sperre ----------
 function sperrGrund() {
   const g = [];
   if (aktuelle && aktuelle.A.ungueltig.length) g.push(`<p><b>${aktuelle.A.ungueltig.length === 1 ? 'Eine Trennwand liegt' : aktuelle.A.ungueltig.length + ' Trennwände liegen'} auf einer anderen</b> (rot) — verschieben oder entfernen.</p>`);
-  if (aktuelle && !aktuelle.teile.length) g.push(`<p><b>Noch keine Trennwand.</b> Fach anklicken und teilen — oder eine Vorlage wählen.</p>`);
-  if (aktuelle && aktuelle.gruppen > 1 && !P.boden) g.push(`<p><b>Das Gitter hängt nicht zusammen</b> (${aktuelle.gruppen} lose Gruppen). Verbinde die Trennwände mit einer Querwand — oder wähle die Bodenplatte, sie hält alles.</p>`);
+  if (aktuelle && !aktuelle.teile.length) g.push(`<p><b>Noch kein Teil.</b> Fach anklicken und teilen — oder eine Vorlage wählen.</p>`);
+  if (aktuelle && aktuelle.gruppen > 1 && !P.boden) g.push(`<p><b>Der Einsatz hängt nicht zusammen</b> (${aktuelle.gruppen} lose Gruppen). Verbinde die Teile mit einem Zwischenboden oder einer Trennwand.</p>`);
+  const offen = ungestuetzteNaehte();
+  if (offen.length) {
+    const nr = [...new Set(offen.map((o) => o.nr))];
+    g.push(`<p><b>${nr.length === 1 ? `Zwischenboden ${nr[0]} ist` : `Zwischenböden ${nr.join(', ')} sind`} breiter als das Druckbett</b> und die Naht läge frei im Fach — unter Last ein Gelenk. Eine senkrechte Trennwand unter der Naht trägt sie: ${offen.map((o) => `Teil ${o.nr} bei ${(o.x + P.b / 2).toFixed(0)} mm von links`).join(', ')}.</p><p><button id="btnStuetze" class="mini">＋ Stütze einsetzen</button> <span style="opacity:.75">setzt sie automatisch ins Fach darunter</span></p>`);
+  }
   return g;
+}
+// Nähte von Zwischenböden ohne Stütze (kreuzende oder von unten anstossende Trennwand)
+function ungestuetzteNaehte() {
+  const out = [];
+  if (!aktuelle) return out;
+  aktuelle.teile.forEach(({ teil, t }, i) => {
+    (t.naehte.gestuetzt || []).forEach((ok, k) => { if (!ok) out.push({ teil, nr: i + 1, x: t.u0 + t.naehte.x[k], u: t.naehte.x[k] }); });
+  });
+  return out;
+}
+// Stütz-Trennwand ins Fach unter jeder ungestützten Naht setzen
+function stuetzenEinsetzen() {
+  const A = aktuelle.A, key = (b) => (b.typ === 'trenn' ? b.id : 'rand');
+  let n = 0;
+  snapshot();
+  for (const o of ungestuetzteNaehte()) {
+    const f = A.faecher.find((q) => q.b.hinten.typ === 'trenn' && o.teil.glieder.some((g) => g.id === q.b.hinten.id) && o.x > q.x0 && o.x < q.x1);
+    if (!f) continue;
+    const lo = f.x0 + FACH_MIN + P.ts / 2, hi = f.x1 - FACH_MIN - P.ts / 2;
+    if (hi < lo) continue;
+    const c = Math.round(Math.min(hi, Math.max(lo, o.x)));
+    trenn.push({ id: naechsteId++, dir: 'v', c, m: (f.y0 + f.y1) / 2, zw: [key(f.b.vorne), key(f.b.hinten)] });
+    n++;
+  }
+  rebuild();
+  hudLive(n ? `${n === 1 ? 'Eine Stütz-Trennwand' : n + ' Stütz-Trennwände'} eingesetzt — die Naht liegt jetzt auf der Trennwand.` : '⚠ Kein Platz für eine Stütze — Fach darunter ist zu schmal; Trennwand von Hand setzen.');
 }
 function sperrAnzeigen() {
   const box = document.getElementById('sperrbanner'), g = sperrGrund();
   box.hidden = !g.length;
-  if (g.length) box.innerHTML = `<h4>⚠ So lässt sich das nicht drucken</h4>${g.join('')}`;
+  if (g.length) { box.innerHTML = `<h4>⚠ So lässt sich das nicht drucken</h4>${g.join('')}`; document.getElementById('btnStuetze')?.addEventListener('click', stuetzenEinsetzen); }
   for (const id of ['cart', 'ex3mf']) { const b = document.getElementById(id); b.disabled = g.length > 0; b.title = g.length ? 'Bitte zuerst die Meldung im Bild beheben.' : ''; }
 }
 
@@ -476,9 +540,9 @@ function lieferAnzeigen() {
   const n = aktuelle.teile.length, lose = aktuelle.gruppen > 1 && !P.boden;
   const geteilt = aktuelle.teile.filter((x) => x.t.stuecke.length > 1).length + (aktuelle.boden && aktuelle.boden.stuecke.length > 1 ? 1 : 0);
   document.getElementById('lieferBox').innerHTML =
-    `<span class="lief-badge${lose ? ' lose' : ''}">📦 ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}${lose ? ' · lose' : ''}</span>` +
+    `<span class="lief-badge${lose ? ' lose' : ''}">📦 ${n} Teil${n === 1 ? '' : 'e'}${P.boden ? ' + Rückwand' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}${lose ? ' · lose' : ''}</span>` +
     (geteilt ? `<div style="color:var(--acc2);font-size:11.5px;margin-top:7px;line-height:1.5">${geteilt} Platte${geteilt > 1 ? 'n sind' : ' ist'} grösser als das Druckbett und ${geteilt > 1 ? 'kommen' : 'kommt'} in Stücken mit Puzzle-Schwalbenschwanz — flach zusammendrücken, dann wie eine Platte stecken.</div>` : '') +
-    (n ? `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Alle Teile kommen lose, nummeriert wie im Bild. Zusammenstecken in der Reihenfolge der Nummern, jeweils von oben${P.boden ? ' — zum Schluss das Gitter in die Bodenplatte schieben' : ''}. «⇤⇥ Teile trennen» über der Vorschau zeigt die Einzelteile.</div>` : '');
+    (n ? `<div style="color:var(--mut);font-size:11.5px;margin-top:7px;line-height:1.5">Alle Teile kommen lose, nummeriert wie im Bild. Zusammenstecken in der Reihenfolge der Nummern, jeweils von vorne${P.boden ? ' — zum Schluss das Regal auf die Rückwand schieben' : ''}. «⇤⇥ Teile trennen» über der Vorschau zeigt die Einzelteile.</div>` : '');
 }
 function schliesseModal() { document.getElementById('modal-bg').classList.remove('on'); }
 // Echter Schnappschuss der getrennten Teile fürs Liefer-Modal (wie beim
@@ -507,19 +571,19 @@ function zeigeLieferModal() {
   const inhalt = document.getElementById('modal-inhalt'), btns = document.getElementById('modal-btns');
   const n = aktuelle.teile.length;
   const snap = schnappschussTeile();
-  const bild = snap ? `<div style="position:relative;margin:6px 0 2px"><img src="${snap.url}" alt="Deine Teile, getrennt dargestellt" style="width:100%;border-radius:8px;border:1px solid #3a3e44;display:block">${snap.labels.map((l) => `<span style="position:absolute;left:${l.x}%;top:${l.y}%;transform:translate(-50%,-100%);background:rgba(20,21,23,.82);color:#ffb347;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap">Trennwand ${l.n}</span>`).join('')}</div><div style="font-size:11px;color:var(--mut);margin-bottom:4px">So kommen die Teile bei dir an — in dieser Reihenfolge von oben zusammenstecken.</div>` : '';
+  const bild = snap ? `<div style="position:relative;margin:6px 0 2px"><img src="${snap.url}" alt="Deine Teile, getrennt dargestellt" style="width:100%;border-radius:8px;border:1px solid #3a3e44;display:block">${snap.labels.map((l) => `<span style="position:absolute;left:${l.x}%;top:${l.y}%;transform:translate(-50%,-100%);background:rgba(20,21,23,.82);color:#ffb347;font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap">Teil ${l.n}</span>`).join('')}</div><div style="font-size:11px;color:var(--mut);margin-bottom:4px">So kommen die Teile bei dir an — in dieser Reihenfolge von vorne zusammenstecken.</div>` : '';
   const schritte = aktuelle.teile.map(({ teil, t }, i) => {
-    const an = (e) => (e.typ === 'rand' ? null : `Trennwand ${teilNr(e.id)}`);
+    const an = (e) => (e.typ === 'rand' ? null : `Teil ${teilNr(e.id)}`);
     const verb = [];
     const lo = an(teil.endeLo), hi = an(teil.endeHi);
     if (lo) verb.push(`Schwalbenschwanz in ${lo}`); if (hi) verb.push(`Schwalbenschwanz in ${hi}`);
-    if (teil.kreuz.length) verb.push(`Steckkreuz mit ${teil.kreuz.map((c) => `Trennwand ${teilNr(aktuelle.A.waende.find((w) => w.dir !== teil.dir && Math.abs(w.c - c) < 1e-6 && w.lo <= teil.c && w.hi >= teil.c).id)}`).join(', ')}`);
-    return `<li><b>Trennwand ${i + 1}</b> (${teil.dir === 'v' ? 'längs' : 'quer'}, ${t.L.toFixed(0)} × ${t.th.toFixed(0)} mm${t.stuecke.length > 1 ? `, <b>${t.stuecke.length} Stücke</b> mit Puzzle-Schwalbenschwanz` : ''}): ${verb.length ? verb.join(' · ') : 'frei stehend'}${teil.nuten.length ? ` · ${teil.nuten.length} Nut${teil.nuten.length > 1 ? 'en' : ''} für spätere Wände` : ''}${teil.schlitzeOben.length ? ` · ${teil.schlitzeOben.length} Steckschlitz${teil.schlitzeOben.length > 1 ? 'e' : ''}` : ''}${t.bodenLeiste ? ' · Leiste für die Bodenplatte' : ''}</li>`;
+    if (teil.kreuz.length) verb.push(`Steckkreuz mit ${teil.kreuz.map((c) => `Teil ${teilNr(aktuelle.A.waende.find((w) => w.dir !== teil.dir && Math.abs(w.c - c) < 1e-6 && w.lo <= teil.c && w.hi >= teil.c).id)}`).join(', ')}`);
+    return `<li><b>Teil ${i + 1}</b> (${teil.dir === 'v' ? 'senkrecht' : 'Zwischenboden'}, ${t.L.toFixed(0)} × ${t.th.toFixed(0)} mm${t.stuecke.length > 1 ? `, <b>${t.stuecke.length} Stücke</b> mit Puzzle-Schwalbenschwanz` : ''}): ${verb.length ? verb.join(' · ') : 'frei stehend'}${teil.nuten.length ? ` · ${teil.nuten.length} Nut${teil.nuten.length > 1 ? 'en' : ''} für spätere Wände` : ''}${teil.schlitzeOben.length ? ` · ${teil.schlitzeOben.length} Steckschlitz${teil.schlitzeOben.length > 1 ? 'e' : ''}` : ''}${t.bodenLeiste ? ' · Leiste für die Rückwand' : ''}</li>`;
   }).join('');
-  inhalt.innerHTML = `<h3>So wird geliefert</h3><div class="msub">${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}, alles lose — nichts zu schrauben, nichts zu kleben</div>${bild}
-    <p>Wo eine Trennwand an einer anderen endet, greifen sie mit einem <b>Schwalbenschwanz</b> ineinander: die durchgehende Wand hat eine senkrechte Nut, die anstossende eine Leiste am Ende — <b>von oben einschieben</b>, sitzt. Wo zwei Wände sich kreuzen, ein <b>Steckkreuz</b> (halbhohe Schlitze). Jede Wand lässt sich wieder herausziehen und in eine andere Nut setzen.</p>
+  inhalt.innerHTML = `<h3>So wird geliefert</h3><div class="msub">${n} Teil${n === 1 ? '' : 'e'}${P.boden ? ' + Rückwand' : ''} · ${aktuelle.stuecke} Druckstück${aktuelle.stuecke === 1 ? '' : 'e'}, alles lose — nichts zu schrauben, nichts zu kleben</div>${bild}
+    <p>Wo ein Teil an einem anderen endet, greifen sie mit einem <b>Schwalbenschwanz</b> ineinander: das durchgehende Teil hat eine Nut in der Fläche, das anstossende eine Leiste am Ende — <b>von vorne einschieben</b>, sitzt. Wo Zwischenboden und Trennwand sich kreuzen, ein <b>Steckkreuz</b> (Schlitze bis zur halben Tiefe). Jedes Teil lässt sich wieder herausziehen und in eine andere Nut setzen.</p>
     ${n ? `<ol>${schritte}</ol>` : '<p>Noch keine Trennwände — Fach anklicken zum Teilen.</p>'}
-    ${P.boden ? `<p><b>Bodenplatte${aktuelle.boden.stuecke.length > 1 ? ` (${aktuelle.boden.stuecke.length} Stücke, lose nebeneinander — das Gitter hält sie zusammen)` : ''}:</b> Nuten ${P.bodenNuten === 'v' ? 'längs' : 'quer'} im 10-mm-Raster, an der Kante offen. Das fertig gesteckte Gitter als Ganzes ${P.bodenNuten === 'v' ? 'von vorne' : 'von der Seite'} hineinschieben — die Trennwände ${P.bodenNuten === 'v' ? 'längs' : 'quer'} tragen unten die passende Leiste.</p>` : ''}
+    ${P.boden ? `<p><b>Rückwand${aktuelle.boden.stuecke.length > 1 ? ` (${aktuelle.boden.stuecke.length} Stücke, lose nebeneinander — das Regal hält sie zusammen)` : ''}:</b> Nuten ${P.bodenNuten === 'v' ? 'senkrecht' : 'waagrecht'} im 10-mm-Raster, an der Kante offen. Das fertig gesteckte Regal ausserhalb des Schranks ${P.bodenNuten === 'v' ? 'von oben' : 'von der Seite'} auf die Rückwand schieben — die ${P.bodenNuten === 'v' ? 'senkrechten Trennwände' : 'Zwischenböden'} tragen hinten die passende Leiste.</p>` : ''}
     <p style="font-size:12px">Die Passung (0.2 mm Spiel) ist noch im Drucktest. Sitzt eine Wand zu stramm, hilft ein Tropfen Spülmittel — zu locker: sag es uns, wir drucken nach.</p>`;
   btns.innerHTML = '';
   const ok = document.createElement('button'); ok.className = 'm-primary'; ok.textContent = 'Alles klar'; ok.onclick = schliesseModal; btns.append(ok);
@@ -551,22 +615,72 @@ function baueLabels() {
   const A = aktuelle.A, z0 = P.boden ? P.bodenDicke : 0;
   const mk = (cls) => { const d = document.createElement('div'); d.className = 'lbl' + (cls ? ' ' + cls : ''); labelHost.appendChild(d); return d; };
   const zahl = (t) => { const s = document.createElement('span'); s.textContent = t; return s; };
+  const W = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(regalM);   // Gitter → Welt
   const haupt = mk('haupt');
   const zB = zahl(String(P.b)), zT = zahl(String(P.t)), zH = zahl(String(P.h));
-  machEditierbar(zB, 'Aussenbreite in mm', (v) => { P.b = klemm(v, 60, 450); rebuild(); });
-  machEditierbar(zT, 'Aussentiefe in mm', (v) => { P.t = klemm(v, 60, 350); rebuild(); });
-  machEditierbar(zH, 'Aussenhöhe in mm', (v) => { P.h = klemm(v, 20, 350); rebuild(); });
-  haupt.append(zB, ' × ', zT, ' × ', zH, ' mm aussen');
-  labelDaten.push({ el: haupt, p: new THREE.Vector3(0, -P.t / 2 - 22, 0) });
+  machEditierbar(zB, 'Breite des Einsatzes in mm', (v) => { P.b = klemm(v, 60, 450); rebuild(); });
+  machEditierbar(zT, 'Höhe des Einsatzes in mm', (v) => { P.t = klemm(v, 60, 350); rebuild(); });
+  machEditierbar(zH, 'Tiefe des Einsatzes in mm', (v) => { P.h = klemm(v, 20, 350); rebuild(); });
+  haupt.append('Einsatz ', zB, ' × ', zH, ' × ', zT, ' mm (B × T × H)');
+  labelDaten.push({ el: haupt, p: W(0, -P.t / 2 - 10, P.h + 16) });
   for (const f of A.faecher) {
-    const el = mk(); el.textContent = `${(f.x1 - f.x0).toFixed(0)}×${(f.y1 - f.y0).toFixed(0)}`;
-    labelDaten.push({ el, p: new THREE.Vector3((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, z0 + 1) });
+    const el = mk();
+    const zW = zahl((f.x1 - f.x0).toFixed(0)), zD = zahl((f.y1 - f.y0).toFixed(0));
+    machEditierbar(zW, 'Fachbreite in mm — verschiebt die Trennwand daneben (millimetergenau)', (v) => setzeFachMass(f, 'w', v));
+    machEditierbar(zD, 'Fachhöhe in mm — verschiebt den Zwischenboden darüber (millimetergenau)', (v) => setzeFachMass(f, 'd', v));
+    el.append(zW, '×', zD);
+    labelDaten.push({ el, p: W((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2, z0 + (P.h - z0) * 0.5) });
   }
+  // Schrank-Innenmass an der hinteren Oberkante, ebenfalls editierbar
+  const sk = mk('haupt'); sk.style.opacity = '.85';
+  const kB = zahl(String(P.sb)), kT = zahl(String(P.st)), kH = zahl(String(P.sh));
+  machEditierbar(kB, 'Schrankbreite innen in mm', (v) => { P.sb = klemm(v, 80, 600); rebuild(); });
+  machEditierbar(kT, 'Schranktiefe innen in mm', (v) => { P.st = klemm(v, 80, 450); rebuild(); });
+  machEditierbar(kH, 'Schrankhöhe innen in mm', (v) => { P.sh = klemm(v, 30, 500); rebuild(); });
+  sk.append('Schrank innen ', kB, ' × ', kT, ' × ', kH, ' mm');
+  labelDaten.push({ el: sk, p: new THREE.Vector3(0, P.st / 2 + 8, P.sh + 22) });
+  // Offene Front markieren — sonst liest man den Kasten leicht als Wanne von oben
+  const of = mk(); of.textContent = '▼ Front · offen'; of.style.color = 'var(--acc)'; of.style.borderColor = 'var(--acc)';
+  labelDaten.push({ el: of, p: new THREE.Vector3(0, -P.st / 2 - 8, P.sh + 22) });
   aktuelle.teile.forEach(({ teil }, i) => {
     const el = mk('nr'); el.textContent = String(i + 1);
     const m = (teil.lo + teil.hi) / 2;
-    labelDaten.push({ el, p: new THREE.Vector3(teil.dir === 'v' ? teil.c : m, teil.dir === 'v' ? m : teil.c, P.h + 2 + (teil.versatz || 0)) });
+    labelDaten.push({ el, p: W(teil.dir === 'v' ? teil.c : m, teil.dir === 'v' ? m : teil.c, P.h + 2 + (teil.versatz || 0)) });
   });
+}
+// Fachmass setzen: die Trennwand an der rechten/hinteren Fachkante wird so
+// verschoben, dass das Fach den Zielwert bekommt (sonst die linke/vordere);
+// millimetergenau. Ohne bewegliche Wand in dieser Richtung ändert
+// sich das Gittermass (wie beim Schubladen-Organizer).
+function setzeFachMass(f, dim, wert) {
+  const A = aktuelle.A, v = dim === 'w';
+  const groesse = v ? f.x1 - f.x0 : f.y1 - f.y0;
+  const linien = v ? A.rasterX : A.rasterY;
+  const schonUngueltig = new Set(A.ungueltig);
+  const versuch = (b, ziel) => {
+    if (b.typ !== 'trenn' || b.id < 0 || !linien.length) return false;
+    const w = trenn.find((x) => x.id === b.id); if (!w) return false;
+    const c = linien.reduce((q, l) => (Math.abs(l - ziel) < Math.abs(q - ziel) ? l : q), linien[0]);
+    const alt = w.c; w.c = c;
+    if (aufteilung(P, trenn).ungueltig.some((id) => !schonUngueltig.has(id))) { w.c = alt; return false; }
+    return true;
+  };
+  snapshot();
+  if (versuch(v ? f.b.rechts : f.b.hinten, (v ? f.x0 : f.y0) + wert + P.ts / 2)) { rebuild(); return; }
+  if (versuch(v ? f.b.links : f.b.vorne, (v ? f.x1 : f.y1) - wert - P.ts / 2)) { rebuild(); return; }
+  // Keine bewegliche Wand in dieser Richtung (nur Rand oder Aussenwand):
+  // dann ändert sich das Aussenmass des Einsatzes — aber nur, wenn das
+  // keine andere Wand ungültig macht (sonst Hinweis statt Umbau)
+  const beweglich = (b) => b.typ === 'trenn' && b.id > 0;
+  if (beweglich(v ? f.b.rechts : f.b.hinten) || beweglich(v ? f.b.links : f.b.vorne)) {
+    undoStack.pop(); syncTopbar();
+    hudLive(`⚠ Dieses Mass lässt sich so nicht setzen — ${v ? 'die Trennwand daneben' : 'der Boden darüber'} würde einem anderen Teil zu nahe kommen (Fächer mindestens ${FACH_MIN} mm).`);
+    return;
+  }
+  const altB = P.b, altT = P.t;
+  if (v) P.b = klemm(P.b + (wert - groesse), 60, 450); else P.t = klemm(P.t + (wert - groesse), 60, 350);
+  if (aufteilung(P, trenn).ungueltig.some((id) => !schonUngueltig.has(id))) { P.b = altB; P.t = altT; undoStack.pop(); syncTopbar(); hudLive('⚠ So klein geht es nicht — ein Teil hätte keinen Platz mehr.'); return; }
+  rebuild();
 }
 function updateLabels() {
   if (!labelDaten.length) return;
@@ -583,7 +697,7 @@ document.getElementById('btnExplode').addEventListener('click', () => { explode 
 function fuegeEin(dir) {
   const A = aktuelle.A;
   const kandidaten = A.faecher.filter((f) => teilLage(A, f, dir) != null).sort((p, q) => (q.x1 - q.x0) * (q.y1 - q.y0) - (p.x1 - p.x0) * (p.y1 - p.y0));
-  if (!kandidaten.length) { hudLive(`⚠ Kein Fach ist breit genug für eine weitere ${dir === 'v' ? 'Längs' : 'Quer'}wand (mindestens ${2 * FACH_MIN} mm).`); return; }
+  if (!kandidaten.length) { hudLive(`⚠ Kein Fach ist ${dir === 'v' ? 'breit' : 'hoch'} genug für ${dir === 'v' ? 'eine weitere Trennwand' : 'einen weiteren Zwischenboden'} (mindestens ${2 * FACH_MIN} mm).`); return; }
   neueTrennwand(kandidaten[0], dir);
 }
 document.getElementById('plusV').addEventListener('click', () => fuegeEin('v'));
@@ -602,15 +716,18 @@ function strahl(ev) {
 function pick(ev) {
   strahl(ev);
   const hit = grp ? ray.intersectObjects(grp.children)[0] : null;
-  return hit ? { obj: hit.object, x: hit.point.x, y: hit.point.y, z: hit.point.z } : null;
+  if (!hit) return null;
+  const q = hit.point.clone().applyMatrix4(regalInv);        // Welt → Gitterkoordinaten
+  return { obj: hit.object, x: q.x, y: q.y, z: q.z };
 }
 // Schnitt mit einer waagrechten Ebene auf Höhe des Anfasspunkts — nicht mit
 // dem Boden: der Strahl träfe den Boden hinter der Trennwand, sie spränge nach hinten.
+// Ebene in Gitter-Tiefe z (= Welt-Ebene y = st/2 − z), Ergebnis in Gitterkoordinaten
 function ebenenPunkt(ev, z) {
   strahl(ev);
-  ebene.constant = -z;
+  ebene.normal.set(0, 1, 0); ebene.constant = -(P.st / 2 - z);
   const p = new THREE.Vector3();
-  return ray.ray.intersectPlane(ebene, p) ? p : null;
+  return ray.ray.intersectPlane(ebene, p) ? p.applyMatrix4(regalInv) : null;
 }
 // Teilstück eines Druckteils unter dem Zeiger (für Menü und Ziehen)
 function gliedAn(teil, p) {
@@ -624,6 +741,7 @@ renderer.domElement.addEventListener('pointerdown', (ev) => {
   const p = pick(ev); if (!p) { downAt = null; return; }
   downAt = { x: ev.clientX, y: ev.clientY, p };
   const art = p.obj.userData.art;
+  if (art === 'trenn' && p.obj.userData.teil.fest) { downAt.fest = p.obj.userData.teil; return; }   // Aussenwand: nur Menü, nicht ziehen
   if ((art === 'trenn' || art === 'geist') && !explode) {
     const ids = art === 'trenn' ? p.obj.userData.teil.glieder.map((g) => g.id) : [p.obj.userData.id];
     const ws = trenn.filter((x) => ids.includes(x.id)); if (!ws.length) return;
@@ -651,7 +769,7 @@ renderer.domElement.addEventListener('pointermove', (ev) => {
   const I = A.grund;
   const now = performance.now();
   if (now - lastBuild > 60) { lastBuild = now; rebuild(); }
-  hudLive(`Trennwand bei ${(w0.dir === 'v' ? c - I.x0 : c - I.y0).toFixed(0)} mm ${w0.dir === 'v' ? 'von links' : 'von vorne'} · rastet alle ${RASTER} mm ein`);
+  hudLive(`${w0.dir === 'v' ? 'Trennwand' : 'Zwischenboden'} bei ${(w0.dir === 'v' ? c - I.x0 : c - I.y0).toFixed(0)} mm ${w0.dir === 'v' ? 'von links' : 'von unten'} · millimetergenau`);
 });
 addEventListener('pointerup', (ev) => {
   if (drag) {
@@ -663,7 +781,8 @@ addEventListener('pointerup', (ev) => {
   }
   if (!downAt) return;
   const bewegt = Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 6;
-  const p = downAt.p; downAt = null;
+  const p = downAt.p, fest = downAt.fest; downAt = null;
+  if (!bewegt && fest) { zeigeAussenMenu(fest, ev.clientX, ev.clientY); return; }
   if (bewegt || !p || p.obj.userData.art !== 'boden') return;
   const f = fachAn(aktuelle.A, p.x, p.y);
   if (f) zeigeMenu(f, ev.clientX, ev.clientY);
@@ -681,33 +800,42 @@ const mb = (txt, fn, dis, title) => { const el = document.createElement('button'
 function neueTrennwand(f, dir) {
   const c = teilLage(aktuelle.A, f, dir); if (c == null) return;
   snapshot();
-  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (f.y0 + f.y1) / 2 : (f.x0 + f.x1) / 2 });
+  const key = (b) => (b.typ === 'trenn' ? b.id : 'rand');
+  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (f.y0 + f.y1) / 2 : (f.x0 + f.x1) / 2, zw: dir === 'v' ? [key(f.b.vorne), key(f.b.hinten)] : [key(f.b.links), key(f.b.rechts)] });
   rebuild();
 }
 function zeigeMenu(f, cx, cy) {
   const bw = (f.x1 - f.x0).toFixed(0), bt = (f.y1 - f.y0).toFixed(0);
   menu.innerHTML = `<div class="mtitle">FACH ${bw} × ${bt} MM</div>`;
   const kannV = teilLage(aktuelle.A, f, 'v') != null, kannH = teilLage(aktuelle.A, f, 'h') != null;
-  mb('◫  Senkrecht teilen (Trennwand längs)', () => neueTrennwand(f, 'v'), !kannV, kannV ? '' : `Zu schmal — Fächer sind mindestens ${FACH_MIN} mm breit`);
-  mb('⊟  Waagrecht teilen (Trennwand quer)', () => neueTrennwand(f, 'h'), !kannH, kannH ? '' : `Zu kurz — Fächer sind mindestens ${FACH_MIN} mm tief`);
-  const kannText = f.b.hinten.typ === 'trenn';
+  mb('◫  Senkrecht teilen (Trennwand)', () => neueTrennwand(f, 'v'), !kannV, kannV ? '' : `Zu schmal — Fächer sind mindestens ${FACH_MIN} mm breit`);
+  mb('⊟  Waagrecht teilen (Zwischenboden)', () => neueTrennwand(f, 'h'), !kannH, kannH ? '' : `Zu niedrig — Fächer sind mindestens ${FACH_MIN} mm hoch`);
+  const kannText = f.b.vorne.typ === 'trenn';
   const t = texte.find((x) => x.x > f.x0 && x.x < f.x1 && x.y > f.y0 && x.y < f.y1);
-  mb((t ? '● ' : '') + '✎  Beschriften …', () => zeigeLabelMenu(f, cx, cy), !kannText, kannText ? '' : 'Beschriftet wird die Querwand hinter dem Fach — dieses Fach hat keine');
+  mb((t ? '● ' : '') + '✎  Beschriften …', () => zeigeLabelMenu(f, cx, cy), !kannText, kannText ? '' : 'Beschriftet wird der Zwischenboden unter dem Fach — dieses Fach steht direkt auf dem Schrankboden');
+  platziereMenu(cx, cy);
+}
+const AUSSEN_NAME = { '-4': 'unten', '-3': 'oben', '-2': 'links', '-1': 'rechts' };
+function zeigeAussenMenu(teil, cx, cy) {
+  const seite = AUSSEN_NAME[String(teil.id)];
+  menu.innerHTML = `<div class="mtitle">AUSSENWAND ${seite.toUpperCase()} · fest am Rand</div>`;
+  mb('✕  Aussenwand entfernen', () => { snapshot(); P.aussen[seite] = false; rebuild(); });
+  mb('✓  Schliessen', () => {});
   platziereMenu(cx, cy);
 }
 function zeigeTrennMenu(ws, cx, cy) {
   gewaehlt = ws[0].id; rebuild();
   const nr = teilNr(ws[0].id);
   const teil = aktuelle.teile.find((x) => x.teil.glieder.some((g) => g.id === ws[0].id));
-  menu.innerHTML = `<div class="mtitle">TRENNWAND ${nr || '(ungültig)'} · ${ws[0].dir === 'v' ? 'LÄNGS' : 'QUER'}${teil ? ` · ${teil.t.L.toFixed(0)} MM` : ''}</div>`;
-  mb('✕  Trennwand entfernen', () => { snapshot(); const ids = ws.map((w) => w.id); trenn = trenn.filter((x) => !ids.includes(x.id)); gewaehlt = null; rebuild(); });
-  mb('↔  Verschieben: Trennwand mit der Maus ziehen', () => {}, true);
+  menu.innerHTML = `<div class="mtitle">TEIL ${nr || '(ungültig)'} · ${ws[0].dir === 'v' ? 'SENKRECHT' : 'ZWISCHENBODEN'}${teil ? ` · ${teil.t.L.toFixed(0)} MM` : ''}</div>`;
+  mb('✕  Teil entfernen', () => { snapshot(); const ids = ws.map((w) => w.id); trenn = trenn.filter((x) => !ids.includes(x.id)); gewaehlt = null; rebuild(); });
+  mb('↔  Verschieben: Teil mit der Maus ziehen', () => {}, true);
   mb('✓  Schliessen', () => { gewaehlt = null; rebuild(); });
   platziereMenu(cx, cy);
 }
 function zeigeLabelMenu(f, cx, cy) {
   const alt = texte.find((x) => x.x > f.x0 && x.x < f.x1 && x.y > f.y0 && x.y < f.y1);
-  menu.innerHTML = `<div class="mtitle">FACH BESCHRIFTEN (erhaben auf der Querwand dahinter)</div>`;
+  menu.innerHTML = `<div class="mtitle">FACH BESCHRIFTEN (erhaben vorne auf dem Boden des Fachs)</div>`;
   const inp = document.createElement('input');
   inp.type = 'text'; inp.maxLength = 16; inp.placeholder = 'z. B. Tassen · Teller · Bretter'; inp.value = alt?.txt || '';
   inp.style.cssText = 'width:100%;background:#17181b;border:1px solid var(--line);color:var(--ink);border-radius:5px;padding:7px 9px;font-size:12.5px;margin:4px 0 8px';
@@ -733,12 +861,12 @@ function zeigeLabelMenu(f, cx, cy) {
   platziereMenu(cx, cy); inp.focus();
 }
 
-// ---------- Draufsicht, Tastatur ----------
+// ---------- Frontansicht, Tastatur ----------
 let planModus = false, camSave = null;
 document.getElementById('btnPlan').addEventListener('click', () => {
   planModus = !planModus; document.getElementById('btnPlan').classList.toggle('active', planModus);
   if (korpus) korpus.traverse((o) => { if (o.userData.deckel) o.visible = !planModus; });
-  if (planModus) { camSave = { p: camera.position.clone(), t: controls.target.clone() }; camera.position.set(0, -1, Math.max(P.sb, P.st) * 1.3 + P.sh); controls.target.set(0, 0, 0); controls.enableRotate = false; }
+  if (planModus) { camSave = { p: camera.position.clone(), t: controls.target.clone() }; camera.position.set(0, -(Math.max(P.sb, P.sh) * 1.5 + P.st / 2), P.sh / 2); controls.target.set(0, 0, P.sh / 2); controls.enableRotate = false; }
   else { if (camSave) { camera.position.copy(camSave.p); controls.target.copy(camSave.t); } controls.enableRotate = !(mobil && mobil.bearbeiten()); }
   controls.update();
 });
@@ -769,22 +897,23 @@ function teileFach(f, dir, anteil) {
   const linien = (dir === 'v' ? A.rasterX : A.rasterY).filter((c) => c - lo >= FACH_MIN - 1e-6 && hi - c >= FACH_MIN - 1e-6);
   if (!linien.length) return null;
   const c = linien.reduce((b, l) => (Math.abs(l - zielC) < Math.abs(b - zielC) ? l : b), linien[0]);
-  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (ff.y0 + ff.y1) / 2 : (ff.x0 + ff.x1) / 2 });
+  const key = (b) => (b.typ === 'trenn' ? b.id : 'rand');
+  trenn.push({ id: naechsteId++, dir, c, m: dir === 'v' ? (ff.y0 + ff.y1) / 2 : (ff.x0 + ff.x1) / 2, zw: dir === 'v' ? [key(ff.b.vorne), key(ff.b.hinten)] : [key(ff.b.links), key(ff.b.rechts)] });
   const A2 = aufteilung(P, trenn);
   return A2.faecher.filter((x) => x.x0 >= ff.x0 - 1e-6 && x.x1 <= ff.x1 + 1e-6 && x.y0 >= ff.y0 - 1e-6 && x.y1 <= ff.y1 + 1e-6);
 }
 const VORLAGEN = {
   'Leer': () => {},
-  // Querwand mitte, zwei längs durchgehend (Steckkreuze) → 2×3 Fächer
-  'Teller & Schüsseln': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return;
+  // Zwischenboden mitte, zwei senkrechte Trennwände durchgehend (Steckkreuze) → 2×3 Fächer
+  'Tassen & Teller': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return;
     for (const g of t) { const u = teileFach(g, 'v', 1 / 3); if (u) teileFach(u[1], 'v', 0.5); } },
-  // Querwand mitte, vorne und hinten viele schmale Fächer für Bretter/Bleche
+  // Zwischenboden mitte, oben und unten viele schmale Fächer für Bretter/Bleche
   'Bretter & Bleche': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return;
     for (const g of t) { let r = g; const n = Math.max(1, Math.min(6, Math.floor((g.x1 - g.x0) / 30) - 1));
       for (let i = 0; i < n; i++) { const u = teileFach(r, 'v', 30 / (r.x1 - r.x0)); if (!u) break; r = u[1]; } } },
-  // Raster 2×2: Querwand mitte, Längswand durchgehend
+  // Raster 2×2: Zwischenboden mitte, Trennwand durchgehend
   'Vorräte 2×2': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.5); if (!t) return; teileFach(t[0], 'v', 0.5); teileFach(t[1], 'v', 0.5); },
-  // Querwand bei 30 %, hinten zwei Längswände mit Schwalbenschwanz (T-Stösse)
+  // Zwischenboden bei 30 %, darüber zwei Trennwände mit Schwalbenschwanz (T-Stösse)
   'Deckel & Dosen': () => { const f = aufteilung(P, []).faecher[0]; const t = teileFach(f, 'h', 0.3); if (!t) return; const u = teileFach(t[1], 'v', 1 / 3); if (u) teileFach(u[1], 'v', 0.5); },
 };
 const vh = document.getElementById('vorlagen');
@@ -802,17 +931,29 @@ async function dreiMF(koerper) {
   return zip.generateAsync({ type: 'blob', mimeType: 'model/3mf', compression: 'DEFLATE', compressionOptions: { level: 9 } });
 }
 // Trennwände liegend nebeneinander in EINER Datei, je Wand ein Objekt
+// Beschriftete Zwischenböden werden um 180° um ihre Längsachse gedreht
+// exportiert: die Schrift sitzt auf der Z=0-Fläche (im Regal die Oberseite)
+// und muss beim Drucken oben liegen. Schwalbenschwanz und Zapfen sind
+// spiegelsymmetrisch, die Nut-Flanken bleiben druckbar (48°).
+function gedreht(mesh, th, ts) {
+  const pos = new Float32Array(mesh.pos);
+  for (let i = 0; i < pos.length; i += 3) { pos[i + 1] = th - pos[i + 1]; pos[i + 2] = ts - pos[i + 2]; }
+  return { ...mesh, pos };
+}
 function trennKoerper() {
   const out = []; let dx = 0;
   aktuelle.teile.forEach(({ teil, t }, i) => {
-    const k = t.stuecke.length;
-    t.stuecke.forEach((st, j) => { out.push({ name: `Trennwand ${i + 1} (${teil.dir === 'v' ? 'längs' : 'quer'})${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: verschoben(st.mesh, dx - st.xa, -st.ya, 0) }); dx += (st.xb - st.xa) + 14; });
+    const k = t.stuecke.length, hatText = aktuelle.texte.some((x) => x.teil === teil);
+    t.stuecke.forEach((st, j) => {
+      const m = hatText ? gedreht(st.mesh, t.th, P.ts) : st.mesh;
+      out.push({ name: `Teil ${i + 1} (${teil.dir === 'v' ? 'senkrecht' : 'Zwischenboden'})${hatText ? ' · Schrift oben' : ''}${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: verschoben(m, dx - st.xa, hatText ? -(t.th - st.yb) : -st.ya, 0) }); dx += (st.xb - st.xa) + 14;
+    });
   });
   return out;
 }
 function bodenKoerper() {
   const k = aktuelle.boden.stuecke.length;
-  return aktuelle.boden.stuecke.map((st, j) => ({ name: `Bodenplatte${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: st.mesh }));
+  return aktuelle.boden.stuecke.map((st, j) => ({ name: `Rückwand${k > 1 ? ` Stück ${j + 1}/${k}` : ''}`, mesh: st.mesh }));
 }
 function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 function blobB64(blob) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.readAsDataURL(blob); }); }
@@ -820,7 +961,7 @@ async function busy(btn, fn) { const alt = btn.textContent; btn.textContent = 'e
   try { await new Promise((r) => setTimeout(r, 30)); await fn(); } finally { btn.textContent = alt; btn.disabled = false; } }
 document.getElementById('ex3mf').addEventListener('click', () => busy(document.getElementById('ex3mf'), async () => {
   download(await dreiMF(trennKoerper()), 'kohlilab_schrank_trennwaende.3mf');
-  if (aktuelle.boden) { await new Promise((r) => setTimeout(r, 400)); download(await dreiMF(bodenKoerper()), 'kohlilab_schrank_boden.3mf'); }
+  if (aktuelle.boden) { await new Promise((r) => setTimeout(r, 400)); download(await dreiMF(bodenKoerper()), 'kohlilab_schrank_rueckwand.3mf'); }
 }));
 async function inWarenkorb() {
   const dateien = { trennwaende: await blobB64(await dreiMF(trennKoerper())) };
@@ -829,9 +970,9 @@ async function inWarenkorb() {
   const n = aktuelle.teile.length, I = aktuelle.A.grund;
   const cart = (window.top && window.top.KCart) || window.KCart;
   await cart.add({
-    typ: 'schrank', titel: `Küchenschrank-Einsatz · ${P.b}×${P.t}×${P.h} mm · ${n} ${n === 1 ? 'Trennwand' : 'Trennwände'}${P.boden ? ' + Bodenplatte' : ''}`,
+    typ: 'schrank', titel: `Küchenschrank-Einsatz · ${P.b}×${P.h}×${P.t} mm (B×T×H) · ${n} Teil${n === 1 ? '' : 'e'}${P.boden ? ' + Rückwand' : ''}`,
     menge: 1, gesamtRappen: rappen, stueckRappen: rappen,
-    konfig: { masse: `${P.b}×${P.t}×${P.h}`, schrank: `${P.sb}×${P.st}×${P.sh}`, ts: P.ts, boden: P.boden, bodenDicke: P.boden ? P.bodenDicke : undefined, bodenNuten: P.boden ? P.bodenNuten : undefined,
+    konfig: { masse: `${P.b}×${P.h}×${P.t}`, schrank: `${P.sb}×${P.st}×${P.sh}`, aussen: Object.keys(P.aussen).filter((k) => P.aussen[k]), ts: P.ts, boden: P.boden, bodenDicke: P.boden ? P.bodenDicke : undefined, bodenNuten: P.boden ? P.bodenNuten : undefined,
               trennwaende: n, stuecke: aktuelle.stuecke, bodenStuecke: aktuelle.boden ? aktuelle.boden.stuecke.length : 0, faecher: aktuelle.A.faecher.length,
               waende: aktuelle.teile.map(({ teil, t }) => ({ dir: teil.dir, lage: +(teil.dir === 'v' ? teil.c - I.x0 : teil.c - I.y0).toFixed(1), laenge: +t.L.toFixed(1),
                                                             leisten: t.leisten.filter(Boolean).length, nuten: teil.nuten.length, kreuz: teil.kreuz.length + teil.schlitzeOben.length, stuecke: t.stuecke.length })),
@@ -850,16 +991,15 @@ const klemm = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
 const klemmF = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v * 2) / 2));
 function slider(id, key) { $(id).value = P[key]; $(id).addEventListener('input', () => { P[key] = parseFloat($(id).value); rebuild(); }); }
 function syncUI() {
-  $('bodenDickeRow').style.display = P.boden ? '' : 'none';
-  $('bodenNutenRow').style.display = P.boden ? '' : 'none';
-  $('farbeBodenFeld').style.display = P.boden ? '' : 'none';
-  $('b').max = Math.min(450, P.sb); $('t').max = Math.min(350, P.st); $('h').max = Math.min(350, P.sh);
-  for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts'], ['bodenDicke', 'bodenDicke']]) {
+  $('b').max = Math.min(450, P.sb); $('t').max = Math.min(350, P.sh); $('h').max = Math.min(350, P.st);
+  for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts']]) {
     if (parseFloat($(id).value) !== P[key]) $(id).value = P[key];
-    $(id + 'V').textContent = P[key] + ' mm';
+    const feld = $(id + 'V');
+    if (feld.tagName === 'INPUT') { if (document.activeElement !== feld && parseFloat(feld.value) !== P[key]) feld.value = P[key]; }
+    else feld.textContent = P[key] + ' mm';
   }
-  $('bodenArt').querySelectorAll('button').forEach((b) => b.classList.toggle('active', (b.dataset.boden === '1') === P.boden));
-  $('bodenNuten').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.dir === P.bodenNuten));
+  $('bV').max = Math.min(450, P.sb); $('tV').max = Math.min(350, P.sh); $('hV').max = Math.min(350, P.st);
+  for (const seite of ['unten', 'oben', 'links', 'rechts']) $('aw-' + seite).classList.toggle('active', !!P.aussen[seite]);
 }
 function farbUI(hostId, key) {
   const host = $(hostId);
@@ -882,18 +1022,19 @@ function tippbar(spanId, titel, anwenden) {
     inp.addEventListener('blur', () => ende(true));
   });
 }
-for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts'], ['bodenDicke', 'bodenDicke']]) slider(id, key);
-tippbar('sbV', 'Schrankbreite innen eintippen (80–600 mm)', (v) => { P.sb = klemm(v, 80, 600); rebuild(); });
-tippbar('stV', 'Schranktiefe innen eintippen (80–450 mm)', (v) => { P.st = klemm(v, 80, 450); rebuild(); });
-tippbar('shV', 'Schrankhöhe innen eintippen (30–500 mm)', (v) => { P.sh = klemm(v, 30, 500); rebuild(); });
-$('bodenArt').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { P.boden = b.dataset.boden === '1'; rebuild(); }));
-$('bodenNuten').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { P.bodenNuten = b.dataset.dir; rebuild(); }));
-tippbar('bV', 'Breite eintippen (60–450 mm)', (v) => { P.b = klemm(v, 60, 450); rebuild(); });
-tippbar('tV', 'Tiefe eintippen (60–350 mm)', (v) => { P.t = klemm(v, 60, 350); rebuild(); });
-tippbar('hV', 'Höhe eintippen (20–350 mm)', (v) => { P.h = klemm(v, 20, 350); rebuild(); });
+for (const [id, key] of [['sb', 'sb'], ['st', 'st'], ['sh', 'sh'], ['b', 'b'], ['t', 't'], ['h', 'h'], ['ts', 'ts']]) slider(id, key);
+// Millimeter-Felder: Enter oder Verlassen übernimmt, Regler folgt
+function mmFeld(id, key, lo, hi) {
+  const f = $(id + 'V');
+  const uebernehmen = () => { const v = parseFloat(String(f.value).replace(',', '.')); if (isFinite(v)) { P[key] = klemm(v, lo, hi); rebuild(); } else syncUI(); };
+  f.addEventListener('change', uebernehmen);
+  f.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); f.blur(); } });
+}
+mmFeld('sb', 'sb', 80, 600); mmFeld('st', 'st', 80, 450); mmFeld('sh', 'sh', 30, 500);
+mmFeld('b', 'b', 60, 450); mmFeld('t', 't', 60, 350); mmFeld('h', 'h', 20, 350);
+$('aussenWaende').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { snapshot(); P.aussen[b.dataset.seite] = !P.aussen[b.dataset.seite]; rebuild(); }));
 tippbar('tsV', 'Wanddicke eintippen (4–6 mm)', (v) => { P.ts = klemmF(v, 4, 6); rebuild(); });
-tippbar('bodenDickeV', 'Plattenstärke eintippen (2.5–5 mm)', (v) => { P.bodenDicke = klemmF(v, 2.5, 5); rebuild(); });
-farbUI('swFarbeTrenn', 'farbeTrenn'); farbUI('swFarbeBoden', 'farbeBoden'); farbUI('swFarbeText', 'farbeText');
+farbUI('swFarbeTrenn', 'farbeTrenn'); farbUI('swFarbeText', 'farbeText');
 
 // ---------- Konfiguration als Link (#k=), wie beim Organizer ----------
 const b64u = (bytes) => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -919,7 +1060,7 @@ async function hashLesen() {
     const json = art === 'z' ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text() : new TextDecoder().decode(bytes);
     const o = JSON.parse(json);
     if (o.v !== 2 || !Array.isArray(o.trenn)) return false;       // v1 = frühere Wannen-Fassung, nicht mehr lesbar
-    Object.assign(P, o.P || {}); trenn = o.trenn; texte = Array.isArray(o.texte) ? o.texte : []; naechsteId = o.n || (Math.max(0, ...trenn.map((t) => t.id)) + 1);
+    Object.assign(P, o.P || {}); if (!P.aussen || !('unten' in P.aussen)) P.aussen = { unten: false, oben: false, links: false, rechts: false }; trenn = o.trenn; texte = Array.isArray(o.texte) ? o.texte : []; naechsteId = o.n || (Math.max(0, ...trenn.map((t) => t.id)) + 1);
     return true;
   } catch (e) { return false; }
 }
@@ -933,19 +1074,19 @@ async function linkTeilen() {
 // ---------- Mobil-Modus (gemeinsames Modul) ----------
 const mobil = mobilModus({
   view, controls, titel: 'Küchenschrank-Einsatz', linkTeilen,
-  bearbeiten: { tippDreh: '🔄 1 Finger drehen · 2 Finger zoomen', tippEdit: '✏️ Fach antippen = teilen · Trennwand ziehen = verschieben · 2 Finger = zoomen' },
-  tipps: ['<b>🔄 Drehen</b> — 1 Finger dreht das Gitter, 2 Finger zoomen.',
-          '<b>✏️ Bearbeiten</b> — Fach antippen öffnet das Menü: teilen, beschriften. Trennwände lassen sich direkt ziehen und rasten alle 10 mm ein.',
+  bearbeiten: { tippDreh: '🔄 1 Finger drehen · 2 Finger zoomen', tippEdit: '✏️ Fach antippen = teilen · Teil ziehen = verschieben · 2 Finger = zoomen' },
+  tipps: ['<b>🔄 Drehen</b> — 1 Finger dreht den Einsatz, 2 Finger zoomen.',
+          '<b>✏️ Bearbeiten</b> — Fach antippen öffnet das Menü: teilen, beschriften. Böden und Böden und Trennwände lassen sich direkt ziehen, millimetergenau.',
           '<b>⚙️ Menü</b> — Masse, Aufbau, Vorlagen, Farben, Preis und <b>In den Warenkorb</b>.'],
 });
 
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize);
 hashLesen().then((ok) => {
-  if (!ok) VORLAGEN['Teller & Schüsseln']();
+  if (!ok) VORLAGEN['Tassen & Teller']();
   rebuild();
   // Start-Kamera: leicht seitlich, durch die offene Front in den Schrank hinein
-  const d = Math.max(P.sb, P.st); camera.position.set(d * 0.3, -d * 2.1, P.sh * 0.8 + d * 0.25); controls.target.set(0, 0, P.sh * 0.35);
+  const d = Math.max(P.sb, P.sh); camera.position.set(d * 0.35, -(d * 1.9 + P.st / 2), P.sh * 0.75 + d * 0.2); controls.target.set(0, 0, P.sh * 0.45);
   resize();
 });
 (function loop() { requestAnimationFrame(loop); controls.update(); key.position.set(camera.position.x + 80, camera.position.y + 120, Math.abs(camera.position.z) + 260); updateLabels(); renderer.render(scene, camera); })();
@@ -961,7 +1102,8 @@ window.__kamera = (p, t) => { camera.position.fromArray(p); controls.target.from
 (function () {
   const SCHLUESSEL = 'werkstatt-0310634825f0';
   const frage = new URLSearchParams(location.search);
-  let frei = frage.get('export') === SCHLUESSEL;
+  // Lokal (Dev-Server) ist der Export immer frei — zum Testdrucken (Manolo 16.09.2026)
+  let frei = frage.get('export') === SCHLUESSEL || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   try { if (frei) sessionStorage.setItem('kl_export', SCHLUESSEL); else frei = sessionStorage.getItem('kl_export') === SCHLUESSEL; } catch (e) {}
   if (frei) return;
   const gruppe = document.getElementById('exportGrp');

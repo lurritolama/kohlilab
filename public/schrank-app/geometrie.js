@@ -33,11 +33,14 @@
 // (Schwalbenschwanz) — so sind alle Fächer Rechtecke und die Steck-Reihen-
 // folge ist eindeutig (erst die älteren, dann die jüngeren, alle von oben).
 //
-// Koordinaten: x = Breite, y = Tiefe (−y = vorne, zum Betrachter), z = Höhe;
-// Ursprung mitten in der Grundfläche (z = 0 unten). Druckteile werden
-// LIEGEND beschrieben (Druck-Lage): X = längs, Y = Höhe, Z = Dicke.
+// GITTER-Koordinaten: x = Breite, y = zweite Gitterachse, z = Plattenhöhe.
+// Das Gitter steht als REGAL im Schrank (Manolo 16.09.2026: «wie ein
+// Schubladeneinsatz» war falsch): die App dreht es um 90° um x — Gitter-y
+// wird zur Höhe (Zwischenböden = 'h'-Wände), Gitter-z zur Tiefe (alle
+// Verbindungen werden von VORNE gesteckt), Gitter-z=0 liegt an der Rückwand.
+// Druckteile werden LIEGEND beschrieben (Druck-Lage): X = längs, Y = Höhe, Z = Dicke.
 
-export const RASTER = 10;                      // Nutabstand der Bodenplatte / Rasterlagen
+export const RASTER = 1;                       // Lagen millimetergenau (Manolo 16.09.2026; das 10-mm-Raster galt der Bodenplatte, die es nicht mehr gibt)
 export const FACH_MIN = 20;                    // schmalstes Fach (2 Rasterschritte)
 export const DOVE = {                          // Schwalbenschwanz Trennwand–Trennwand
   kd: 2.0,        // Nuttiefe in der Fläche der durchgehenden Wand
@@ -55,13 +58,10 @@ export const BETT = { x: 290, y: 310 };        // H2D 2-Düsen-Betrieb, mit Marg
 export function grundflaeche(P) {
   return { x0: -P.b / 2, x1: P.b / 2, y0: -P.t / 2, y1: P.t / 2, z0: P.boden ? P.bodenDicke : 0, z1: P.h };
 }
-/** Rasterlinien zwischen zwei Kanten, symmetrisch verteilt. */
+/** Zulässige Lagen zwischen zwei Kanten: ganze Millimeter, je RASTER. */
 export function rasterLinien(lo, hi) {
-  const L = hi - lo;
-  if (L < 2 * RASTER) return [];
-  const off = ((L % RASTER) / 2);
   const out = [];
-  for (let c = lo + off + RASTER; c <= hi - off - RASTER + 1e-6; c += RASTER) out.push(Math.round(c * 1000) / 1000);
+  for (let c = Math.ceil(lo + 1); c <= Math.floor(hi - 1) + 1e-6; c += RASTER) out.push(c);
   return out;
 }
 export function passtAufBett(P) {
@@ -77,11 +77,40 @@ export function aufteilung(P, trenn) {
   const faecher = [{ x0: I.x0, x1: I.x1, y0: I.y0, y1: I.y1,
     b: { links: { typ: 'rand' }, rechts: { typ: 'rand' }, vorne: { typ: 'rand' }, hinten: { typ: 'rand' } } }];
   const waende = [], ungueltig = [];
+  // AUSSENWÄNDE (Manolo 16.09.2026, je Seite wählbar): lange Trennwände ohne
+  // Querverbindung tragen wenig — Aussenwände geben dem Gitter einen Rahmen.
+  // Sie sind die ältesten Wände (ids −4…−1, `fest`): unten/oben gehen
+  // durch, links/rechts laufen bis zur Kante und ÜBERBLATTEN sich mit ihnen
+  // in den Ecken wie ein Steckkreuz (Schlitz von vorne im Boden/Deckel, von
+  // hinten in der Seitenwand) — eine Schwalbenschwanz-Nut so dicht an der
+  // Plattenkante hätte auf einer Seite keinen Hinterschnitt (17.09.2026).
+  // Das Grundfach schrumpft um die Wanddicke, jüngere Wände enden an den
+  // Aussenwänden wie an jeder älteren Wand (Nut in der Aussenwand).
+  const AW = P.aussen || {}, rand = { typ: 'rand' }, root = faecher[0];
+  const ID = { unten: -4, oben: -3, links: -2, rechts: -1 };   // unten/oben = Rack-Boden/-Deckel (im Gitter-Koordinatensystem y0/y1)
+  const aussenWand = (id, dir, c, lo, hi, e0, e1) => {
+    const eckKreuz = [];                          // Ecke: Schlitz von hinten in dieser Wand, von vorne in der anderen
+    for (const e of [e0, e1]) if (e.typ === 'ecke') { const q = waende.find((x) => x.id === e.id); q.eckSchlitze.push(c); eckKreuz.push(q.c); }
+    waende.push({ id, dir, c, lo, hi, enden: [e0, e1], nuten: [], eckSchlitze: [], eckKreuz, mNeu: (lo + hi) / 2, fest: true });
+  };
+  if (AW.unten) { aussenWand(ID.unten, 'h', I.y0 + ts / 2, I.x0, I.x1, rand, rand); root.y0 = I.y0 + ts; root.b.vorne = { typ: 'trenn', id: ID.unten }; }
+  if (AW.oben) { aussenWand(ID.oben, 'h', I.y1 - ts / 2, I.x0, I.x1, rand, rand); root.y1 = I.y1 - ts; root.b.hinten = { typ: 'trenn', id: ID.oben }; }
+  const eV = AW.unten ? { typ: 'ecke', id: ID.unten } : rand, eH = AW.oben ? { typ: 'ecke', id: ID.oben } : rand;
+  if (AW.links) { aussenWand(ID.links, 'v', I.x0 + ts / 2, I.y0, I.y1, eV, eH); root.x0 = I.x0 + ts; root.b.links = { typ: 'trenn', id: ID.links }; }
+  if (AW.rechts) { aussenWand(ID.rechts, 'v', I.x1 - ts / 2, I.y0, I.y1, eV, eH); root.x1 = I.x1 - ts; root.b.rechts = { typ: 'trenn', id: ID.rechts }; }
   const sortiert = [...trenn].sort((a, b) => a.id - b.id);
   for (const w of sortiert) {
     const v = w.dir === 'v';
+    // Fach finden: zuerst über die gemerkten Nachbarn (zw = [Anfang, Ende] als
+    // Wand-id oder 'rand') — so bleibt ein Teil in seinem Fach, auch wenn die
+    // ältere Wand daran über den Anker hinaus verschoben wird; sonst über den Anker.
+    const key = (b) => (b.typ === 'trenn' ? b.id : 'rand');
     let r = null;
-    for (const f of faecher) {
+    if (Array.isArray(w.zw)) {
+      r = faecher.find((f) => (v ? (w.c > f.x0 && w.c < f.x1) : (w.c > f.y0 && w.c < f.y1))
+        && key(v ? f.b.vorne : f.b.links) === w.zw[0] && key(v ? f.b.hinten : f.b.rechts) === w.zw[1]) || null;
+    }
+    if (!r) for (const f of faecher) {
       const innenQuer = v ? (w.c > f.x0 && w.c < f.x1) : (w.c > f.y0 && w.c < f.y1);
       const innenLaengs = v ? (w.m >= f.y0 - 1e-6 && w.m <= f.y1 + 1e-6) : (w.m >= f.x0 - 1e-6 && w.m <= f.x1 + 1e-6);
       if (innenQuer && innenLaengs) { r = f; break; }
@@ -100,7 +129,7 @@ export function aufteilung(P, trenn) {
       // k = 0: diese Wand liegt auf der +Seite der älteren (ihr lo = q.c + ts/2), k = 1: auf der −Seite
       if (k === 0) n.p = w.id; else n.m = w.id;
     });
-    waende.push({ id: w.id, dir: w.dir, c: w.c, lo: span[0], hi: span[1], enden, nuten: [], mNeu: (span[0] + span[1]) / 2 });
+    waende.push({ id: w.id, dir: w.dir, c: w.c, lo: span[0], hi: span[1], enden, nuten: [], mNeu: (span[0] + span[1]) / 2, zwNeu: [key(enden[0]), key(enden[1])] });
     const idx = faecher.indexOf(r);
     const a = { ...r, b: { ...r.b } }, b = { ...r, b: { ...r.b } };
     if (v) { a.x1 = w.c - ts / 2; a.b.rechts = { typ: 'trenn', id: w.id }; b.x0 = w.c + ts / 2; b.b.links = { typ: 'trenn', id: w.id }; }
@@ -134,11 +163,12 @@ function teileBilden(A) {
     }
     // Anschlüsse jüngerer Wände an dieses Teil: einseitig → Nut, beidseitig → Steckschlitz oben
     const nuten = [], schlitzeOben = [];
+    for (const g of glieder) { kreuz.push(...(g.eckKreuz || [])); schlitzeOben.push(...(g.eckSchlitze || [])); }   // Ecken der Aussenwände
     for (const g of glieder) for (const n of g.nuten) {
       if (n.m != null && n.p != null) schlitzeOben.push(n.c);
       else nuten.push({ c: n.c, seite: n.m != null ? -1 : +1, id: n.m ?? n.p });
     }
-    teile.push({ id: Math.min(...glieder.map((g) => g.id)), dir: erste.dir, c: erste.c, glieder,
+    teile.push({ id: Math.min(...glieder.map((g) => g.id)), dir: erste.dir, c: erste.c, glieder, fest: glieder.some((g) => g.fest),
       lo: erste.lo, hi: letzte.hi, endeLo: erste.enden[0], endeHi: letzte.enden[1], kreuz, nuten, schlitzeOben });
   }
   teile.sort((a, b) => a.id - b.id);
@@ -165,8 +195,8 @@ export function gruppen(A) {
   const chef = teile.map((_, i) => i);
   const find = (i) => { while (chef[i] !== i) i = chef[i]; return i; };
   teile.forEach((t, i) => {
-    for (const e of [t.endeLo, t.endeHi]) if (e.typ === 'trenn') chef[find(i)] = find(idx.get(e.id));
-    for (const g of t.glieder) for (const e of g.enden) if (e.typ === 'trenn') chef[find(i)] = find(idx.get(e.id));
+    for (const e of [t.endeLo, t.endeHi]) if (e.typ === 'trenn' || e.typ === 'ecke') chef[find(i)] = find(idx.get(e.id));
+    for (const g of t.glieder) for (const e of g.enden) if (e.typ === 'trenn' || e.typ === 'ecke') chef[find(i)] = find(idx.get(e.id));
   });
   return new Set(teile.map((_, i) => find(i))).size;
 }
@@ -242,17 +272,18 @@ function saeubern(poly) {
 function rechteckMitNuten(a0, a1, b0, b1, nuten, kd) {
   const oben = nuten.filter((n) => n.kante === 'oben').sort((x, y) => x.fl - y.fl);
   const unten = nuten.filter((n) => n.kante === 'unten').sort((x, y) => x.fl - y.fl);
+  const X = (x) => Math.min(a1, Math.max(a0, x));   // Kerbe an einer Naht: nur der Teil im Rechteck
   const pts = [[a0, b0]];
   for (const n of unten) {                       // Unterkante von links nach rechts
     const r = n.richtung;
-    if (r > 0) pts.push([n.fl, b0], [n.fl, b0 + kd], [n.fl + n.grund, b0 + kd], [n.fl + n.hals, b0]);
-    else pts.push([n.fl - n.hals, b0], [n.fl - n.grund, b0 + kd], [n.fl, b0 + kd], [n.fl, b0]);
+    if (r > 0) pts.push([X(n.fl), b0], [X(n.fl), b0 + kd], [X(n.fl + n.grund), b0 + kd], [X(n.fl + n.hals), b0]);
+    else pts.push([X(n.fl - n.hals), b0], [X(n.fl - n.grund), b0 + kd], [X(n.fl), b0 + kd], [X(n.fl), b0]);
   }
   pts.push([a1, b0], [a1, b1]);
   for (const n of [...oben].reverse()) {         // Oberkante von rechts nach links
     const r = n.richtung;
-    if (r > 0) pts.push([n.fl + n.hals, b1], [n.fl + n.grund, b1 - kd], [n.fl, b1 - kd], [n.fl, b1]);
-    else pts.push([n.fl, b1], [n.fl, b1 - kd], [n.fl - n.grund, b1 - kd], [n.fl - n.hals, b1]);
+    if (r > 0) pts.push([X(n.fl + n.hals), b1], [X(n.fl + n.grund), b1 - kd], [X(n.fl), b1 - kd], [X(n.fl), b1]);
+    else pts.push([X(n.fl), b1], [X(n.fl), b1 - kd], [X(n.fl - n.grund), b1 - kd], [X(n.fl - n.hals), b1]);
   }
   pts.push([a0, b1]);
   return saeubern(pts);
@@ -267,6 +298,12 @@ function rechteckMitNuten(a0, a1, b0, b1, nuten, kd) {
 // Senkrechte Nähte meiden Nuten und Schlitze; eine waagrechte Naht liegt
 // auf halber Höhe — genau am Grund der Steckschlitze, darum zerfällt die
 // betroffene Reihe dort in Teilstücke, die die andere Reihe überbrückt.
+// ZWISCHENBÖDEN tragen Last: eine Naht frei im Fach wäre ein Gelenk. Ihre
+// Nähte liegen darum an einer STÜTZE — an einer kreuzenden Trennwand (deren
+// Schlitz beide Stücke über die halbe Tiefe fasst) oder an einer von unten
+// anstossenden (ihre Schwalbenschwanz-Leiste hält beide Stücke). Gibt es im
+// zulässigen Bereich keine, bleibt die Naht ungestützt und wird gemeldet
+// (naehte.gestuetzt), die App verlangt dann eine Stütz-Trennwand.
 export const ZAPFEN = { hals: 8, fuss: 12, tiefe: 6, spiel: 0.15, abstand: 42, rand: 9 };
 /** Kachelung einer len×wid-Platte aufs Bett: wenige Stücke, Bett drehbar. */
 export function kacheln(len, wid) {
@@ -313,7 +350,9 @@ function zapfenLagen(lo, hi, sperren) {
 // Kanten-Merkmalen: Schlitze (rechteckige Kerben), Zapfen (Puzzle-Schwalben-
 // schwanz nach aussen) und Zapfenkerben (nach innen, mit Luft).
 //   kanten = { unten:[…], rechts:[…], oben:[…], links:[…] }, Merkmal =
-//   { p: Lage entlang der Kante, art: 'schlitz'|'zapfen'|'kerbe', tiefe?, hw? }
+//   { p: Lage entlang der Kante, art: 'schlitz'|'zapfen'|'kerbe', tiefe?, s0?, s1? }
+//   Ein Schlitz reicht von s0 bis s1 — liegt eine Naht mitten im Schlitz, trägt
+//   jedes Stück nur seine Hälfte, die Kerbe endet dann an der Stückkante.
 function stueckUmriss(a, b, ya, yb, kanten) {
   const Z = ZAPFEN, s = Z.spiel;
   const pts = [];
@@ -322,7 +361,8 @@ function stueckUmriss(a, b, ya, yb, kanten) {
     pts.push(entlang(von));
     for (const m of sort) {
       if (m.art === 'schlitz') {
-        pts.push(entlang(m.p - vz * m.hw), quer(m.p - vz * m.hw, m.tiefe), quer(m.p + vz * m.hw, m.tiefe), entlang(m.p + vz * m.hw));
+        const [u, w] = vz > 0 ? [m.s0, m.s1] : [m.s1, m.s0];
+        pts.push(entlang(u), quer(u, m.tiefe), quer(w, m.tiefe), entlang(w));
       } else if (m.art === 'zapfen') {                  // nach aussen (quer negativ)
         pts.push(entlang(m.p - vz * Z.hals / 2), quer(m.p - vz * Z.fuss / 2, -Z.tiefe), quer(m.p + vz * Z.fuss / 2, -Z.tiefe), entlang(m.p + vz * Z.hals / 2));
       } else {                                          // Kerbe nach innen, mit Luft
@@ -340,8 +380,10 @@ function stueckUmriss(a, b, ya, yb, kanten) {
 
 // ---------- Trennwand-Teil (liegend) ----------
 // Platte in (X = längs, Y = Höhe), Dicke in Z (0 … ts); bündige Fläche = Z = 0.
-// texte: [{ laeufe: [[x0, x1, z0, z1], …] }] in Weltkoordinaten (x längs der
-// 'h'-Wand, z Höhe), erhaben auf der Fläche Z = ts (Vorderseite).
+// texte: [{ laeufe: [[x0, x1, z0, z1], …] }] in Gitterkoordinaten (x längs des
+// Zwischenbodens, z = Tiefe), erhaben auf der Fläche Z = 0 — das ist beim
+// Zwischenboden die OBERSEITE; für den Druck wird ein beschrifteter Boden
+// gedreht (Oberseite nach oben) exportiert.
 // Rückgabe: stuecke = [{ mesh, xa, xb, ya, yb, reihe, spalte }] — mehrere,
 // wenn die Platte nicht aufs Bett passt; alle in denselben Plattenkoordinaten.
 export function teilMesh(P, A, teil, triangulate, farben, texte) {
@@ -374,7 +416,24 @@ export function teilMesh(P, A, teil, triangulate, farben, texte) {
   // damit kein schmaler Splitter ohne Platz für einen Zapfen entsteht
   const splitter = plan.reihen === 2 ? 24 : 0;
   const sperrX = [...nutAbschnitte.map((n) => [n.x0, n.x1]), ...schlitze.map((q) => [q.x - hw - splitter, q.x + hw + splitter])];
-  const sx = nSpalten > 1 ? nahtLagen(L, nSpalten, sperrX) : [];
+  const stuetzen = teil.dir === 'h' && !teil.fest;   // Zwischenboden: Naht an eine Stütze (Aussenwand unten liegt auf, oben trägt nichts)
+  let sx = [], gestuetzt = [];
+  if (nSpalten > 1) {
+    const frei = nahtLagen(L, nSpalten, sperrX);
+    if (!stuetzen) { sx = frei; gestuetzt = frei.map(() => true); }
+    else {
+      const kand = [...teil.kreuz, ...teil.schlitzeOben, ...teil.nuten.filter((n) => n.seite < 0).map((n) => n.c)].map((c) => U(c)).sort((a, b) => a - b);
+      let prev = 0;
+      for (let i = 1; i < nSpalten; i++) {
+        const ideal = L * i / nSpalten;
+        const lo = Math.max(prev + 25, L - (nSpalten - i) * plan.spaltenL), hi = Math.min(prev + plan.spaltenL, L - 25);
+        const ok = kand.filter((c) => c >= lo && c <= hi).sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal));
+        if (ok.length) { sx.push(ok[0]); gestuetzt.push(true); }
+        else { sx.push(Math.min(hi, Math.max(lo, frei[i - 1]))); gestuetzt.push(false); }
+        prev = sx[sx.length - 1];
+      }
+    }
+  }
   const sy = plan.reihen === 2 ? [th / 2] : [];
   const xGrenzen = [0, ...sx, L], yGrenzen = [0, ...sy, th];
   const zapfenY = sy.length ? zapfenLagen(0, L, [...nutAbschnitte.map((n) => [n.x0, n.x1]), ...schlitze.map((q) => [q.x - hw - 6, q.x + hw + 6]), ...sx.map((x) => [x - 8, x + 8])]) : [];
@@ -385,21 +444,24 @@ export function teilMesh(P, A, teil, triangulate, farben, texte) {
   const tiefe = kd - DOVE.ende, tb = BODEN.kd - BODEN.ende;
   for (let r = 0; r < yGrenzen.length - 1; r++) for (let c = 0; c < xGrenzen.length - 1; c++) {
     const xa = xGrenzen[c], xb = xGrenzen[c + 1], ya = yGrenzen[r], yb = yGrenzen[r + 1];
-    const inX = (x) => x > xa && x < xb;
+    const inX = (q) => q.x + hw > xa + 0.01 && q.x - hw < xb - 0.01;   // Schlitz ragt ins Stück (auch halb, über eine Naht)
     // Schlitze: ohne Reihenteilung halbhohe Kerben; mit Reihenteilung schneiden
     // sie die betroffene Reihe ganz durch — das Stück zerfällt dort in
     // Teilstücke, die je für sich über die Zapfen an der anderen Reihe hängen
-    const kerbenOben = sy.length ? [] : schlitze.filter((q) => q.art === 'oben' && inX(q.x));
-    const kerbenUnten = sy.length ? [] : schlitze.filter((q) => q.art === 'unten' && inX(q.x));
-    const durch = sy.length ? schlitze.filter((q) => inX(q.x) && ((q.art === 'oben' && r === 1) || (q.art === 'unten' && r === 0))).sort((p, q) => p.x - q.x) : [];
+    const kerbenOben = sy.length ? [] : schlitze.filter((q) => q.art === 'oben' && inX(q));
+    const kerbenUnten = sy.length ? [] : schlitze.filter((q) => q.art === 'unten' && inX(q));
+    const durch = sy.length ? schlitze.filter((q) => inX(q) && ((q.art === 'oben' && r === 1) || (q.art === 'unten' && r === 0))).sort((p, q) => p.x - q.x) : [];
     const teilstuecke = []; let von = xa;
-    for (const q of durch) { teilstuecke.push([von, q.x - hw]); von = q.x + hw; }
+    for (const q of durch) { teilstuecke.push([von, Math.max(von, q.x - hw)]); von = Math.min(xb, q.x + hw); }
     teilstuecke.push([von, xb]);
+    // Zapfen an der Naht nur, wo kein halber Schlitz die Kante verkürzt
+    const nahtSperr = (x) => [...kerbenOben.filter((q) => Math.abs(q.x - x) < hw + 0.01).map(() => [th / 2 - 1, th + 1]), ...kerbenUnten.filter((q) => Math.abs(q.x - x) < hw + 0.01).map(() => [-1, th / 2 + 1])];
     for (const [sa, sb] of teilstuecke) {
       if (sb - sa < 3) continue;
       const M = meshBauer([farben.trenn, farben.text || farben.trenn]);
       let v = 0;
-      const trenner = nutAbschnitte.filter((n) => n.x0 > sa && n.x1 < sb).map((n) => ({ a: n.x0, b: n.x1, nut: n })).sort((p, q) => p.a - q.a);
+      // Nuten im Teilstück — eine Nut auf der Naht liegt halb in jedem Stück (geclippt)
+      const trenner = nutAbschnitte.filter((n) => n.x1 > sa + 0.5 && n.x0 < sb - 0.5).map((n) => ({ a: Math.max(n.x0, sa), b: Math.min(n.x1, sb), nut: n })).sort((p, q) => p.a - q.a);
       const bereiche = []; let cursor = sa;
       for (const t of trenner) { if (t.a - cursor > 0.5) bereiche.push({ a: cursor, b: t.a, nut: null }); bereiche.push({ a: t.a, b: t.b, nut: t.nut }); cursor = t.b; }
       if (sb - cursor > 0.5) bereiche.push({ a: cursor, b: sb, nut: null });
@@ -415,11 +477,11 @@ export function teilMesh(P, A, teil, triangulate, farben, texte) {
         }
         const a = br.a - (k > 0 && bereiche[k - 1].nut ? o : 0), b = br.b + (k < bereiche.length - 1 && bereiche[k + 1].nut ? o : 0);
         const kanten = { unten: [], oben: [], links: [], rechts: [] };
-        for (const q of kerbenUnten) if (q.x > a && q.x < b) kanten.unten.push({ p: q.x, art: 'schlitz', hw, tiefe: th / 2 });
-        for (const q of kerbenOben) if (q.x > a && q.x < b) kanten.oben.push({ p: q.x, art: 'schlitz', hw, tiefe: th / 2 });
+        for (const q of kerbenUnten) if (q.x + hw > a && q.x - hw < b) kanten.unten.push({ p: q.x, art: 'schlitz', s0: Math.max(q.x - hw, sa), s1: Math.min(q.x + hw, sb), tiefe: th / 2 });
+        for (const q of kerbenOben) if (q.x + hw > a && q.x - hw < b) kanten.oben.push({ p: q.x, art: 'schlitz', s0: Math.max(q.x - hw, sa), s1: Math.min(q.x + hw, sb), tiefe: th / 2 });
         for (const x of zY) if (x > a + ZAPFEN.fuss / 2 && x < b - ZAPFEN.fuss / 2) (r === 0 ? kanten.oben : kanten.unten).push({ p: x, art: r === 0 ? 'zapfen' : 'kerbe' });
-        if (br.b === xb && c < xGrenzen.length - 2) for (const y of zapfenLagen(ya, yb, [])) kanten.rechts.push({ p: y, art: 'zapfen' });
-        if (br.a === xa && c > 0) for (const y of zapfenLagen(ya, yb, [])) kanten.links.push({ p: y, art: 'kerbe' });
+        if (br.b === xb && c < xGrenzen.length - 2) for (const y of zapfenLagen(ya, yb, nahtSperr(xb))) kanten.rechts.push({ p: y, art: 'zapfen' });
+        if (br.a === xa && c > 0) for (const y of zapfenLagen(ya, yb, nahtSperr(xa))) kanten.links.push({ p: y, art: 'kerbe' });
         v += M.prisma(stueckUmriss(a, b, ya, yb, kanten), [], (x, y, d) => [x, y, d], 0, ts, 0, triangulate);
       }
       if (E0.leiste && sa === xa && c === 0) v += M.prisma([[o, 0], [-tiefe, 0], [-tiefe, ts], [0, ts - DOVE.hs], [o, ts - DOVE.hs]], [], (x, z, d) => [x, d, z], ya, yb, 0, triangulate);
@@ -427,7 +489,7 @@ export function teilMesh(P, A, teil, triangulate, farben, texte) {
       if (bodenLeiste && r === 0) v += M.prisma([[o, 0], [-tb, 0], [-tb, ts], [0, ts - BODEN.hs], [o, ts - BODEN.hs]], [], (y, z, d) => [d, y, z], sa + (sa > 0 ? 0.5 : 0), sb - (sb < L ? 0.5 : 0), 0, triangulate);
       for (const t of texte || []) for (const [wx0, wx1, wz0, wz1] of t.laeufe) {
         const mx = (U(wx0) + U(wx1)) / 2, my = (wz0 + wz1) / 2 - z0;
-        if (mx > sa && mx <= sb && my > ya && my <= yb) v += M.quader(U(wx0), U(wx1), wz0 - z0, wz1 - z0, ts - o, ts + TEXT_HOEHE, 1, triangulate);
+        if (mx > sa && mx <= sb && my > ya && my <= yb) v += M.quader(U(wx0), U(wx1), wz0 - z0, wz1 - z0, -TEXT_HOEHE, o, 1, triangulate);
       }
       const mesh = M.fertig(); mesh.volMm3 = v; vol += v;
       stuecke.push({ mesh, xa: sa, xb: sb, ya, yb, reihe: r, spalte: c });
@@ -436,7 +498,7 @@ export function teilMesh(P, A, teil, triangulate, farben, texte) {
   const lage = teil.dir === 'v'
     ? { ursprung: [teil.c - ts / 2, E0.u, z0], X: [0, 1, 0], Y: [0, 0, 1], Z: [1, 0, 0] }
     : { ursprung: [E0.u, teil.c + ts / 2, z0], X: [1, 0, 0], Y: [0, 0, 1], Z: [0, -1, 0] };
-  return { stuecke, volMm3: vol, L, th, lage, u0: E0.u, leisten: [E0.leiste, E1.leiste], bodenLeiste, naehte: { x: sx, y: sy } };
+  return { stuecke, volMm3: vol, L, th, lage, u0: E0.u, leisten: [E0.leiste, E1.leiste], bodenLeiste, naehte: { x: sx, y: sy, gestuetzt } };
 }
 
 // ---------- Bodenplatte (optional) ----------

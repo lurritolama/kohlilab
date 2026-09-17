@@ -19,6 +19,7 @@ import { grammAus, farbAnzahl, objektAnzahl } from '../../lib/server/dreimf';
 import { getPaymentProvider } from '../../lib/payments';
 import { supabaseAdmin } from '../../lib/server/supabase-admin';
 import type { MailBestellung } from '../../lib/server/mail-templates';
+import { inTestphase } from '../../lib/testphase';
 
 const ANKER: Record<string, string> = {
   schild: 'c0111ab0-0000-4000-8000-000000000001',
@@ -83,6 +84,9 @@ export const POST: APIRoute = async ({ request }) => {
     const nr = i + 1;
     const typ = p?.typ;
     const konfig = p?.konfig ?? {};
+    // Testphase (src/lib/testphase.ts): ausprobieren ja, bestellen nein — auch
+    // wenn eine Position noch aus der Zeit vor der Sperre im Warenkorb liegt.
+    if (typeof typ === 'string' && inTestphase(typ)) { fehler.push(`Position ${nr}: Dieser Konfigurator ist in der Testphase — bestellen ist noch nicht möglich. Bitte die Position aus dem Warenkorb entfernen.`); return; }
     try {
       if (typ === 'ventilkappe') {
         // Katalog-Produkt: fester 4er-Set-Preis, keine Kundendatei. Kunde
@@ -268,7 +272,7 @@ export const POST: APIRoute = async ({ request }) => {
         const test = true;   // Testphase (wie Lochwand): im Admin, in der Mail und auf dem Pi als TEST erkennbar
         const titel = `TEST · Küchenschrank-Einsatz${masse ? ` · ${masse} mm` : ''} · ${trennwaende} ${trennwaende === 1 ? 'Trennwand' : 'Trennwände'}${boden ? ' + Bodenplatte' : ''}${stuecke > trennwaende + (boden ? 1 : 0) ? ` (${stuecke} Druckstücke)` : ''}${texte.length ? ` · ${texte.length} Beschriftung${texte.length > 1 ? 'en' : ''}` : ''}`;
         positionen.push({ typ, konfig: {
-          test, masse, schrank: typeof konfig.schrank === 'string' ? konfig.schrank.slice(0, 20) : '', ts: Number(konfig.ts) || 0, boden,
+          test, masse, schrank: typeof konfig.schrank === 'string' ? konfig.schrank.slice(0, 20) : '', aussen: (Array.isArray(konfig.aussen) ? konfig.aussen : []).filter((x: unknown) => ['unten', 'oben', 'links', 'rechts'].includes(x as string)), ts: Number(konfig.ts) || 0, boden,
           bodenDicke: boden ? Number(konfig.bodenDicke) || 0 : undefined, bodenNuten: boden ? (konfig.bodenNuten === 'h' ? 'h' : 'v') : undefined,
           trennwaende, stuecke, stueckeBoden, faecher: Math.min(200, Math.max(0, Math.round(Number(konfig.faecher) || 0))), waende, texte,
           textFaecher: Math.min(60, Math.max(0, Math.round(textFaecher))), textMmUeber4: Math.min(600, Math.max(0, textMmUeber4)),

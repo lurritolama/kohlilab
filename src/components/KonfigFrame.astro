@@ -19,8 +19,10 @@
  * #k=-/#c=-Konfigurations-Fragment werden clientseitig angehängt, damit die
  * Seite statisch bleiben kann.
  */
-interface Props { app: string; titel: string; mobil?: 'hinweis' | 'ansehen' }
-const { app, titel, mobil = 'ansehen' } = Astro.props;
+interface Props { app: string; titel: string; mobil?: 'hinweis' | 'ansehen'; test?: boolean }
+// test: Konfigurator in der Testphase (src/lib/testphase.ts) — die App sperrt
+// dann den Warenkorb-Knopf (konfig-mobil.js liest ?test=1).
+const { app, titel, mobil = 'ansehen', test = false } = Astro.props;
 const v = Date.now();
 ---
 <div class={`konfig-frame konfig-frame--${mobil}`}>
@@ -40,7 +42,7 @@ const v = Date.now();
       </div>
     </div>
   </div>
-  <iframe src={`/${app}/index.html?v=${v}`} title={titel} data-konfig-frame allow="web-share"></iframe>
+  <iframe src={`/${app}/index.html?v=${v}${test ? '&test=1' : ''}`} title={titel} data-konfig-frame allow="web-share"></iframe>
 </div>
 
 <script is:inline>

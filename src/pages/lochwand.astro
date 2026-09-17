@@ -5,6 +5,8 @@
 // kommen mit den Modulen (Etappe 2/3).
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import TestBanner from '../components/TestBanner.astro';
+import { inTestphase } from '../lib/testphase';
 import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
@@ -13,6 +15,7 @@ import Kurzinfo from '../components/Kurzinfo.astro';
   description="Plane deine IKEA-Skådis-Wand: Platte wählen, Module platzieren, 3D-gedruckt in Bühler AR."
   noindex
 >
+  {inTestphase('lochwand') && <TestBanner />}
   <section class="block" style="padding-top:28px">
     <h2>Lochwand-Planer <span class="testmarke">TEST</span></h2>
     <p class="lead">
@@ -22,11 +25,11 @@ import Kurzinfo from '../components/Kurzinfo.astro';
       platzierst und beschriftest.
     </p>
     <p class="hinweis-etappe">
-      <b>Testphase:</b> Haken, Wanne, Ablage, Halter, Klemme, Becher und Kabelhalter — mit Beschriftung, Teilen-Link und Warenkorb. Bestellungen aus dem Planer sind bis auf Weiteres Testbestellungen und werden als «TEST» geführt.
+      <b>Testphase:</b> Haken, Wanne, Ablage, Halter, Klemme, Becher und Kabelhalter — mit Beschriftung, Teilen-Link und Warenkorb. Bestellen ist in der Testphase noch nicht möglich — der Warenkorb wird nach den Drucktests freigeschaltet.
     </p>
   </section>
   <Kurzinfo />
-  <KonfigFrame app="lochwand-app" titel="Lochwand-Planer" mobil="ansehen" />
+  <KonfigFrame app="lochwand-app" titel="Lochwand-Planer" mobil="ansehen" test={inTestphase('lochwand')} />
 </BaseLayout>
 
 <style>

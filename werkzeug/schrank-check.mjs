@@ -51,10 +51,13 @@ function fall(name, P, trenn, dateiName, texte) {
     const n = m.stuecke.length;
     const info = `${t.dir} c=${t.c} L=${m.L.toFixed(0)} th=${m.th} Leisten ${m.leisten.map((x) => (x ? 'S' : '-')).join('')} Nuten ${t.nuten.length} Kreuz ${t.kreuz.length}/${t.schlitzeOben.length}${m.bodenLeiste ? ' Boden' : ''}${n > 1 ? ` · ${n} Stücke (Nähte x ${m.naehte.x.map((x) => x.toFixed(0)).join(',')} y ${m.naehte.y.map((y) => y.toFixed(0)).join(',')})` : ''}`;
     console.log(`  Teil ${t.id} ${info}`);
+    const hatText = tx.length > 0;    // beschriftete Böden: Schrift liegt auf Z=0 → gedreht exportieren (wie die App)
+    const gedreht = (mesh) => { const pos = new Float32Array(mesh.pos); for (let q = 0; q < pos.length; q += 3) { pos[q + 1] = m.th - pos[q + 1]; pos[q + 2] = P.ts - pos[q + 2]; } return { ...mesh, pos }; };
     m.stuecke.forEach((st, i) => {
       melde(`    Stück ${i + 1}/${n} [${st.xa.toFixed(0)}–${st.xb.toFixed(0)}]×[${st.ya.toFixed(0)}–${st.yb.toFixed(0)}]`, st.mesh, st.mesh.volMm3);
       if (!bettOk(st.mesh)) { console.log('FEHLER: Stück passt nicht aufs Bett'); fehler++; }
-      koerper.push({ name: `Trennwand ${t.id}${n > 1 ? ` Stück ${i + 1}/${n}` : ''}`, mesh: verschoben(st.mesh, dx - st.xa, -st.ya, 0) }); dx += (st.xb - st.xa) + 14;
+      const mesh = hatText ? gedreht(st.mesh) : st.mesh;
+      koerper.push({ name: `Teil ${t.id}${hatText ? ' (Schrift oben)' : ''}${n > 1 ? ` Stück ${i + 1}/${n}` : ''}`, mesh: verschoben(mesh, dx - st.xa, hatText ? -(m.th - st.yb) : -st.ya, 0) }); dx += (st.xb - st.xa) + 14;
     });
   }
   let boden = null;
@@ -82,12 +85,12 @@ const P0 = { b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNut
   const A = fall('Steckkreuz', P0, [neu('h', 0, 0), neu('v', 0, -60), neu('v', 0, 60)], 'schrank-kreuz');
   if (A.teile.length !== 2 || A.teile[0].schlitzeOben.length !== 1 || A.teile[1].kreuz.length !== 1 || gruppen(A) !== 1) { console.log('FEHLER Steckkreuz'); fehler++; }
 }
-// Fall 3: Raster 3×3 mit Bodenplatte + Beschriftung
+// Fall 3: Raster 3×3 + Beschriftung (Rückwand gestrichen 16.09.2026 — boden bleibt aus)
 {
-  const P = { ...P0, boden: true };
+  const P = { ...P0, boden: false };
   const trenn = [neu('h', -40, 0), neu('h', 40, 0)];
   for (const c of [-40, 40]) for (const m of [-90, 0, 90]) trenn.push(neu('v', c, m));
-  const A = fall('Raster 3×3 + Boden', P, trenn, 'schrank-3x3', { 1: laufBlock(-20, 30, 24, 7, 0.4) });
+  const A = fall('Raster 3×3', P, trenn, 'schrank-3x3', { 1: laufBlock(-20, 30, 24, 7, 0.4) });
   if (A.teile.length !== 4) { console.log('FEHLER: 4 Teile erwartet'); fehler++; }
 }
 // Fall 4: Kollision + lose Gruppen
@@ -98,9 +101,9 @@ const P0 = { b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNut
 }
 // Fall 5: GROSS — 450×350×350 mit Bodenplatte quer: Spalten- UND Reihenteilung, Bodenplatte gekachelt
 {
-  const P = { ...P0, b: 450, t: 350, h: 350, boden: true, bodenDicke: 4, bodenNuten: 'h' };
+  const P = { ...P0, b: 450, t: 350, h: 350, boden: false };
   const trenn = [neu('h', 0, 0), neu('v', -100, -80), neu('v', -100, 80), neu('v', 100, 80), neu('h', -100, -150)];
-  const A = fall('Gross 450×350×350 + Boden quer', P, trenn, 'schrank-gross', { 1: laufBlock(-60, 150, 30, 9, 0.4) });
+  const A = fall('Gross 450×350×350', P, trenn, 'schrank-gross', { 1: laufBlock(-60, 150, 30, 9, 0.4) });
   const st = A.teile.map((t) => teilMesh(P, A, t, triangulate, FARBEN, []).stuecke.length);
   if (st[0] < 4) { console.log('FEHLER: Querwand 450×346 sollte ≥ 4 Stücke haben'); fehler++; }
 }
@@ -114,10 +117,39 @@ const P0 = { b: 250, t: 250, h: 80, ts: 5, boden: false, bodenDicke: 3, bodenNut
   const P = { ...P0, b: 120, t: 100, h: 50 };
   const trenn = [neu('h', 0, 0), neu('v', -20, -30), neu('v', 20, -30), neu('v', 20, 30)];
   fall('Muster ohne Boden', P, trenn, 'muster-120x100x50', { 1: laufBlock(-52, 20, 22, 6, 0.4) });
-  fall('Muster mit Boden', { ...P, boden: true, bodenDicke: 3, bodenNuten: 'v' }, trenn, 'muster-120x100x50-boden');
   // Muster für die Naht: 120 lang, künstlich geteilt? — Bett ist grösser; Nahtmuster über Fall 6 (schrank-breit)
 }
 
+// Fall 8: Aussenwände rundum + Trennwände, die an ihnen enden (Nuten in Aussenwänden)
+{
+  const P = { ...P0, b: 300, t: 200, h: 100, aussen: { unten: true, oben: true, links: true, rechts: true } };
+  const A = fall('Aussenwände rundum', P, [neu('v', -50, 0), neu('v', 50, 0), neu('h', 0, -100)], 'schrank-aussen');
+  const aw = A.teile.filter((t) => t.fest);
+  const unten = A.teile.find((t) => t.id === -4), links = A.teile.find((t) => t.id === -2);
+  if (aw.length !== 4 || A.faecher.length !== 4 || unten.nuten.length !== 2 || unten.schlitzeOben.length !== 2 || links.kreuz.length !== 2) { console.log('FEHLER Aussenwände: 4 feste Teile, 4 Fächer, unten 2 Nuten + 2 Eckschlitze, links 2 Eckschlitze erwartet'); fehler++; }
+  if (gruppen(A) !== 1) { console.log('FEHLER Aussenwände: eine Gruppe erwartet'); fehler++; }
+}
+// Fall 9: Nähte der Zwischenböden an einer STÜTZE (Lösung A, 17.09.2026)
+{
+  const P = { ...P0, b: 450, t: 200, h: 100 };
+  // a) ältere Trennwand kreuzt den Boden bei 225 → Naht genau dort (Boden ist das jüngere Teil, Kreuz)
+  let A = fall('Stütze: Kreuz', P, [neu('v', 0, 0), neu('h', 0, -100), neu('h', 0, 100)], 'schrank-stuetze-kreuz');
+  let m = teilMesh(P, A, A.teile[1], triangulate, FARBEN, []);
+  if (m.stuecke.length !== 2 || !m.naehte.gestuetzt[0] || Math.abs(m.naehte.x[0] - 225) > 0.01) { console.log('FEHLER Stütze Kreuz: 2 Stücke, Naht bei 225 gestützt erwartet', m.naehte); fehler++; }
+  // b) Boden älter, Trennwand von unten bei 200 → Naht auf der Nut
+  A = fall('Stütze: Nut von unten', P, [neu('h', 0, 0), neu('v', -25, -50)], 'schrank-stuetze-nut');
+  m = teilMesh(P, A, A.teile[0], triangulate, FARBEN, []);
+  if (!m.naehte.gestuetzt[0] || Math.abs(m.naehte.x[0] - 200) > 0.01) { console.log('FEHLER Stütze Nut: Naht bei 200 gestützt erwartet', m.naehte); fehler++; }
+  // c) Trennwand nur von oben → keine Stütze → gemeldet
+  A = fall('Stütze: fehlt', P, [neu('h', 0, 0), neu('v', -25, 50)], null);
+  m = teilMesh(P, A, A.teile[0], triangulate, FARBEN, []);
+  if (m.naehte.gestuetzt[0] !== false) { console.log('FEHLER Stütze fehlt: ungestützte Naht erwartet', m.naehte); fehler++; }
+  // d) Reihenteilung (Tiefe 350) mit Kreuz-Naht
+  const P2 = { ...P0, b: 450, t: 200, h: 350 };
+  A = fall('Stütze: Kreuz + Reihen', P2, [neu('v', 0, 0), neu('h', 0, -100), neu('h', 0, 100)], 'schrank-stuetze-reihen');
+  m = teilMesh(P2, A, A.teile[1], triangulate, FARBEN, []);
+  if (!m.naehte.gestuetzt[0] || m.naehte.y.length !== 1) { console.log('FEHLER Stütze Reihen', m.naehte); fehler++; }
+}
 console.log(fehler ? `\n${fehler} FEHLER` : '\nalles geschlossen');
 process.exitCode = fehler ? 1 : 0;
 

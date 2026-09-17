@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import TestBanner from '../components/TestBanner.astro';
+import { inTestphase } from '../lib/testphase';
 import Kurzinfo from '../components/Kurzinfo.astro';
 import { ladeGalerie } from '../lib/server/galerie';
 
@@ -22,6 +24,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate'
   bild="/bilder/organizer-titel.jpg"
   description="Massgeschneiderter Schubladeneinsatz, 3D-gedruckt: Innenmass eingeben, Fächer frei einteilen, direkt in der 3D-Schublade gestalten — für Besteck, Büro, Werkzeug, Schrauben und mehr."
 >
+  {inTestphase('organizer') && <TestBanner />}
   <section class="block" style="padding-top:28px">
     <h2>Schubladen-Organizer nach Mass</h2>
     <p class="lead">
@@ -43,7 +46,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate'
     )}
   </section>
   <Kurzinfo />
-  <KonfigFrame app="organizer-app" titel="Schubladen-Organizer-Konfigurator" mobil="ansehen" />
+  <KonfigFrame app="organizer-app" titel="Schubladen-Organizer-Konfigurator" mobil="ansehen" test={inTestphase('organizer')} />
 
   {fotos.length > 0 && (
     <dialog class="galerie" data-galerie>

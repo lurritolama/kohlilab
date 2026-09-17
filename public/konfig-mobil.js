@@ -162,7 +162,7 @@ export function mobilModus(opt) {
   const modal = document.createElement('div'); modal.id = 'km-modal';
   const tipps = (opt.tipps || []).map((t) => `<li>${t}</li>`).join('');
   modal.innerHTML = `<h3>🖥️ Tipp: Am Rechner geht's leichter</h3>
-    <div class="msub">Hier funktioniert zwar alles — auch bestellen</div>
+    <div class="msub">${TESTPHASE ? 'Testphase: ausprobieren geht — bestellen noch nicht' : 'Hier funktioniert zwar alles — auch bestellen'}</div>
     <p>Auf dem kleinen Bildschirm ist das Konfigurieren aber ein ziemliches Gefummel. <b>Am Rechner hast du mehr Übersicht und Präzision.</b> Dein Stand wandert per Link einfach mit — jetzt senden, später am Rechner weitermachen.</p>
     <div class="so">So funktioniert's</div>
     <ul>${tipps}
@@ -189,4 +189,33 @@ export function mobilModus(opt) {
     sheetAuf, sheetZu,
     zeigeTipp: (t) => { hinweis.textContent = t; },
   };
+}
+
+// ---------- Testphase-Sperre (Manolo 17.09.2026) ----------
+// KonfigFrame haengt ?test=1 an, wenn der Konfigurator laut src/lib/testphase.ts
+// in der Testphase ist: der Warenkorb-Knopf (#cart) wird gesperrt und erklaert;
+// der Checkout lehnt solche Positionen ohnehin ab. Laeuft beim Import des
+// Moduls, also in jeder App — ohne dass die Apps etwas davon wissen muessen.
+export const TESTPHASE = new URLSearchParams(location.search).get('test') === '1';
+if (TESTPHASE) {
+  window.KONFIG_TESTPHASE = true;
+  const sperre = () => {
+    document.body.classList.add('testphase');
+    const st = document.createElement('style');
+    st.textContent = `body.testphase #cart{ pointer-events:none; opacity:.4; filter:grayscale(.7); }
+      .testphase-hinweis{ font-size:12px; line-height:1.5; color:#e5b8ff; background:#3b1a5e; border:1px solid #5b2a8e; border-radius:8px; padding:8px 10px; margin-top:8px; }
+      .testphase-hinweis b{ color:#f4e9ff; }`;
+    document.head.appendChild(st);
+    const cart = document.getElementById('cart');
+    if (cart) {
+      cart.setAttribute('aria-disabled', 'true'); cart.tabIndex = -1;
+      cart.title = 'Testphase — Bestellen ist noch nicht möglich';
+      const h = document.createElement('div'); h.className = 'testphase-hinweis';
+      h.innerHTML = '🧪 <b>Testphase</b> — ausprobieren, teilen und Feedback geben. <b>Bestellen ist hier noch nicht möglich</b>; der Warenkorb wird nach den Drucktests freigeschaltet.';
+      (cart.closest('.exp') || cart.parentElement || document.body).insertAdjacentElement('afterend', h);
+    }
+    // Sicherheitsnetz: falls die App den Knopf wieder aktiviert, faengt der Klick nichts
+    document.addEventListener('click', (ev) => { const t = ev.target; if (t && t.closest && t.closest('#cart')) { ev.preventDefault(); ev.stopImmediatePropagation(); } }, true);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sperre); else sperre();
 }

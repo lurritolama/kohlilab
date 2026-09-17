@@ -5,6 +5,8 @@
 // gemeinsame KCart, die Kasse kennt den Typ `tee`.
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import TestBanner from '../components/TestBanner.astro';
+import { inTestphase } from '../lib/testphase';
 import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
@@ -12,6 +14,7 @@ import Kurzinfo from '../components/Kurzinfo.astro';
   bild="/bilder/golf-tees-titel.jpg"
   description="Dein Golf-Tee millimetergenau: Länge, Kopfform, Schaft, Steckverbindung und Farben — 3D-gedruckt in Bühler AR, ab 10 Stück."
 >
+  {inTestphase('tee') && <TestBanner />}
   <section class="block" style="padding-top:28px">
     <h2>Golf-Tees</h2>
     <p class="lead">
@@ -23,7 +26,7 @@ import Kurzinfo from '../components/Kurzinfo.astro';
     <p class="hinweis-klein">Preis je Tee: 1.40 bei einer Farbe, 1.70 bei zwei, 2.— bei drei Farben (Auge immer drei).</p>
   </section>
   <Kurzinfo />
-  <KonfigFrame app="tee-konfigurator" titel="Golf-Tee-Konfigurator" mobil="ansehen" />
+  <KonfigFrame app="tee-konfigurator" titel="Golf-Tee-Konfigurator" mobil="ansehen" test={inTestphase('tee')} />
 </BaseLayout>
 
 <style>

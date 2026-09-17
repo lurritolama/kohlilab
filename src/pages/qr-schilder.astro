@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import KonfigFrame from '../components/KonfigFrame.astro';
+import TestBanner from '../components/TestBanner.astro';
+import { inTestphase } from '../lib/testphase';
 import Kurzinfo from '../components/Kurzinfo.astro';
 ---
 <BaseLayout
@@ -8,7 +10,7 @@ import Kurzinfo from '../components/Kurzinfo.astro';
   bild="/bilder/qr-schilder-titel.jpg"
   description="Gestalte dein eigenes 3D-gedrucktes QR-Schild: Form, Farben, WLAN/URL/vCard-Inhalt, Text und Logo — mit Echtzeit-3D-Vorschau und druckfertigem Farb-3MF."
 >
-  <div class="test-banner">TESTPHASE — Konfigurator ausprobieren und Feedback geben. Gedruckt und geliefert wird von uns.</div>
+  {inTestphase('schild') && <TestBanner />}
   <section class="block" style="padding-top:28px">
     <h2>QR-Schilder-Konfigurator</h2>
     <p class="lead">
@@ -20,11 +22,9 @@ import Kurzinfo from '../components/Kurzinfo.astro';
     </p>
   </section>
   <Kurzinfo />
-  <KonfigFrame app="qr-schilder-app" titel="QR-Schilder-Konfigurator" mobil="ansehen" />
+  <KonfigFrame app="qr-schilder-app" titel="QR-Schilder-Konfigurator" mobil="ansehen" test={inTestphase('schild')} />
 
 </BaseLayout>
 
 <style>
-  .test-banner{ background:#3b1a5e; color:#e5b8ff; font-family:var(--mono); font-size:12px;
-    letter-spacing:1px; text-align:center; padding:9px 14px; border-bottom:1px solid #5b2a8e; }
 </style>
