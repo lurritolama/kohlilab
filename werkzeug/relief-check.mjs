@@ -8,48 +8,43 @@
 //                                              Projekt-Daten/kohlilab-relief
 import { zipSync, strToU8 } from 'fflate';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { reliefMesh, praegungAus, pruefe, modelXml, klassifiziere, resampleMaske, fluesseVerbinden, verduenne, stutze, nurNahe, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+import { reliefMesh, praegungAus, pruefe, modelXml, farbklassen, linienZellen, waehleBaeche, bachBreite, bereinige, zellMaske, gauss, KLASSEN, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
 
-// --- Skelett, Stutzen, Hauptgewaesser -----------------------------------------
+// --- Baeche als Vektorlinien, Auswahl, Bereinigung (Neubau 02.10.2026) ------
 {
-  const n = 100, m = new Uint8Array(n * n);
-  // Hauptbach 3 Zellen breit quer durchs Bild, ein kurzer (12) und ein langer (40) Seitenarm
-  for (let i = 0; i < n; i++) for (let d = -1; d <= 1; d++) m[(50 + d) * n + i] = 1;
-  for (let j = 51; j < 63; j++) m[j * n + 30] = 1;
-  for (let j = 51; j < 91; j++) m[j * n + 70] = 1;
-  const sk = verduenne(m, n, n);
-  let breit = 0; for (let i = 5; i < 95; i++) { let c = 0; for (let j = 45; j < 56; j++) c += sk[j * n + i]; if (c > 1) breit++; }
-  const st = stutze(sk, n, n, 20);
-  const kurzWeg = st[60 * n + 30] === 0, langDa = st[80 * n + 70] === 1, hauptDa = st[50 * n + 10] === 1;
-  const ref = new Uint8Array(n * n); for (let i = 0; i < n; i++) for (let j = 46; j < 55; j++) ref[j * n + i] = 1;
-  const nah = nurNahe(st, ref, n, n);
-  const ok = breit <= 2 && kurzWeg && langDa && hauptDa && nah[50 * n + 10] === 1;
-  console.log(`${ok ? 'OK ' : 'FEHLER'} Skelett/Stutzen: Spalten >1 Zelle breit ${breit}, kurzer Arm weg ${kurzWeg}, langer Arm da ${langDa}, Hauptbach da ${hauptDa}, nurNahe ${nah[50 * n + 10] === 1}`);
-  if (!ok) process.exitCode = 1;
-}
-
-// --- Fluesse: Umrechnen ohne Luecken, eingedolte Luecken schliessen ----------
-{
-  // 1-Zellen-Linie 480 -> 300: muss zusammenhaengend bleiben
-  const sx = 480, sy = 480, nx = 300, ny = 300;
-  const src = new Uint8Array(sx * sy); for (let i = 40; i < 440; i++) src[(200 + Math.round(30 * Math.sin(i / 40))) * sx + i] = 1;
-  const m = resampleMaske(src, sx, sy, nx, ny);
-  const F = new Uint8Array(nx * ny); let luecken = 0;
-  for (let i = 30; i < 270; i++) { let hit = 0; for (let j = 0; j < ny; j++) if (m[j * nx + i]) hit = 1; if (!hit) luecken++; }
-  console.log(`${luecken === 0 ? 'OK ' : 'FEHLER'} Maske 480->300: ${luecken} Spalten ohne Linie`);
-  if (luecken) process.exitCode = 1;
-  // Gelaende faellt nach Westen; Bach von Osten mit Luecke (Dole) und ein
-  // isolierter Stummel oben in einer Mulde ohne Abfluss
-  const n = 120, hM = new Float32Array(n * n); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) hM[j * n + i] = 500 + i * 2 + 0.3 * Math.sin(j) ;
-  const fl = new Uint8Array(n * n);
-  for (let i = 100; i > 60; i--) fl[60 * n + i] = 1;          // Oberlauf
-  for (let i = 40; i >= 0; i--) fl[60 * n + i] = 1;           // Unterlauf bis zum Rand
-  for (let i = 80; i < 90; i++) { fl[20 * n + i] = 1; hM[20 * n + i] -= 50; } // Stummel in Mulde (tiefer als alles um ihn)
-  const v = fluesseVerbinden(fl, null, hM, n, n, 20000);
-  let zeile60 = 0; for (let i = 0; i <= 100; i++) if (v.fluesse[60 * n + i]) zeile60++;
-  const ok = v.ueberbrueckt >= 1 && zeile60 >= 100 && v.fluesse[20 * n + 85] === 0;
-  console.log(`${ok ? 'OK ' : 'FEHLER'} Fluesse verbinden: ${v.ueberbrueckt} ueberbrueckt, ${v.gestrichen} gestrichen, Hauptlauf ${zeile60}/101 Zellen, Stummel weg: ${v.fluesse[20 * n + 85] === 0}`);
-  if (!ok) process.exitCode = 1;
+  // Linie schraeg durchs Raster, 1.2 mm breit bei 0.56 mm Zellen: lueckenlos, 2–3 Zellen breit
+  const nx = 200, ny = 200, pitch = 0.56, rect = { E0: 0, E1: 1990, N0: 0, N1: 1990 };
+  const m = linienZellen([{ p: [[100, 300], [1900, 1500]] }], rect, nx, ny, pitch, () => 1.2);
+  let luecken = 0, maxB = 0;
+  for (let ci = 12; ci < 185; ci++) { let c = 0; for (let cj = 0; cj < ny - 1; cj++) c += m[cj * (nx - 1) + ci]; if (!c) luecken++; maxB = Math.max(maxB, c); }
+  const okL = luecken === 0 && maxB >= 2 && maxB <= 5;
+  console.log(`${okL ? 'OK ' : 'FEHLER'} Bachlinie: ${luecken} Spalten ohne Linie, Breite bis ${maxB} Zellen`);
+  if (!okL) process.exitCode = 1;
+  // Auswahl: Lauflaenge bis zur Quelle (waechst talwaerts) und Ordnung
+  const L = [{ o: 1, l: 300 }, { o: 1, l: 900 }, { o: 2, l: 1500 }, { o: 5, l: 30000 }];
+  const okW = waehleBaeche(L, 600).length === 3 && waehleBaeche(L, 0, 4).length === 1 && bachBreite(5, 1.2) > bachBreite(1, 1.2) && bachBreite(1, 1.2) === 1.2;
+  console.log(`${okW ? 'OK ' : 'FEHLER'} Bachauswahl nach Lauflaenge/Ordnung, Breite nach Ordnung`);
+  if (!okW) process.exitCode = 1;
+  // Bereinigung: grosser Block bleibt, 1-Zellen-Streifen, Einzelzelle und 1-Zellen-Loch weg
+  const w = 60, h = 60, q = new Uint8Array(w * h);
+  for (let y = 10; y < 40; y++) for (let x = 10; x < 40; x++) q[y * w + x] = 1;
+  q[25 * w + 25] = 0;                                         // Loch
+  for (let x = 40; x < 55; x++) q[20 * w + x] = 1;            // Zipfel 1 Zelle breit
+  q[50 * w + 50] = 1;                                         // Einzelzelle
+  const r = bereinige(q, w, h, 1, 10, 0.6);
+  const okB = r[25 * w + 25] === 1 && r[20 * w + 50] === 0 && r[50 * w + 50] === 0 && r[30 * w + 30] === 1;
+  console.log(`${okB ? 'OK ' : 'FEHLER'} Bereinigung: Loch zu ${r[25 * w + 25] === 1}, Zipfel weg ${r[20 * w + 50] === 0}, Einzelzelle weg ${r[50 * w + 50] === 0}`);
+  if (!okB) process.exitCode = 1;
+  // Zellmaske: halbe Abdeckung an der Kante blaeht nicht auf (alte Regel: +1 Zelle)
+  const sx = 101, cov = new Uint8Array(sx * sx); for (let j = 0; j < sx; j++) for (let i = 0; i < 50; i++) cov[j * sx + i] = 255;
+  const zm = zellMaske(cov, sx, sx, 101, 101); let anteil = 0; for (const v of zm) anteil += v; anteil /= zm.length;
+  const okZ = Math.abs(anteil - 0.5) < 0.02;
+  console.log(`${okZ ? 'OK ' : 'FEHLER'} Zellmaske ohne Aufblaehen: Anteil ${anteil.toFixed(3)} (soll 0.49–0.50)`);
+  if (!okZ) process.exitCode = 1;
+  // Gauss: Ebene bleibt Ebene (auch am Rand)
+  const g = gauss(new Float32Array(50 * 40).fill(7), 50, 40, 1.5); let dmax = 0; for (const v of g) dmax = Math.max(dmax, Math.abs(v - 7));
+  console.log(`${dmax < 1e-4 ? 'OK ' : 'FEHLER'} Gauss erhaelt Ebenen (Abweichung ${dmax.toExponential(1)})`);
+  if (dmax >= 1e-4) process.exitCode = 1;
 }
 
 function gelaende(nx, ny) {
@@ -69,15 +64,19 @@ function bau(nx, ny, W, sockel, mitSchrift) {
   const kmM = 2000, mmJeM = W / kmM;
   const z = new Float32Array(nx * ny);
   for (let k = 0; k < z.length; k++) z[k] = sockel + (hM[k] - hmin) * mmJeM * 1.5;
-  const masken = { wald: new Uint8Array(nx * ny), wasser: new Uint8Array(nx * ny), gebaeude: new Uint8Array(nx * ny), route: new Uint8Array(nx * ny) };
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-    const u = i / (nx - 1), v = j / (ny - 1), k = j * nx + i;
-    if (u > 0.4 && u < 0.7 && v < 0.4) masken.wald[k] = 1;
-    if (Math.hypot(u - 0.2, v - 0.25) < 0.12) masken.wasser[k] = 1;
-    if (u > 0.1 && u < 0.14 && v > 0.6 && v < 0.64) masken.gebaeude[k] = 1;
-    if (Math.abs(v - 0.8) < 0.01) masken.route[k] = 1;
+  // Zellmasken (nx-1)*(ny-1): Wald, See, Gebaeude, Route, Fels, Gletscher
+  const w = nx - 1, hh = ny - 1, Z = () => new Uint8Array(w * hh);
+  const zm = { wald: Z(), seen: Z(), gebaeude: Z(), route: Z(), fels: Z(), gletscher: Z() };
+  for (let cj = 0; cj < hh; cj++) for (let ci = 0; ci < w; ci++) {
+    const u = (ci + 0.5) / w, v = (cj + 0.5) / hh, k = cj * w + ci;
+    if (u > 0.4 && u < 0.7 && v < 0.4) zm.wald[k] = 1;
+    if (Math.hypot(u - 0.2, v - 0.25) < 0.12) zm.seen[k] = 1;
+    if (u > 0.1 && u < 0.14 && v > 0.6 && v < 0.64) zm.gebaeude[k] = 1;
+    if (Math.abs(v - 0.8) < 0.01) zm.route[k] = 1;
+    if (u > 0.55 && u < 0.65 && v > 0.5 && v < 0.6) zm.fels[k] = 1;
+    if (Math.hypot(u - 0.6, v - 0.55) < 0.04) zm.gletscher[k] = 1;
   }
-  const klasse = klassifiziere({ nx, ny, hM, zellM: kmM / (nx - 1), masken, an: { wald: 1, wasser: 1, fels: 1, schnee: 1, gebaeude: 1, route: 1 }, schnee: 1350, fels: 35 });
+  const klasse = farbklassen({ nx, ny, pitch, hM, z: zm, an: { wald: 1, wasser: 1, fels: 1, schnee: 1, gebaeude: 1, route: 1 }, schnee: 1350 });
   const reihen = []; for (let zz = 1.0; zz <= sockel - 1.0 + 1e-9; zz += 0.3) reihen.push(+zz.toFixed(3));
   let praegung = null;
   if (mitSchrift) {

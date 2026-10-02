@@ -19,6 +19,7 @@
 const STAC = 'https://data.geo.admin.ch/api/stac/v1/collections';
 const WMS = 'https://wms.geo.admin.ch/';
 export const SUCHE = 'https://api3.geo.admin.ch/rest/services/api/SearchServer';
+const IDENTIFY = 'https://api3.geo.admin.ch/rest/services/api/MapServer/identify';
 
 // ---------- Koordinaten ----------
 export function wgs2lv95(lat, lon) {
@@ -78,8 +79,13 @@ export async function kacheln(rect, collection, aufl, signal) {
  *
  * Quelle: swissALTI3D als COG. Es wird die Overview-Stufe gewaehlt, deren
  * Pixel hoechstens so gross ist wie der Zielabstand — so bleibt der Abruf
- * klein (bei 10 km Kante liest jede Kachel nur ~60x60 Pixel). Zwischen den
- * Quellpixeln wird bilinear interpoliert.
+ * klein (bei 10 km Kante liest jede Kachel nur ~60x60 Pixel).
+ *
+ * Alle Kacheln werden zu EINEM Mosaik zusammengesetzt und erst darauf
+ * bilinear abgetastet. Frueher interpolierte jede Kachel fuer sich: Punkte
+ * im halben Pixel am Kachelrand lasen ihren Wert um ein ganzes Pixel
+ * versetzt — im Relief lagen Grate und Rillen auf dem 1-km-Raster
+ * (Analyse 02.10.2026: Kruemmung dort 3–7x hoeher als im Rest).
  *
  * fortschritt(anzahlFertig, anzahlTotal) optional.
  */
@@ -89,124 +95,174 @@ export async function hoehenRaster(rect, nx, ny, o = {}) {
   const aufl = ziel < 1.6 ? '0.5' : '2';
   const liste = await kacheln(rect, 'ch.swisstopo.swissalti3d', aufl, o.signal);
   if (liste.length === 0) throw new Error('Für diesen Ausschnitt gibt es kein Höhenmodell — er liegt ausserhalb der Schweiz.');
-  const h = new Float32Array(nx * ny).fill(NaN);
   let fertig = 0;
   const GT = window.GeoTIFF;
-  // bis zu 6 Kacheln gleichzeitig
+  const stuecke = new Map();                      // "E-N" -> { px0, py0, fw, fh, band, nodata }
+  let W0 = 0;                                     // Pixel je Kachelseite auf der gewaehlten Stufe
   const warteschlange = liste.slice();
   const arbeiter = async () => {
     while (warteschlange.length) {
       const k = warteschlange.shift();
-      // Schnitt Kachel x Rechteck (Kachel = 1 km ab E,N)
-      const e0 = Math.max(rect.E0, k.E), e1 = Math.min(rect.E1, k.E + 1000);
-      const n0 = Math.max(rect.N0, k.N), n1 = Math.min(rect.N1, k.N + 1000);
-      if (e1 <= e0 || n1 <= n0) { fertig++; continue; }
       const tiff = await GT.fromUrl(k.url, { allowFullFile: false, cache: true, blockSize: 65536 });
       const n = await tiff.getImageCount();
       // Stufe waehlen: groesste Pixelgroesse <= ziel. Overviews tragen keine
-      // eigenen Geo-Schluessel — Ursprung vom Vollbild, Aufloesung ueber das
-      // Breitenverhaeltnis.
+      // eigenen Geo-Schluessel — Aufloesung ueber das Breitenverhaeltnis.
       const img0 = await tiff.getImage(0);
       const res0 = Math.abs(img0.getResolution()[0]);
-      const [ox, oy] = img0.getOrigin();            // Ecke oben links (E, N)
       let img = img0, res = res0;
       for (let s = 1; s < n; s++) {
         const cand = await tiff.getImage(s); const r = res0 * img0.getWidth() / cand.getWidth();
         if (r <= ziel * 1.001) { img = cand; res = r; } else break;
       }
       const W = img.getWidth(), H = img.getHeight();
-      // Pixelfenster (mit 1 Pixel Rand fuer die Interpolation)
-      const px0 = Math.max(0, Math.floor((e0 - ox) / res) - 1), px1 = Math.min(W, Math.ceil((e1 - ox) / res) + 1);
-      const py0 = Math.max(0, Math.floor((oy - n1) / res) - 1), py1 = Math.min(H, Math.ceil((oy - n0) / res) + 1);
+      if (!W0) W0 = W;
+      if (W !== W0) { fertig++; continue; }       // andere Pixelzahl (kommt nicht vor) — Kachel auslassen
+      // Schnitt Kachel x Rechteck, 2 Pixel Rand fuer die Interpolation
+      const rand = 2 * res;
+      const e0 = Math.max(rect.E0 - rand, k.E), e1 = Math.min(rect.E1 + rand, k.E + 1000);
+      const n0 = Math.max(rect.N0 - rand, k.N), n1 = Math.min(rect.N1 + rand, k.N + 1000);
+      if (e1 <= e0 || n1 <= n0) { fertig++; continue; }
+      const px0 = Math.max(0, Math.floor((e0 - k.E) / res)), px1 = Math.min(W, Math.ceil((e1 - k.E) / res));
+      const py0 = Math.max(0, Math.floor((k.N + 1000 - n1) / res)), py1 = Math.min(H, Math.ceil((k.N + 1000 - n0) / res));
       if (px1 <= px0 || py1 <= py0) { fertig++; continue; }
       const [band] = await img.readRasters({ window: [px0, py0, px1, py1], samples: [0], signal: o.signal });
-      const fw = px1 - px0, fh = py1 - py0;
-      const nodata = img0.getGDALNoData();
-      const wert = (px, py) => { const v = band[py * fw + px]; return (v === nodata || v < -100 || !Number.isFinite(v)) ? NaN : v; };
-      // Zielpunkte, die in diesem Schnitt liegen
-      const i0 = Math.max(0, Math.ceil((e0 - rect.E0) / dE - 1e-6)), i1 = Math.min(nx - 1, Math.floor((e1 - rect.E0) / dE + 1e-6));
-      const j0 = Math.max(0, Math.ceil((n0 - rect.N0) / dN - 1e-6)), j1 = Math.min(ny - 1, Math.floor((n1 - rect.N0) / dN + 1e-6));
-      for (let j = j0; j <= j1; j++) {
-        const N = rect.N0 + j * dN;
-        const fy = (oy - N) / res - 0.5 - py0;          // Pixelmitte = +0.5
-        for (let i = i0; i <= i1; i++) {
-          const E = rect.E0 + i * dE;
-          const fx = (E - ox) / res - 0.5 - px0;
-          let x0 = Math.floor(fx), y0 = Math.floor(fy);
-          const tx = fx - x0, ty = fy - y0;
-          x0 = Math.max(0, Math.min(fw - 2, x0)); y0 = Math.max(0, Math.min(fh - 2, y0));
-          const a = wert(x0, y0), b = wert(x0 + 1, y0), c = wert(x0, y0 + 1), d = wert(x0 + 1, y0 + 1);
-          let v;
-          if (Number.isNaN(a) || Number.isNaN(b) || Number.isNaN(c) || Number.isNaN(d)) {
-            const g = [a, b, c, d].filter((q) => !Number.isNaN(q)); v = g.length ? g.reduce((s, q) => s + q, 0) / g.length : NaN;
-          } else v = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
-          if (!Number.isNaN(v)) h[j * nx + i] = v;
-        }
-      }
+      stuecke.set(`${k.E}-${k.N}`, { px0, py0, fw: px1 - px0, fh: py1 - py0, band, nodata: img0.getGDALNoData() });
       fertig++;
       if (o.fortschritt) o.fortschritt(fertig, liste.length);
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, liste.length) }, arbeiter));
+  if (!W0) throw new Error('Keine Höhendaten im Ausschnitt.');
+  // Mosaik: globale Pixelspalte gx = (E - E00) / res, Zeile gy = (N11 - N) / res
+  const res = 1000 / W0;
+  const E00 = Math.floor(rect.E0 / 1000) * 1000 - 1000, N11 = Math.ceil(rect.N1 / 1000) * 1000 + 1000;
+  const wert = (gx, gy) => {
+    const ti = Math.floor(gx / W0), tj = Math.floor(gy / W0);
+    const st = stuecke.get(`${E00 + ti * 1000}-${N11 - (tj + 1) * 1000}`);
+    if (!st) return NaN;
+    const lx = gx - ti * W0 - st.px0, ly = gy - tj * W0 - st.py0;
+    if (lx < 0 || ly < 0 || lx >= st.fw || ly >= st.fh) return NaN;
+    const v = st.band[ly * st.fw + lx];
+    return (v === st.nodata || v < -100 || !Number.isFinite(v)) ? NaN : v;
+  };
+  const h = new Float32Array(nx * ny).fill(NaN);
+  for (let j = 0; j < ny; j++) {
+    const fy = (N11 - (rect.N0 + j * dN)) / res - 0.5;          // Pixelmitte = +0.5
+    const y0 = Math.floor(fy), ty = fy - y0;
+    for (let i = 0; i < nx; i++) {
+      const fx = (rect.E0 + i * dE - E00) / res - 0.5;
+      const x0 = Math.floor(fx), tx = fx - x0;
+      const a = wert(x0, y0), b = wert(x0 + 1, y0), c = wert(x0, y0 + 1), d = wert(x0 + 1, y0 + 1);
+      let v;
+      if (Number.isNaN(a) || Number.isNaN(b) || Number.isNaN(c) || Number.isNaN(d)) {
+        const g = [a, b, c, d].filter((q) => !Number.isNaN(q)); v = g.length ? g.reduce((s, q) => s + q, 0) / g.length : NaN;
+      } else v = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+      h[j * nx + i] = v;
+    }
+  }
   // Loecher (Landesgrenze, fehlende Kachel): auf den tiefsten bekannten Wert
   let min = Infinity, fehlt = 0;
   for (let k = 0; k < h.length; k++) { if (Number.isNaN(h[k])) fehlt++; else if (h[k] < min) min = h[k]; }
   if (fehlt === h.length) throw new Error('Keine Höhendaten im Ausschnitt.');
   if (fehlt) for (let k = 0; k < h.length; k++) if (Number.isNaN(h[k])) h[k] = min;
-  return { h, fehlt, aufl, kacheln: liste.length };
+  return { h, fehlt, aufl, kacheln: liste.length, quellRes: res };
 }
 
 // ---------- WMS-Masken ----------
 /**
- * Flaechenmaske aus einem WMS-Layer: Uint8Array nx*ny, 1 = Flaeche, Zeile 0
- * = Sueden. Es zaehlt nur die Deckkraft — die Layer zeichnen ihre Flaechen
- * gefuellt (Wald, Gebaeude, Seen) bzw. als Linien (Fluesse).
+ * Flaechenmasken aus EINEM WMS-Bild, getrennt nach Pixelfarbe:
+ *   filter = { name: (r, g, b, a) => bool, … }
+ * Rueckgabe je Name ein Uint8Array nx*ny mit der ABDECKUNG 0..255 am
+ * Rasterpunkt (Zeile 0 = Sueden), nicht mehr nur 0/1: das Bild wird
+ * `ueber`-fach feiner geholt und gemittelt, Kantenpixel zaehlen nach ihrer
+ * Deckkraft. Die BBOX ist um eine halbe Zelle erweitert, damit die
+ * Pixelmitten genau auf den Rasterpunkten des Hoehenmodells liegen
+ * (vorher bis zu einer halben Zelle Versatz zum Rand hin).
  */
-export async function wmsMaske(rect, nx, ny, layer, signal) {
-  const m = await wmsMasken(rect, nx, ny, layer, { alle: () => true }, signal);
-  return m.alle;
-}
-/**
- * Mehrere Masken aus EINEM WMS-Bild, getrennt nach Pixelfarbe:
- *   filter = { name: (r, g, b) => bool, … }  (nur deckende Pixel, a > 90)
- * Der Gewaesser-Layer zeichnet Seen als hellblaue Flaeche (158,186,255) und
- * Fluesse/Baeche als blaue Linie (0,0,255) — so lassen sie sich trennen.
- */
-export async function wmsMasken(rect, nx, ny, layer, filter, signal) {
-  const w = Math.min(2000, nx), hh = Math.min(2000, ny);
+export async function wmsMasken(rect, nx, ny, layer, filter, signal, ueber = 3) {
+  const s = Math.max(1, Math.min(ueber, Math.floor(2000 / Math.max(nx, ny))));
+  const dE = (rect.E1 - rect.E0) / (nx - 1), dN = (rect.N1 - rect.N0) / (ny - 1);
+  const w = nx * s, hh = ny * s;
   const url = `${WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${layer}&STYLES=&CRS=EPSG:2056` +
-    `&BBOX=${rect.E0},${rect.N0},${rect.E1},${rect.N1}&WIDTH=${w}&HEIGHT=${hh}&FORMAT=image/png&TRANSPARENT=true`;
+    `&BBOX=${rect.E0 - dE / 2},${rect.N0 - dN / 2},${rect.E1 + dE / 2},${rect.N1 + dN / 2}&WIDTH=${w}&HEIGHT=${hh}&FORMAT=image/png&TRANSPARENT=true`;
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error(`WMS ${layer}: ${r.status}`);
   const bmp = await createImageBitmap(await r.blob());
-  const c = document.createElement('canvas'); c.width = nx; c.height = ny;
+  const c = document.createElement('canvas'); c.width = w; c.height = hh;
   const x = c.getContext('2d', { willReadFrequently: true });
   x.imageSmoothingEnabled = false;
-  x.drawImage(bmp, 0, 0, nx, ny);
-  const d = x.getImageData(0, 0, nx, ny).data;
+  x.drawImage(bmp, 0, 0, w, hh);
+  const d = x.getImageData(0, 0, w, hh).data;
   const namen = Object.keys(filter);
-  const aus = Object.fromEntries(namen.map((n) => [n, new Uint8Array(nx * ny)]));
-  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-    const src = ((ny - 1 - j) * nx + i) * 4;      // Bildzeile 0 = Norden
-    if (d[src + 3] <= 90) continue;
-    for (const n of namen) if (filter[n](d[src], d[src + 1], d[src + 2])) aus[n][j * nx + i] = 1;
+  const summe = namen.map(() => new Uint32Array(nx * ny));
+  for (let py = 0; py < hh; py++) {
+    const j = ny - 1 - Math.floor(py / s);                       // Bildzeile 0 = Norden
+    for (let px = 0; px < w; px++) {
+      const o = (py * w + px) * 4, a = d[o + 3];
+      if (a < 8) continue;
+      const k = j * nx + Math.floor(px / s);
+      for (let q = 0; q < namen.length; q++) if (filter[namen[q]](d[o], d[o + 1], d[o + 2], a)) summe[q][k] += a;
+    }
+  }
+  const aus = {};
+  namen.forEach((n, q) => {
+    const m = new Uint8Array(nx * ny), t = summe[q], div = s * s;
+    for (let k = 0; k < m.length; k++) m[k] = Math.min(255, Math.round(t[k] / div));
+    aus[n] = m;
+  });
+  return aus;
+}
+export async function wmsMaske(rect, nx, ny, layer, signal) {
+  return (await wmsMasken(rect, nx, ny, layer, { alle: () => true }, signal)).alle;
+}
+export const LAYER = {
+  wald: 'ch.swisstopo.swisstlm3d-wald',                 // Waldflaeche swissTLM3D (offizielle Abgrenzung)
+  seen: 'ch.swisstopo.swisstlm3d-gewaessernetz',        // nur die Seeflaechen daraus
+  primaer: 'ch.swisstopo.vec25-primaerflaechen',        // Bodenbedeckung 1:25'000: Fels, Geroell, Gletscher, Gewaesserflaeche
+  gebaeude: 'ch.swisstopo.vec25-gebaeude',
+  strahler: 'ch.bafu.flussordnungszahlen-strahler',     // Gewaessernetz mit Flussordnung (Vektor)
+};
+// Farben gemessen (02.10.2026). Gewaessernetz: Seen als Flaeche (158,186,255);
+// die Linien dort (Baeche, Seeufer, Dolen, Druckleitungen) braucht es nicht
+// mehr. VECTOR25 Primaerflaechen zeichnet jede Bodenbedeckung in EINER
+// Farbe: Fels und Geroell (210,210,210), Gletscher/Firn (240,255,255),
+// Gewaesserflaeche — auch breite Fluesse wie Thur oder Sitter — (82,209,255).
+const nah = (r, g, b, R, G, B, t) => Math.abs(r - R) <= t && Math.abs(g - G) <= t && Math.abs(b - B) <= t;
+export const SEEN_FILTER = { seen: (r, g, b) => r > 130 && r < 185 && g > 160 && g < 210 && b > 230 };
+export const PRIMAER_FILTER = {
+  fels: (r, g, b) => nah(r, g, b, 210, 210, 210, 12),
+  gletscher: (r, g, b) => nah(r, g, b, 240, 255, 255, 8) && r < 250,
+  wasser: (r, g, b) => nah(r, g, b, 82, 209, 255, 30),
+};
+
+// ---------- Gewaessernetz (Vektor) ----------
+/**
+ * Fliessgewaesser im Rechteck als Linien mit Flussordnung nach Strahler
+ * (BAFU, aus dem Gewaessernetz 1:25'000). Das Netz ist durchgehend — auch
+ * eingedolte Abschnitte sind drin. Darum beginnt kein Bach mehr mitten im
+ * Gelaende: unterhalb eines Bachs der Ordnung k liegt immer Ordnung >= k,
+ * und die Laenge bis zur Quelle waechst talwaerts.
+ * Rueckgabe [{ o: Ordnung, l: Laenge bis zur Quelle (m), p: [[E,N],…] }].
+ */
+export async function gewaesserLinien(rect, signal) {
+  const g = `${rect.E0},${rect.N0},${rect.E1},${rect.N1}`;
+  const aus = [], ids = new Set();
+  for (let off = 0; off < 20000; off += 200) {
+    const url = `${IDENTIFY}?geometryType=esriGeometryEnvelope&geometry=${g}&imageDisplay=1000,1000,96&mapExtent=${g}` +
+      `&tolerance=0&layers=all:${LAYER.strahler}&sr=2056&geometryFormat=geojson&returnGeometry=true&limit=200&offset=${off}`;
+    const r = await fetch(url, { signal });
+    if (!r.ok) throw new Error(`Gewässernetz: ${r.status}`);
+    const res = (await r.json()).results || [];
+    for (const f of res) {
+      if (ids.has(f.id)) continue; ids.add(f.id);
+      const pr = f.properties || {}, geo = f.geometry || {};
+      const linien = geo.type === 'LineString' ? [geo.coordinates] : geo.type === 'MultiLineString' ? geo.coordinates : [];
+      for (const p of linien) if (p.length >= 2) aus.push({ o: +pr.floz || 0, l: +pr.main_len || 0, p });
+    }
+    if (res.length < 200) break;
   }
   return aus;
 }
-export const LAYER = {
-  wald: 'ch.swisstopo.swisstlm3d-wald',
-  wasser: 'ch.swisstopo.swisstlm3d-gewaessernetz',
-  haupt: 'ch.swisstopo.vec200-hydrography',          // Landeskarte 1:200'000: nur die Hauptgewaesser
-  gebaeude: 'ch.swisstopo.vec25-gebaeude',
-};
-// Gewaesser-Layer, Farben gemessen (08.09.2026): Seen als Flaeche
-// (158,186,255), Wasserlaeufe als Linie (0,0,253..255), Seeufer als dunklere
-// Linie (0,92,230), dazu graue Punktreihen (102,102,102) und Antialiasing.
-// Nur die ersten beiden sind Wasser — Grau lief vorher als "See" durch.
-export const WASSER_FILTER = {
-  seen: (r, g, b) => r > 130 && r < 185 && g > 160 && g < 210 && b > 230,
-  fluesse: (r, g, b) => r < 40 && g < 40 && b > 200,
-};
 
 // ---------- GPX ----------
 /** Trackpunkte einer GPX-Datei als [[E,N], …] (LV95). */
@@ -221,33 +277,4 @@ export function gpxPunkte(text) {
     if (Number.isFinite(lat) && Number.isFinite(lon)) aus.push(wgs2lv95(lat, lon));
   }
   return aus;
-}
-/**
- * Route ins Raster brennen: Uint8Array nx*ny, 1 = Route. radius in Zellen.
- * Punkte ausserhalb des Rechtecks werden geclippt (Segmente laufen durch).
- */
-export function routeMaske(rect, nx, ny, punkte, radius) {
-  const m = new Uint8Array(nx * ny);
-  if (!punkte || punkte.length < 2) return m;
-  const sx = (nx - 1) / (rect.E1 - rect.E0), sy = (ny - 1) / (rect.N1 - rect.N0);
-  const r2 = radius * radius;
-  const punkt = (x, y) => {
-    for (let j = Math.floor(y - radius); j <= Math.ceil(y + radius); j++) {
-      if (j < 0 || j >= ny) continue;
-      for (let i = Math.floor(x - radius); i <= Math.ceil(x + radius); i++) {
-        if (i < 0 || i >= nx) continue;
-        if ((i - x) ** 2 + (j - y) ** 2 <= r2) m[j * nx + i] = 1;
-      }
-    }
-  };
-  for (let k = 0; k < punkte.length - 1; k++) {
-    const ax = (punkte[k][0] - rect.E0) * sx, ay = (punkte[k][1] - rect.N0) * sy;
-    const bx = (punkte[k + 1][0] - rect.E0) * sx, by = (punkte[k + 1][1] - rect.N0) * sy;
-    // beide Enden weit draussen: Segment auslassen, ausser es kreuzt das Raster
-    const draussen = (x, y) => x < -radius || y < -radius || x > nx - 1 + radius || y > ny - 1 + radius;
-    if (draussen(ax, ay) && draussen(bx, by) && (Math.max(ax, bx) < 0 || Math.min(ax, bx) > nx - 1 || Math.max(ay, by) < 0 || Math.min(ay, by) > ny - 1)) continue;
-    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 0.5));
-    for (let t = 0; t <= n; t++) punkt(ax + (bx - ax) * t / n, ay + (by - ay) * t / n);
-  }
-  return m;
 }

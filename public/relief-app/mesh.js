@@ -173,45 +173,31 @@ export const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8"?>\n<Types xml
 export const RELS = `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`;
 
 // ---------------------------------------------------------------------------
-// Klassifizierung: aus Hoehen (Meter) und Masken die Farbklasse je Zelle.
-// Reihenfolge = Prioritaet: Route > Wasser > Gebaeude > Schnee > Fels > Wald > Land
+// Farbklassen je Zelle (Neubau 02.10.2026, nach Manolos Slice-Befund: zu
+// viele Baeche, Baeche aus dem Nichts, Wald daneben, Farbrauschen).
+//
+// Alles laeuft auf den ZELLMITTEN des Zielrasters (nx-1)*(ny-1) und in
+// Millimetern des Drucks — so sieht das Relief bei 220 Vorschau- und 324
+// Druckpunkten gleich aus. Quellen:
+//   Wald       swissTLM3D-Waldflaeche (Abdeckung am Rasterpunkt, 0..255)
+//   Wasser     Seen (swissTLM3D) + Gewaesserflaechen VECTOR25 (breite Fluesse)
+//              + Baeche als VEKTOR-Linien (Strahler), Breite nach Ordnung
+//   Fels       VECTOR25 Fels und Geroell
+//   Schnee     VECTOR25 Gletscher/Firn, dazu wahlweise alles ueber einer
+//              Schneegrenze, was nicht Wald oder Wasser ist
+//   Gebaeude   VECTOR25 Gebaeude (Kloetzchen)
+//   Route      GPX-Linie
+// Danach wird jede Flaeche auf Druckbarkeit bereinigt: Streifen schmaler
+// als die Mindestbreite, Inseln und Loecher kleiner als die Mindestflaeche
+// verschwinden (sonst druckt der Slicer Farbrauschen).
+// Reihenfolge = Prioritaet: Route > Wasser > Gebaeude > Schnee > Wald > Fels > Land
 // ---------------------------------------------------------------------------
 export const KLASSEN = ['land', 'wald', 'wasser', 'fels', 'schnee', 'gebaeude', 'route'];
-
-/**
- *   hM        Float32Array nx*ny Hoehen in Metern
- *   zellM     Zellgroesse in Metern
- *   masken    { wald, wasser, gebaeude, route } Uint8Array nx*ny (Punktmasken) oder null
- *   an        { wald, wasser, fels, schnee, gebaeude, route } bool
- *   schnee    Hoehe in m ab der Schnee gilt
- *   fels      Hangneigung in Grad ab der Fels gilt
- * Rueckgabe Uint8Array (nx-1)*(ny-1) mit Index in KLASSEN.
- */
-export function klassifiziere(o) {
-  const { nx, ny, hM, zellM, masken, an, schnee, fels } = o;
-  const k = new Uint8Array((nx - 1) * (ny - 1));
-  const tanFels = Math.tan(fels * Math.PI / 180);
-  const m = (name, i, j) => masken && masken[name] ? masken[name][j * nx + i] : 0;
-  // Zelle = 4 Eckpunkte; Maske gilt, wenn >= 2 Ecken drin (Linien: >= 1)
-  for (let cj = 0; cj < ny - 1; cj++) for (let ci = 0; ci < nx - 1; ci++) {
-    const p = [[ci, cj], [ci + 1, cj], [ci, cj + 1], [ci + 1, cj + 1]];
-    const zaehl = (name) => p.reduce((s, q) => s + m(name, q[0], q[1]), 0);
-    const a = hM[cj * nx + ci], b = hM[cj * nx + ci + 1], c = hM[(cj + 1) * nx + ci], d = hM[(cj + 1) * nx + ci + 1];
-    const mitte = (a + b + c + d) / 4;
-    let kl = 0;
-    if (an.wald && zaehl('wald') >= 2) kl = 1;
-    if (an.fels) {
-      const gx = ((b + d) - (a + c)) / (2 * zellM), gy = ((c + d) - (a + b)) / (2 * zellM);
-      if (Math.hypot(gx, gy) > tanFels) kl = 3;
-    }
-    if (an.schnee && mitte >= schnee) kl = 4;
-    if (an.gebaeude && zaehl('gebaeude') >= 2) kl = 5;
-    if (an.wasser && zaehl('wasser') >= 1) kl = 2;
-    if (an.route && zaehl('route') >= 1) kl = 6;
-    k[cj * (nx - 1) + ci] = kl;
-  }
-  return k;
-}
+export const DRUCK = { minBreite: 1.2, minFlaeche: 3.0 };   // mm, mm²: 3 Duesenbreiten, ~1.7x1.7 mm
+// Generalisierung je Flaeche: Kantenglaettung (Gauss-Sigma, mm) und
+// Mindestflaeche (mm²). Fels/Geroell ist in VECTOR25 sehr kleinteilig
+// (Karrenfelder zwischen Weiden) — im Druck wird daraus sonst Rauschen.
+export const GENERAL = { wald: [0.35, 3], fels: [0.7, 6], schnee: [0.5, 4] };
 
 /**
  * Raster umrechnen: bilinear von (sx*sy) nach (nx*ny), beide Zeile 0 = Sueden
@@ -229,245 +215,316 @@ export function resample(src, sx, sy, nx, ny) {
   }
   return out;
 }
+
+/** Gauss-Glaettung, getrennt in x und y; sigma in Zellen, Rand gespiegelt. */
+export function gauss(h, nx, ny, sigma) {
+  if (!(sigma > 0.05)) return h;
+  const R = Math.max(1, Math.ceil(3 * sigma)), w = new Float32Array(2 * R + 1);
+  let s = 0; for (let k = -R; k <= R; k++) { w[k + R] = Math.exp(-k * k / (2 * sigma * sigma)); s += w[k + R]; }
+  for (let k = 0; k < w.length; k++) w[k] /= s;
+  const spiegel = (q, n) => (q < 0 ? -q : q >= n ? 2 * n - 2 - q : q);
+  const t = new Float32Array(nx * ny), out = new Float32Array(nx * ny);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    let v = 0; for (let k = -R; k <= R; k++) v += w[k + R] * h[j * nx + spiegel(i + k, nx)];
+    t[j * nx + i] = v;
+  }
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    let v = 0; for (let k = -R; k <= R; k++) v += w[k + R] * t[spiegel(j + k, ny) * nx + i];
+    out[j * nx + i] = v;
+  }
+  return out;
+}
+
 /**
- * Maske umrechnen: eine Zielzelle ist gesetzt, wenn IRGENDEINE Quellzelle in
- * ihrem Einzugsbereich gesetzt ist. Der naechste-Punkt-Weg liess bei duennen
- * Linien (Fluesse, 1 Zelle breit) jede dritte Zelle fallen — im Druck wurden
- * daraus Striche (Manolo, 07.09.2026).
+ * Hoehen fuers Zielraster: beim Verkleinern zuerst tiefpassfiltern (sonst
+ * Alias-Zacken an Graten), dann bilinear, dann die gewuenschte Glaettung
+ * in mm (unabhaengig von der Rasterweite).
  */
-export function resampleMaske(src, sx, sy, nx, ny) {
-  const out = new Uint8Array(nx * ny);
+export function hoehenFuer(src, sx, sy, nx, ny, pitch, glattMm) {
+  const f = (sx - 1) / (nx - 1);
+  const vor = f > 1.05 ? gauss(src, sx, sy, 0.45 * f) : src;
+  return gauss(resample(vor, sx, sy, nx, ny), nx, ny, glattMm / pitch);
+}
+
+/**
+ * Abdeckungsmaske (0..255 an den Rasterpunkten sx*sy) -> Zellmaske
+ * (nx-1)*(ny-1) des Zielrasters: bilinear an der Zellmitte, ab 50 %.
+ * Ersetzt die alte "irgendein Quellpunkt"-Regel, die Wald um bis zu eine
+ * Zelle aufblaehte (Wald-IoU zur Waldflaeche nur 0.71–0.74).
+ */
+export function zellMaske(cov, sx, sy, nx, ny, schwelle = 128) {
+  const out = new Uint8Array((nx - 1) * (ny - 1));
+  if (!cov) return out;
   const rx = (sx - 1) / (nx - 1), ry = (sy - 1) / (ny - 1);
-  for (let j = 0; j < ny; j++) {
-    const y0 = Math.max(0, Math.floor((j - 0.5) * ry + 0.5)), y1 = Math.min(sy - 1, Math.ceil((j + 0.5) * ry - 0.5));
-    for (let i = 0; i < nx; i++) {
-      const x0 = Math.max(0, Math.floor((i - 0.5) * rx + 0.5)), x1 = Math.min(sx - 1, Math.ceil((i + 0.5) * rx - 0.5));
-      let v = 0;
-      for (let y = y0; y <= y1 && !v; y++) for (let x = x0; x <= x1; x++) if (src[y * sx + x]) { v = 1; break; }
-      out[j * nx + i] = v;
+  for (let cj = 0; cj < ny - 1; cj++) {
+    const fy = (cj + 0.5) * ry; let y0 = Math.floor(fy); if (y0 >= sy - 1) y0 = sy - 2; const ty = fy - y0;
+    for (let ci = 0; ci < nx - 1; ci++) {
+      const fx = (ci + 0.5) * rx; let x0 = Math.floor(fx); if (x0 >= sx - 1) x0 = sx - 2; const tx = fx - x0;
+      const a = cov[y0 * sx + x0], b = cov[y0 * sx + x0 + 1], c = cov[(y0 + 1) * sx + x0], d = cov[(y0 + 1) * sx + x0 + 1];
+      if ((a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty >= schwelle) out[cj * (nx - 1) + ci] = 1;
     }
-  }
-  return out;
-}
-/** Maske um r Zellen verbreitern (Quadrat; zwei getrennte Durchgaenge, damit
- *  auch r = 20 auf dem Datenraster in Millisekunden geht). */
-export function dilatiere(m, nx, ny, r) {
-  if (r <= 0) return m;
-  const h = new Uint8Array(nx * ny), out = new Uint8Array(nx * ny);
-  for (let j = 0; j < ny; j++) {
-    let lauf = 0;                                     // Zellen seit der letzten gesetzten Quellzelle
-    for (let i = 0; i < nx; i++) { if (m[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) h[j * nx + i] = 1; }
-    lauf = r + 1;
-    for (let i = nx - 1; i >= 0; i--) { if (m[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) h[j * nx + i] = 1; }
-  }
-  for (let i = 0; i < nx; i++) {
-    let lauf = r + 1;
-    for (let j = 0; j < ny; j++) { if (h[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) out[j * nx + i] = 1; }
-    lauf = r + 1;
-    for (let j = ny - 1; j >= 0; j--) { if (h[j * nx + i]) lauf = 0; else lauf++; if (lauf <= r) out[j * nx + i] = 1; }
   }
   return out;
 }
 
-/**
- * Linien auf eine Zelle Breite verduennen (Zhang-Suen). Der WMS zeichnet
- * Baeche 2–3 Pixel breit mit Antialiasing; fuer Laengenmass, Verzweigungen
- * und Stutzen braucht es ein Skelett.
- */
-export function verduenne(m, nx, ny) {
-  const a = Uint8Array.from(m);
-  const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny) ? 0 : a[j * nx + i];
-  for (let pass = 0; pass < 80; pass++) {
-    let geaendert = false;
-    for (let step = 0; step < 2; step++) {
-      const weg = [];
-      for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-        if (!a[j * nx + i]) continue;
-        const p2 = at(i, j - 1), p3 = at(i + 1, j - 1), p4 = at(i + 1, j), p5 = at(i + 1, j + 1), p6 = at(i, j + 1), p7 = at(i - 1, j + 1), p8 = at(i - 1, j), p9 = at(i - 1, j - 1);
-        const B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
-        if (B < 2 || B > 6) continue;
-        const s = [p2, p3, p4, p5, p6, p7, p8, p9, p2]; let A = 0;
-        for (let k = 0; k < 8; k++) if (s[k] === 0 && s[k + 1] === 1) A++;
-        if (A !== 1) continue;
-        if (step === 0 ? (p2 * p4 * p6 !== 0 || p4 * p6 * p8 !== 0) : (p2 * p4 * p8 !== 0 || p2 * p6 * p8 !== 0)) continue;
-        weg.push(j * nx + i);
-      }
-      for (const k of weg) a[k] = 0;
-      if (weg.length) geaendert = true;
+// ---------- Morphologie auf Zellmasken (w*h) ----------
+function scheibe(r) {
+  const o = [];
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + 0.5) o.push([dx, dy]);
+  return o;
+}
+function morph(m, w, h, r, dilat) {
+  const o = scheibe(r), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = dilat ? 0 : 1;
+    for (const [dx, dy] of o) {
+      const xx = x + dx, yy = y + dy;
+      // Rand: ausserhalb gilt als "wie innen" — Flaechen am Rand schrumpfen nicht
+      const q = (xx < 0 || yy < 0 || xx >= w || yy >= h) ? m[y * w + x] : m[yy * w + xx];
+      if (dilat ? q : !q) { v = dilat ? 1 : 0; break; }
     }
-    if (!geaendert) break;
+    out[y * w + x] = v;
+  }
+  return out;
+}
+/**
+ * Zusammenhangskomponenten, 4er- oder 8er-Nachbarschaft. Gezaehlt wird mit
+ * 4er: nur ueber Eck verbundene Zellen sind fuer den Slicer getrennte Inseln.
+ * Rueckgabe { lab: Int32Array (-1 = nicht dabei), groesse: [] }.
+ */
+function komponenten(m, w, h, wert, acht) {
+  const lab = new Int32Array(w * h).fill(-1), groesse = [], stack = [];
+  for (let s = 0; s < w * h; s++) {
+    if (m[s] !== wert || lab[s] >= 0) continue;
+    const id = groesse.length; let n = 0;
+    lab[s] = id; stack.push(s);
+    while (stack.length) {
+      const k = stack.pop(); n++;
+      const x = k % w, y = (k - x) / w;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || (!acht && dx && dy)) continue;
+        const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const q = yy * w + xx; if (m[q] === wert && lab[q] < 0) { lab[q] = id; stack.push(q); }
+      }
+    }
+    groesse.push(n);
+  }
+  return { lab, groesse };
+}
+/**
+ * Flaeche druckbar machen: Kanten weich zeichnen (Gauss sigma Zellen, dann
+ * ab 50 % — wie ein Kartograf die Grenze glaettet, die Flaeche bleibt
+ * gleich gross), Schliessen + Oeffnen mit Radius r (Zellen) — schmale
+ * Luecken zu, schmale Zipfel und Streifen weg —, dann Inseln und Loecher
+ * unter minZellen entfernen.
+ */
+export function bereinige(m, w, h, r, minZellen, sigma = 0) {
+  let a = m;
+  if (sigma > 0.3) {
+    const f = new Float32Array(w * h); for (let k = 0; k < f.length; k++) f[k] = a[k];
+    const g = gauss(f, w, h, sigma); a = new Uint8Array(w * h); for (let k = 0; k < a.length; k++) a[k] = g[k] >= 0.5 ? 1 : 0;
+  }
+  if (r > 0) a = morph(morph(morph(morph(a, w, h, r, true), w, h, r, false), w, h, r, false), w, h, r, true);
+  else if (a === m) a = Uint8Array.from(a);
+  if (minZellen > 1) {
+    for (const wert of [1, 0]) {
+      const { lab, groesse } = komponenten(a, w, h, wert, false);
+      for (let k = 0; k < a.length; k++) if (lab[k] >= 0 && groesse[lab[k]] < minZellen) a[k] = 1 - wert;
+    }
   }
   return a;
 }
 
+// ---------- Linien (Baeche, Route) ----------
 /**
- * Nebenbaeche stutzen: Endaeste des Skeletts, die kuerzer als minLen Zellen
- * sind, werden entfernt (bis zur Verzweigung). Ein Bach, der das Gebiet
- * durchquert, hat keine Enden und bleibt immer. Mehrere Durchgaenge, weil
- * nach dem Stutzen neue kurze Enden entstehen koennen.
+ * Linien als Zellmaske: jede Zelle, deren Mitte naeher als die halbe
+ * Breite an der Linie liegt. Breite in mm, je Linie (breite(linie)).
+ *   linien  [{ p: [[E,N],…], … }]   rect  { E0, E1, N0, N1 }
  */
-export function stutze(m, nx, ny, minLen) {
-  if (minLen <= 1) return m;
-  const a = Uint8Array.from(m);
-  const at = (i, j) => (i < 0 || j < 0 || i >= nx || j >= ny) ? 0 : a[j * nx + i];
-  const nb = (k) => {
-    const i = k % nx, j = (k - i) / nx, out = [];
+export function linienZellen(linien, rect, nx, ny, pitch, breite) {
+  const w = nx - 1, h = ny - 1, out = new Uint8Array(w * h);
+  const sx = (nx - 1) / (rect.E1 - rect.E0), sy = (ny - 1) / (rect.N1 - rect.N0);
+  for (const L of linien) {
+    const hw = Math.max(0.55, breite(L) / 2 / pitch), hw2 = hw * hw;
+    const p = L.p;
+    for (let k = 0; k < p.length - 1; k++) {
+      const ax = (p[k][0] - rect.E0) * sx - 0.5, ay = (p[k][1] - rect.N0) * sy - 0.5;
+      const bx = (p[k + 1][0] - rect.E0) * sx - 0.5, by = (p[k + 1][1] - rect.N0) * sy - 0.5;
+      const x0 = Math.max(0, Math.floor(Math.min(ax, bx) - hw)), x1 = Math.min(w - 1, Math.ceil(Math.max(ax, bx) + hw));
+      const y0 = Math.max(0, Math.floor(Math.min(ay, by) - hw)), y1 = Math.min(h - 1, Math.ceil(Math.max(ay, by) + hw));
+      if (x0 > x1 || y0 > y1) continue;
+      const vx = bx - ax, vy = by - ay, vv = vx * vx + vy * vy || 1e-9;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        let t = ((x - ax) * vx + (y - ay) * vy) / vv; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const dx = x - ax - t * vx, dy = y - ay - t * vy;
+        if (dx * dx + dy * dy <= hw2) out[y * w + x] = 1;
+      }
+    }
+  }
+  return out;
+}
+/**
+ * Welche Baeche kommen aufs Relief? Generalisierung nach Massstab: ein
+ * Abschnitt bleibt, wenn sein Lauf bis zur Quelle mindestens minLen Meter
+ * lang ist (und, fuer "nur Hauptgewaesser", seine Ordnung >= minOrd).
+ * Beides waechst talwaerts — der Rest des Netzes bleibt zusammenhaengend.
+ */
+export function waehleBaeche(linien, minLen, minOrd = 0) {
+  return linien.filter((L) => L.l >= minLen && L.o >= minOrd);
+}
+/**
+ * Bachlinien auf die Talsohle des Hoehenmodells legen. Das Gewaessernetz
+ * stammt aus der Karte 1:25'000 und liegt in engen Tobeln oft einige Meter
+ * am Hang (Analyse Buehler: Median 2–3 m ueber der Sohle) — im Druck wurde
+ * die Linie dort zu einem Strichel auf den Schichtkanten. Jede Linie wird
+ * auf Rasterweite verdichtet, jeder Punkt sucht im Umkreis radiusM den
+ * tiefsten Punkt, die Verschiebungen werden entlang der Linie geglaettet.
+ *   h: Hoehenraster nx*ny (Zeile 0 = Sueden) ueber rect
+ */
+export function baecheEinpassen(linien, rect, h, nx, ny, radiusM) {
+  const dE = (rect.E1 - rect.E0) / (nx - 1), dN = (rect.N1 - rect.N0) / (ny - 1);
+  const wert = (E, N) => {
+    const fx = (E - rect.E0) / dE, fy = (N - rect.N0) / dN;
+    const x0 = Math.max(0, Math.min(nx - 2, Math.floor(fx))), y0 = Math.max(0, Math.min(ny - 2, Math.floor(fy)));
+    const tx = Math.max(0, Math.min(1, fx - x0)), ty = Math.max(0, Math.min(1, fy - y0));
+    return (h[y0 * nx + x0] * (1 - tx) + h[y0 * nx + x0 + 1] * tx) * (1 - ty) + (h[(y0 + 1) * nx + x0] * (1 - tx) + h[(y0 + 1) * nx + x0 + 1] * tx) * ty;
+  };
+  const schritt = Math.min(dE, dN);
+  const ring = []; for (let r = schritt; r <= radiusM + 1e-6; r += schritt) for (let a = 0; a < 16; a++) ring.push([r * Math.cos(a * Math.PI / 8), r * Math.sin(a * Math.PI / 8), r]);
+  return linien.map((L) => {
+    const p = [];
+    for (let k = 0; k < L.p.length - 1; k++) {
+      const [ax, ay] = L.p[k], [bx, by] = L.p[k + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / schritt));
+      for (let t = 0; t < n; t++) p.push([ax + (bx - ax) * t / n, ay + (by - ay) * t / n]);
+    }
+    p.push(L.p[L.p.length - 1].slice());
+    const d = p.map(([E, N]) => {
+      let best = wert(E, N), bx = 0, by = 0;
+      // leichte Strafe fuer Distanz: bei gleicher Hoehe bleibt die Linie, wo sie ist
+      for (const [ox, oy, r] of ring) { const v = wert(E + ox, N + oy) + 0.02 * r; if (v < best) { best = v; bx = ox; by = oy; } }
+      return [bx, by];
+    });
+    const g = d.map((_, i) => { let sx = 0, sy = 0, c = 0; for (let j = Math.max(0, i - 3); j <= Math.min(d.length - 1, i + 3); j++) { sx += d[j][0]; sy += d[j][1]; c++; } return [sx / c, sy / c]; });
+    return { ...L, p: p.map(([E, N], i) => [E + g[i][0], N + g[i][1]]) };
+  });
+}
+/**
+ * Baeche als flache Rinne eintiefen: alle Rasterpunkte an Bachzellen auf die
+ * tiefste Hoehe ihrer 3x3-Nachbarschaft, dann um tiefeM tiefer. Der Slicer
+ * druckt den Bachgrund so als eigene, blaue Deckflaeche statt als Strichel
+ * auf den Schichtkanten am Hang.
+ */
+export function rinne(hM, nx, ny, zellen, tiefeM) {
+  const p = punkteAn(zellen, nx, ny), out = Float32Array.from(hM);
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    if (!p[j * nx + i]) continue;
+    let mn = hM[j * nx + i];
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-      if (!di && !dj) continue;
-      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-      if (a[jj * nx + ii]) out.push(jj * nx + ii);
+      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny || !p[jj * nx + ii]) continue;
+      if (hM[jj * nx + ii] < mn) mn = hM[jj * nx + ii];
     }
-    return out;
-  };
-  // Verzweigungsgrad = Zahl der 0->1-Uebergaenge rund um die Zelle (wie bei
-  // Zhang-Suen). Die blosse Nachbarzahl trog: Treppenstufen eines
-  // 8er-Skeletts haben 3 Nachbarn, sind aber keine Verzweigung — das Stutzen
-  // brach dort ab und liess lange Nebenbaeche stehen (08.09.2026).
-  const grad = (k) => {
-    const i = k % nx, j = (k - i) / nx;
-    const s = [at(i, j - 1), at(i + 1, j - 1), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1), at(i - 1, j + 1), at(i - 1, j), at(i - 1, j - 1)];
-    let A = 0; for (let q = 0; q < 8; q++) if (s[q] === 0 && s[(q + 1) % 8] === 1) A++;
-    return A;
-  };
-  for (let pass = 0; pass < 6; pass++) {
-    let geaendert = false;
-    const enden = []; for (let k = 0; k < a.length; k++) if (a[k] && grad(k) === 1) enden.push(k);
-    for (const e of enden) {
-      if (!a[e]) continue;
-      const pfad = [e]; const drin = new Set([e]);
-      let cur = e, ende = 'spitze';
-      for (;;) {
-        const n = nb(cur).filter((q) => !drin.has(q));
-        if (n.length === 0) { ende = 'spitze'; break; }
-        // Verzweigung erreicht (Grad >= 3): der Knoten selbst bleibt stehen
-        const knoten = n.find((q) => grad(q) >= 3);
-        if (knoten !== undefined) { ende = 'knoten'; break; }
-        const next = n[0];
-        cur = next; pfad.push(cur); drin.add(cur);
-        if (pfad.length >= minLen) { ende = 'lang'; break; }
-      }
-      if (ende === 'lang') continue;
-      for (const k of pfad) a[k] = 0;
-      geaendert = true;
-    }
-    if (!geaendert) break;
-  }
-  return a;
-}
-
-/** Nur die Komponenten von m behalten, die die Referenzmaske ref beruehren. */
-export function nurNahe(m, ref, nx, ny) {
-  const N = nx * ny, gesehen = new Uint8Array(N), out = new Uint8Array(N);
-  const stack = [];
-  for (let s = 0; s < N; s++) {
-    if (!m[s] || gesehen[s]) continue;
-    const zellen = []; let trifft = false;
-    gesehen[s] = 1; stack.push(s);
-    while (stack.length) {
-      const k = stack.pop(); zellen.push(k); if (ref[k]) trifft = true;
-      const i = k % nx, j = (k - i) / nx;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-        const q = jj * nx + ii; if (m[q] && !gesehen[q]) { gesehen[q] = 1; stack.push(q); }
-      }
-    }
-    if (trifft) for (const k of zellen) out[k] = 1;
+    out[j * nx + i] = mn - tiefeM;
   }
   return out;
 }
+/** Strichbreite (mm) nach Strahler-Ordnung: Grundbreite, ab Ordnung 3 breiter. */
+export function bachBreite(o, basis) { return basis * (1 + 0.18 * Math.max(0, Math.min(o, 8) - 2)); }
+
+/** Automatische Mindestlaenge der Baeche (m): ~35 mm Lauf im Druck. */
+export function bachMinAuto(mmJeM) { return Math.round(35 / mmJeM / 50) * 50; }
 
 /**
- * Fluesse zusammenhaengend machen.
- *
- * Der Gewaesser-Layer zeichnet eingedolte Abschnitte (unter Doerfern,
- * Strassen, Bahnlinien) nicht — im Relief tauchten Baeche mitten im Objekt
- * auf und verschwanden wieder (Manolo, 07.09.2026). Vorgehen:
- *   1. Zusammenhangskomponenten von Fluessen+Seen (8er-Nachbarschaft).
- *   2. Verbunden = beruehrt den Rand oder enthaelt See-Zellen.
- *   3. Jede andere Komponente sucht vom tiefsten Punkt einen Weg zum
- *      verbundenen Netz oder zum Rand — Dijkstra ueber dem Hoehenmodell,
- *      bergab billig, bergauf teuer (folgt also dem Talweg wie die Dole).
- *      Gefunden: Weg wird Fluss, Komponente gilt als verbunden.
- *      Nicht gefunden (Budget): Komponente wird gestrichen.
- * Rueckgabe { fluesse (neu), verbunden, gestrichen, ueberbrueckt }.
- *   hM: Hoehen (m), maxSchritte: Budget je Komponente (Zellen im Heap).
+ *   nx, ny, pitch   Zielraster, Zellgroesse mm
+ *   hM              Float32Array nx*ny Hoehen in Metern
+ *   z               { wald, seen, wasserFl, baeche, fels, gletscher, gebaeude, route } Zellmasken oder null
+ *   an              { wald, wasser, fels, schnee, gebaeude, route } bool
+ *   schnee          Hoehe in m ab der alles Offene Schnee ist (>= 4200: nur Gletscher)
+ * Rueckgabe Uint8Array (nx-1)*(ny-1) mit Index in KLASSEN.
  */
-export function fluesseVerbinden(fluesse, seen, hM, nx, ny, maxSchritte = 60000) {
-  const N = nx * ny;
-  const F = new Uint8Array(N);
-  for (let k = 0; k < N; k++) F[k] = (fluesse[k] || (seen && seen[k])) ? 1 : 0;
-  const komp = new Int32Array(N).fill(-1);
-  const komps = [];                                  // { zellen: [], verbunden }
-  const rand = (k) => { const i = k % nx, j = (k - i) / nx; return i === 0 || j === 0 || i === nx - 1 || j === ny - 1; };
-  const stack = [];
-  for (let s = 0; s < N; s++) {
-    if (!F[s] || komp[s] >= 0) continue;
-    const id = komps.length, zellen = []; let verbunden = false;
-    komp[s] = id; stack.push(s);
-    while (stack.length) {
-      const k = stack.pop(); zellen.push(k);
-      if (rand(k) || (seen && seen[k])) verbunden = true;
-      const i = k % nx, j = (k - i) / nx;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        if (!di && !dj) continue;
-        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-        const q = jj * nx + ii; if (F[q] && komp[q] < 0) { komp[q] = id; stack.push(q); }
+export function farbklassen(o) {
+  const { nx, ny, pitch, hM, z, an, schnee } = o;
+  const w = nx - 1, h = ny - 1, N = w * h;
+  const r = Math.max(0, Math.round(DRUCK.minBreite / 2 / pitch));
+  const minZ = Math.max(2, Math.ceil(DRUCK.minFlaeche / (pitch * pitch)));
+  const leer = new Uint8Array(N);
+  const zz = (k) => z[k] || leer;
+  // Wasserflaechen: Seen + breite Fluesse; nur Kleinstweiher weg, keine
+  // Oeffnung (ein schmaler Fluss soll nicht zerfallen — die Bachlinie
+  // laeuft ohnehin mitten durch)
+  const wFl = new Uint8Array(N); { const a = zz('seen'), b = zz('wasserFl'); for (let k = 0; k < N; k++) wFl[k] = a[k] | b[k]; }
+  const wasserFl = bereinige(wFl, w, h, 0, minZ);
+  const wasser = new Uint8Array(N); { const b = zz('baeche'); for (let k = 0; k < N; k++) wasser[k] = wasserFl[k] | b[k]; }
+  const gen = (name, m) => bereinige(m, w, h, r, Math.max(minZ, Math.ceil(GENERAL[name][1] / (pitch * pitch))), GENERAL[name][0] / pitch);
+  const wald = an.wald ? gen('wald', zz('wald')) : leer;
+  const fels = an.fels ? gen('fels', zz('fels')) : leer;
+  let sch = leer;
+  if (an.schnee) {
+    const s = Uint8Array.from(zz('gletscher'));
+    if (schnee < 4200) {
+      for (let cj = 0; cj < h; cj++) for (let ci = 0; ci < w; ci++) {
+        const mitte = (hM[cj * nx + ci] + hM[cj * nx + ci + 1] + hM[(cj + 1) * nx + ci] + hM[(cj + 1) * nx + ci + 1]) / 4;
+        const k = cj * w + ci;
+        if (mitte >= schnee && !wald[k] && !wasser[k]) s[k] = 1;
       }
     }
-    komps.push({ zellen, verbunden });
+    sch = gen('schnee', s);
   }
-  const netz = new Uint8Array(N);                    // verbundenes Wasser (waechst)
-  for (const c of komps) if (c.verbunden) for (const k of c.zellen) netz[k] = 1;
-  const aus = new Uint8Array(N);
-  for (let k = 0; k < N; k++) if (fluesse[k] && netz[k]) aus[k] = 1;
-  let gestrichen = 0, ueberbrueckt = 0;
-  // Binaerer Heap fuer Dijkstra
-  const heap = []; const hpush = (c, k) => { heap.push([c, k]); let a = heap.length - 1; while (a > 0) { const p = (a - 1) >> 1; if (heap[p][0] <= heap[a][0]) break; [heap[p], heap[a]] = [heap[a], heap[p]]; a = p; } };
-  const hpop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let a = 0; for (;;) { let l = 2 * a + 1, r = l + 1, m = a; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === a) break; [heap[m], heap[a]] = [heap[a], heap[m]]; a = m; } } return top; };
-  const dist = new Float32Array(N), vor = new Int32Array(N);
-  const offen = komps.filter((c) => !c.verbunden).sort((a, b) => b.zellen.length - a.zellen.length);
-  for (const c of offen) {
-    dist.fill(Infinity); vor.fill(-1); heap.length = 0;
-    const cid = komp[c.zellen[0]];
-    for (const k of c.zellen) { dist[k] = 0; hpush(0, k); }
-    let ziel = -1, schritte = 0;
-    while (heap.length && schritte < maxSchritte) {
-      const [d, k] = hpop(); if (d > dist[k]) continue;
-      schritte++;
-      if (komp[k] !== cid && (netz[k] || rand(k))) { ziel = k; break; }
-      const i = k % nx, j = (k - i) / nx;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        if (!di && !dj) continue;
-        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-        const q = jj * nx + ii;
-        const dh = hM[q] - hM[k];
-        const kosten = (di && dj ? 1.414 : 1) + (dh > 0 ? 40 * dh : 0.5 * Math.max(-2, dh) + 1);   // bergauf teuer, bergab leicht billiger
-        const nd = d + Math.max(0.05, kosten);
-        if (nd < dist[q]) { dist[q] = nd; vor[q] = k; hpush(nd, q); }
-      }
-    }
-    if (ziel < 0) { gestrichen++; continue; }
-    // Weg zurueckverfolgen und einzeichnen
-    for (let k = ziel; k >= 0 && dist[k] > 0; k = vor[k]) { aus[k] = 1; netz[k] = 1; }
-    for (const k of c.zellen) { netz[k] = 1; if (fluesse[k]) aus[k] = 1; }
-    c.verbunden = true; ueberbrueckt++;
+  const geb = an.gebaeude ? zz('gebaeude') : leer, route = an.route ? zz('route') : leer;
+  const k = new Uint8Array(N);
+  for (let q = 0; q < N; q++) {
+    let kl = 0;
+    if (fels[q]) kl = 3;
+    if (wald[q]) kl = 1;
+    if (sch[q]) kl = 4;
+    if (geb[q]) kl = 5;
+    if (an.wasser && wasser[q]) kl = 2;
+    if (route[q]) kl = 6;
+    k[q] = kl;
   }
-  return { fluesse: aus, verbunden: komps.filter((c) => c.verbunden).length, gestrichen, ueberbrueckt };
+  return inselnWeg(k, w, h, minZ, new Set([5, 6]));
 }
-/** Glaetten (Boxfilter 3x3), n Durchgaenge — gegen Rasterrauschen bei grober Stufe. */
-export function glaette(h, nx, ny, n) {
-  let a = h;
-  for (let p = 0; p < n; p++) {
-    const b = new Float32Array(nx * ny);
-    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-      let s = 0, c = 0;
-      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
-        const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
-        s += a[jj * nx + ii]; c++;
+
+/**
+ * Letzter Durchgang auf der fertigen Karte: Farbinseln unter minZ Zellen
+ * (z. B. ein Zipfel Land zwischen Wald und Bach) bekommen die haeufigste
+ * Nachbarfarbe. Gebaeude und Route bleiben, wie sie sind.
+ */
+export function inselnWeg(k, w, h, minZ, schutz) {
+  for (let pass = 0; pass < 2; pass++) {
+    let geaendert = false;
+    for (let c = 0; c < KLASSEN.length; c++) {
+      if (schutz.has(c)) continue;
+      const m = new Uint8Array(w * h); let n = 0; for (let q = 0; q < m.length; q++) if (k[q] === c) { m[q] = 1; n++; }
+      if (!n) continue;
+      const { lab, groesse } = komponenten(m, w, h, 1, false);
+      const klein = groesse.map((g) => g < minZ);
+      if (!klein.some(Boolean)) continue;
+      const zaehl = groesse.map(() => new Uint32Array(KLASSEN.length));
+      for (let q = 0; q < m.length; q++) {
+        const id = lab[q]; if (id < 0 || !klein[id]) continue;
+        const x = q % w, y = (q - x) / w;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+          const nb = k[yy * w + xx]; if (nb !== c) zaehl[id][nb]++;
+        }
       }
-      b[j * nx + i] = s / c;
+      for (let q = 0; q < m.length; q++) {
+        const id = lab[q]; if (id < 0 || !klein[id]) continue;
+        let best = -1, bn = 0; zaehl[id].forEach((v, i) => { if (v > bn && !schutz.has(i)) { bn = v; best = i; } });
+        if (best >= 0) { k[q] = best; geaendert = true; }
+      }
     }
-    a = b;
+    if (!geaendert) break;
   }
-  return a;
+  return k;
+}
+
+/** Rasterpunkte, die an mindestens eine Zelle der Maske grenzen (fuer Kloetzchen/Route-Erhoehung). */
+export function punkteAn(zellen, nx, ny) {
+  const p = new Uint8Array(nx * ny), w = nx - 1;
+  for (let cj = 0; cj < ny - 1; cj++) for (let ci = 0; ci < nx - 1; ci++) {
+    if (!zellen[cj * w + ci]) continue;
+    p[cj * nx + ci] = p[cj * nx + ci + 1] = p[(cj + 1) * nx + ci] = p[(cj + 1) * nx + ci + 1] = 1;
+  }
+  return p;
 }

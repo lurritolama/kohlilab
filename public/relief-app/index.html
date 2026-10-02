@@ -23,6 +23,8 @@
   .row label{font-size:12.5px;color:var(--mut);width:96px;flex:none}
   .row input[type=range]{flex:1;accent-color:var(--acc);min-width:0}
   .row .val{font-family:var(--mono);font-size:11px;width:64px;text-align:right;color:var(--ink)}
+  .row .mini{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:4px;padding:2px 6px;font-size:10.5px;cursor:pointer;flex:none}
+  .row .mini.active{border-color:var(--acc);color:var(--acc)}
   .btns{display:flex;flex-wrap:wrap;gap:6px}
   .btns button{background:#17181b;border:1px solid var(--line);color:var(--mut);border-radius:5px;padding:6px 10px;font-size:12px;cursor:pointer}
   .btns button.active{border-color:var(--acc);color:var(--acc);font-weight:600}
@@ -96,22 +98,21 @@
 
   <div class="grp"><h2>2 · Grösse &amp; Form</h2>
     <div class="row"><label>Druckbreite</label><input type="range" id="breite" min="80" max="250" step="5"><span class="val" id="breiteV"></span></div>
-    <div class="row"><label>Überhöhung</label><input type="range" id="ueberh" min="1" max="3" step="0.1"><span class="val" id="ueberhV"></span></div>
+    <div class="row"><label>Überhöhung</label><input type="range" id="ueberh" min="1" max="3" step="0.1"><span class="val" id="ueberhV"></span><button type="button" class="mini" id="ueberhAuto" title="Überhöhung nach Massstab und Gelände">auto</button></div>
     <div class="row"><label>Sockel</label><input type="range" id="sockel" min="4" max="12" step="0.5"><span class="val" id="sockelV"></span></div>
     <div class="row"><label>Glätten</label><input type="range" id="glatt" min="0" max="3" step="1"><span class="val" id="glattV"></span></div>
     <div class="note" id="masseNote"></div>
-    <div class="note">Überhöhung 1.0 = naturgetreu. Im Mittelland wirkt 2.0–2.5 besser, in den Alpen 1.0–1.5.</div>
+    <div class="note">Überhöhung 1.0 = naturgetreu. «auto» wählt sie nach Massstab und Gelände: in den Alpen um 1.0, im Hügelland 1.3–1.6, im flachen Mittelland bis 2.5.</div>
   </div>
 
   <div class="grp"><h2>3 · Farben</h2>
     <div id="zonen"></div>
     <label class="schalter" id="fluesseWrap"><input type="checkbox" id="fluesse"> Flüsse und Bäche mitdrucken (Seen immer)</label>
     <div class="row" id="flussRow"><label>Flussbreite</label><input type="range" id="flussB" min="1" max="3" step="0.1"><span class="val" id="flussBV"></span></div>
-    <div class="row" id="bachRow"><label>Nebenbäche</label><input type="range" id="bachMin" min="0" max="2000" step="50"><span class="val" id="bachMinV"></span></div>
-    <label class="schalter" id="hauptWrap"><input type="checkbox" id="nurHaupt"> Nur Hauptgewässer (wie Landeskarte 1:200'000)</label>
+    <div class="row" id="bachRow"><label>Bäche ab</label><input type="range" id="bachMin" min="0" max="4000" step="50"><span class="val" id="bachMinV"></span><button type="button" class="mini" id="bachAuto" title="Bachdichte nach Massstab">auto</button></div>
+    <label class="schalter" id="hauptWrap"><input type="checkbox" id="nurHaupt"> Nur Hauptgewässer (Flüsse und grosse Bäche)</label>
     <div class="note" id="bachNote"></div>
-    <div class="row" id="schneeRow"><label>Schneegrenze</label><input type="range" id="schnee" min="1500" max="4200" step="50"><span class="val" id="schneeV"></span></div>
-    <div class="row" id="felsRow"><label>Fels ab</label><input type="range" id="fels" min="25" max="60" step="1"><span class="val" id="felsV"></span></div>
+    <div class="row" id="schneeRow"><label>Schnee ab</label><input type="range" id="schnee" min="1500" max="4200" step="50"><span class="val" id="schneeV"></span></div>
     <div class="row" id="hausRow"><label>Häuser</label><input type="range" id="hausH" min="3" max="15" step="1"><span class="val" id="hausHV"></span></div>
     <div class="note" id="farbNote">Land ist immer dabei. Das AMS druckt <b>bis zu 4 Farben</b> in einem Stück — wähle deine drei Zonen dazu.</div>
   </div>
@@ -166,8 +167,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mobilModus } from '/konfig-mobil.js';
-import { reliefMesh, volumen, modelXml, klassifiziere, resample, resampleMaske, dilatiere, fluesseVerbinden, verduenne, stutze, glaette, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
-import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, LAYER, WASSER_FILTER, gpxPunkte, routeMaske, SUCHE } from './geo.js';
+import { reliefMesh, volumen, modelXml, farbklassen, hoehenFuer, zellMaske, linienZellen, waehleBaeche, bachBreite, bachMinAuto, punkteAn, baecheEinpassen, rinne, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
+import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, gewaesserLinien, LAYER, SEEN_FILTER, PRIMAER_FILTER, gpxPunkte, SUCHE } from './geo.js';
 let mobil = null;
 
 // ---------- Konfiguration ----------
@@ -194,8 +195,8 @@ const ZONEN = [                                     // Reihenfolge = KLASSEN in 
   { key: 'land', name: 'Land', farbe: '#E8DCC0', fix: true },
   { key: 'wald', name: 'Wald', farbe: '#37A24A' },
   { key: 'wasser', name: 'Seen & Flüsse', farbe: '#2F6FD6' },
-  { key: 'fels', name: 'Fels (steile Hänge)', farbe: '#3A3E44' },
-  { key: 'schnee', name: 'Schnee & Gletscher', farbe: '#ECEFF0' },
+  { key: 'fels', name: 'Fels & Geröll', farbe: '#3A3E44' },
+  { key: 'schnee', name: 'Gletscher & Schnee', farbe: '#ECEFF0' },
   { key: 'gebaeude', name: 'Häuser (Klötzchen)', farbe: '#D8332F' },
   { key: 'route', name: 'Route (GPX)', farbe: '#EF7D1A' },
 ];
@@ -206,10 +207,10 @@ const START = wgs2lv95(47.3735, 9.3235);
 
 const P = {
   E: Math.round(START[0]), N: Math.round(START[1]), km: 2, format: '1:1',
-  breite: 180, ueberh: 1.5, sockel: 4, glatt: 1,
+  breite: 180, ueberh: 1.5, ueberhAuto: true, sockel: 4, glatt: 1,
   an: { wald: true, wasser: true, fels: false, schnee: false, gebaeude: false, route: false },
   farben: Object.fromEntries(ZONEN.map((z) => [z.key, z.farbe])),
-  schnee: 2800, fels: 40, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true, flussB: 1.2, bachMin: 400, nurHaupt: false,
+  schnee: 4200, hausH: 8, routeB: 1.5, routeH: 0.5, fluesse: true, flussB: 1.2, bachMin: 600, bachAuto: true, nurHaupt: false,
   text: '', schildH: 8, schildFarbe: '#ECEFF0', textFarbe: '#1C1C1C', schildLage: 'liegend', schildPos: 'mitte', menge: 1,
 };
 // Schild (separat flach gedruckt, wie die Tafel beim Lochwand-Planer): Text
@@ -323,36 +324,29 @@ async function laden() {
   const b = $('laden'); b.disabled = true; b.textContent = 'lädt …'; balken(0.02);
   status('Höhenmodell swissALTI3D wird geholt …');
   try {
-    const [hoehen, wald, wasser, geb, haupt] = await Promise.all([
+    const [hoehen, wald, seen, primaer, geb, linien] = await Promise.all([
       hoehenRaster(r, nx, ny, { signal, fortschritt: (f, n) => { balken(0.05 + 0.75 * f / n); status(`Höhenmodell: Kachel ${f} von ${n} …`); } }),
       wmsMaske(r, nx, ny, LAYER.wald, signal).catch(() => null),
-      wmsMasken(r, nx, ny, LAYER.wasser, WASSER_FILTER, signal).catch(() => null),
+      wmsMasken(r, nx, ny, LAYER.seen, SEEN_FILTER, signal).then((m) => m.seen).catch(() => null),
+      wmsMasken(r, nx, ny, LAYER.primaer, PRIMAER_FILTER, signal).catch(() => null),
       wmsMaske(r, nx, ny, LAYER.gebaeude, signal).catch(() => null),
-      wmsMaske(r, nx, ny, LAYER.haupt, signal).catch(() => null),
+      gewaesserLinien(r, signal).catch(() => null),
     ]);
     balken(0.9);
-    // Fluesse: Linien auf eine Zelle verduennen (Skelett), eingedolte Luecken
-    // entlang des Talwegs schliessen, Reste ohne Anschluss streichen
-    let fl = null, flInfo = '';
-    const zellM = r.wM / (nx - 1);
-    if (wasser) {
-      status('Gewässer werden verbunden …');
-      await new Promise((res) => setTimeout(res, 20));
-      const v = fluesseVerbinden(verduenne(wasser.fluesse, nx, ny), wasser.seen, hoehen.h, nx, ny);
-      fl = v.fluesse;
-      if (v.ueberbrueckt || v.gestrichen) flInfo = ` · Bäche: ${v.ueberbrueckt} verbunden, ${v.gestrichen} ohne Anschluss weggelassen`;
-    }
+    // Masken = Abdeckung 0..255 an den Rasterpunkten; Klassen, Bereinigung
+    // und Bachauswahl rechnet bau() je Aufloesung in Druck-Millimetern.
     daten = { rect: r, nx, ny, h: hoehen.h, aufl: hoehen.aufl, kacheln: hoehen.kacheln, fehlt: hoehen.fehlt,
-              masken: { wald, seen: wasser ? wasser.seen : null, fluesse: fl, gebaeude: geb,
-                        // Hauptgewaesser der Landeskarte 1:200'000, generalisiert (bis ~80 m neben dem TLM-Lauf)
-                        haupt: haupt ? dilatiere(haupt, nx, ny, Math.max(2, Math.round(100 / zellM))) : null },
-              flCache: null };
+              masken: { wald, seen, wasserFl: primaer ? primaer.wasser : null, fels: primaer ? primaer.fels : null,
+                        gletscher: primaer ? primaer.gletscher : null, gebaeude: geb },
+              // Bachlinien einmal auf die Talsohle legen (Suchradius 2 Zellen, mind. 8 m)
+              linien: linien ? baecheEinpassen(linien, r, hoehen.h, nx, ny, Math.max(8, 2 * r.wM / (nx - 1))) : null };
     datenAlt = false;
     let min = Infinity, max = -Infinity; for (const v of hoehen.h) { if (v < min) min = v; if (v > max) max = v; }
     daten.min = min; daten.max = max;
     ladeStatus = `Geladen: ${hoehen.kacheln} Kacheln swissALTI3D (${hoehen.aufl} m) · ${min.toFixed(0)}–${max.toFixed(0)} m ü. M.` +
       (hoehen.fehlt ? ` · ${(100 * hoehen.fehlt / hoehen.h.length).toFixed(0)} % ohne Daten (Landesgrenze)` : '') +
-      (!wald || !wasser ? ' · Flächenmasken unvollständig' : '') + flInfo;
+      (!wald || !seen || !primaer ? ' · Flächenmasken unvollständig' : '') +
+      (linien ? ` · Gewässernetz: ${linien.length} Abschnitte` : ' · Gewässernetz nicht erreichbar — ohne Bäche');
     status(ladeStatus);
     balken(1);
     rebuild();
@@ -369,58 +363,63 @@ $('laden').addEventListener('click', laden);
 // ---------- Relief bauen ----------
 function aktiveZonen() { return ZONEN.filter((z) => z.fix || P.an[z.key]); }
 function farbenZahl() { return aktiveZonen().length; }
+// Glaetten-Stufen als Gauss-Sigma in Druck-Millimetern (unabhaengig von der
+// Rasterweite — vorher glaettete derselbe Regler die Vorschau doppelt so
+// stark wie den Druck)
+const GLATT_MM = [0, 0.3, 0.5, 0.8];
+// Ueberhoehung automatisch: waechst mit dem Massstab (1:12'500 -> 1.2,
+// 1:25'000 -> 1.8, 1:50'000 -> 2.4), wird aber begrenzt — das Relief soll
+// hoechstens ein Drittel der Breite hoch sein (Alpen: sonst Nadeln statt
+// Berge) und mindestens 14 mm Gelaende zeigen (Mittelland: sonst platt).
+function autoUeberh(m) {
+  if (!daten) return P.ueberh;
+  let u = 1.2 + 0.6 * Math.log2(Math.max(1, m.massstab / 12500));
+  const rel = (daten.max - daten.min) * m.mmJeM;
+  if (rel > 0.5) { u = Math.min(u, 0.33 * m.W / rel); u = Math.max(u, 14 / rel); }
+  return Math.round(Math.max(1, Math.min(3, u)) * 10) / 10;
+}
+function autoWerte() {
+  const m = masse();
+  if (P.ueberhAuto && daten) P.ueberh = autoUeberh(m);
+  if (P.bachAuto) P.bachMin = Math.min(4000, bachMinAuto(m.mmJeM));
+}
 /** Baut Raster + Mesh in der Aufloesung `lang` (Punkte auf der laengeren Seite). */
 function bau(lang, fuerDruck = false) {
   const m = masse(), r = daten.rect;
   const nx = r.wM >= r.hM ? lang : Math.round(lang * r.wM / r.hM), ny = r.wM >= r.hM ? Math.round(lang * r.hM / r.wM) : lang;
   const pitch = m.W / (nx - 1);
-  let hM = resample(daten.h, daten.nx, daten.ny, nx, ny);
-  if (P.glatt > 0) hM = glaette(hM, nx, ny, P.glatt);
-  const masken = {};
-  for (const k of ['wald', 'gebaeude']) masken[k] = daten.masken[k] ? resampleMaske(daten.masken[k], daten.nx, daten.ny, nx, ny) : null;
-  // Wasser: Seen immer, Fluesse und Baeche nur auf Wunsch (im Mittelland
-  // machen die Entwaesserungsgraeben das Relief sonst unruhig)
-  if (daten.masken.seen) {
-    const seen = resampleMaske(daten.masken.seen, daten.nx, daten.ny, nx, ny);
-    if (P.fluesse && daten.masken.fluesse) {
-      // Auf dem Datenraster: nur Hauptgewaesser bzw. Nebenbaeche stutzen
-      // (beides billig, aber nicht gratis — je Einstellung einmal rechnen)
-      const key = `${P.nurHaupt}|${P.bachMin}`;
-      if (!daten.flCache || daten.flCache.key !== key) {
-        let flM = daten.masken.fluesse;
-        const zellMaster = r.wM / (daten.nx - 1);
-        if (P.nurHaupt && daten.masken.haupt) {
-          // Nur was im Korridor der Landeskarte 1:200'000 liegt (+-100 m), danach
-          // die angeschnittenen Stummel der Nebenbaeche (bis 120 m) wegstutzen
-          const h = daten.masken.haupt, k = new Uint8Array(flM.length);
-          for (let q = 0; q < k.length; q++) k[q] = flM[q] & h[q];
-          flM = stutze(k, daten.nx, daten.ny, Math.round(120 / zellMaster));
-        }
-        const minLen = Math.round(P.bachMin / zellMaster);
-        if (minLen > 1) flM = stutze(flM, daten.nx, daten.ny, minLen);
-        daten.flCache = { key, mask: flM };
-      }
-      // Mindestbreite: die Zellregel (>= 1 Ecke) gibt schon 2 Zellen, darueber
-      // hinaus verbreitern — sonst laesst der Slicer die Linie fallen.
-      const rr = Math.max(0, Math.round((P.flussB / pitch - 2) / 2));
-      const fl = dilatiere(resampleMaske(daten.flCache.mask, daten.nx, daten.ny, nx, ny), nx, ny, rr);
-      for (let k = 0; k < seen.length; k++) if (fl[k]) seen[k] = 1;
-    }
-    masken.wasser = seen;
-  } else masken.wasser = null;
-  const zellM = r.wM / (nx - 1);
-  if (P.an.route && route) masken.route = routeMaske(r, nx, ny, route, Math.max(0.6, P.routeB / pitch / 2));
+  const hRoh = hoehenFuer(daten.h, daten.nx, daten.ny, nx, ny, pitch, GLATT_MM[P.glatt] ?? 0.3);
+  // Flaechen an den Zellmitten (ab 50 % Abdeckung)
+  const zm = (k) => (daten.masken[k] ? zellMaske(daten.masken[k], daten.nx, daten.ny, nx, ny) : null);
+  const z = { wald: zm('wald'), seen: zm('seen'), wasserFl: zm('wasserFl'), fels: zm('fels'), gletscher: zm('gletscher'), gebaeude: zm('gebaeude') };
+  // Baeche als Vektorlinien: Auswahl nach Lauflaenge (Massstab), Breite nach Flussordnung
+  let baeche = [];
+  if (P.fluesse && daten.linien) {
+    baeche = P.nurHaupt ? waehleBaeche(daten.linien, 0, 4) : waehleBaeche(daten.linien, P.bachMin);
+    z.baeche = linienZellen(baeche, r, nx, ny, pitch, (L) => bachBreite(L.o, P.flussB));
+  }
+  if (P.an.route && route) z.route = linienZellen([{ p: route }], r, nx, ny, pitch, () => P.routeB);
   const an = { ...P.an, route: P.an.route && !!route };
-  const klasse = klassifiziere({ nx, ny, hM, zellM, masken, an, schnee: P.schnee, fels: P.fels });
+  const klasse = farbklassen({ nx, ny, pitch, hM: hRoh, z, an, schnee: P.schnee });
+  // Baeche als flache Rinne (0.25 mm im Druck) — nur, wo die Bachzelle auch
+  // im fertigen Bild Wasser ist
+  let hM = hRoh;
+  if (z.baeche && P.an.wasser) {
+    const bz = new Uint8Array(klasse.length); for (let k = 0; k < bz.length; k++) bz[k] = z.baeche[k] && klasse[k] === 2 ? 1 : 0;
+    hM = rinne(hRoh, nx, ny, bz, 0.25 / (m.mmJeM * P.ueberh));
+  }
   // Schild zuerst (bestimmt beim stehenden Schild die Sockelhoehe)
   const schild = schildBau(m.W);
   const sockel = sockelEff(schild ? schild.H : 0);
-  // Hoehen in mm: Terrain ab dem tiefsten Punkt, plus Haeuser, plus Route
-  const z = new Float32Array(nx * ny);
+  // Hoehen in mm: Terrain ab dem tiefsten Punkt, plus Haeuser, plus Route.
+  // Kloetzchen und Route heben alle Eckpunkte ihrer Zellen an — die Zelle
+  // bleibt oben flach und farbig, die Flanken liegen in den Nachbarzellen
+  const zs = new Float32Array(nx * ny);
   const s = m.mmJeM * P.ueberh;
-  for (let k = 0; k < z.length; k++) z[k] = sockel + (hM[k] - daten.min) * s;
-  if (an.gebaeude && masken.gebaeude) for (let k = 0; k < z.length; k++) if (masken.gebaeude[k]) z[k] += P.hausH * s;
-  if (an.route && masken.route) for (let k = 0; k < z.length; k++) if (masken.route[k]) z[k] += P.routeH;
+  for (let k = 0; k < zs.length; k++) zs[k] = sockel + (hM[k] - daten.min) * s;
+  const klasseMaske = (c) => { const q = new Uint8Array(klasse.length); for (let k = 0; k < q.length; k++) q[k] = klasse[k] === c ? 1 : 0; return q; };
+  if (an.gebaeude) { const p = punkteAn(klasseMaske(5), nx, ny); for (let k = 0; k < zs.length; k++) if (p[k]) zs[k] += P.hausH * s; }
+  if (an.route) { const p = punkteAn(klasseMaske(6), nx, ny); for (let k = 0; k < zs.length; k++) if (p[k]) zs[k] += P.routeH; }
   // Schild LIEGEND: Sockelleiste vor dem Relief mit 1.0-mm-Mulde (wie eine
   // Plakette am Denkmal). Schild STEHEND: Tasche in der Vorderwand ueber die
   // Wandreihen (Reihenpunkte ruecken nach innen); Sockel dafuer erhoeht.
@@ -430,7 +429,7 @@ function bau(lang, fuerDruck = false) {
   const np = liegend ? Math.round(leiste / pitch) : 0;                 // zusaetzliche Zeilen im Sueden
   const ny2 = ny + np;
   const z2 = new Float32Array(nx * ny2), klasse2 = new Uint8Array((nx - 1) * (ny2 - 1));
-  z2.set(z, np * nx);
+  z2.set(zs, np * nx);
   for (let cj = 0; cj < ny - 1; cj++) klasse2.set(klasse.subarray(cj * (nx - 1), (cj + 1) * (nx - 1)), (cj + np) * (nx - 1));
   if (liegend) {
     const x0 = xs - schild.W / 2 - SCHILD.spiel, x1 = xs + schild.W / 2 + SCHILD.spiel;
@@ -453,7 +452,7 @@ function bau(lang, fuerDruck = false) {
   ZONEN.forEach((zn, i) => { if (benutzt.has(i)) { map[i] = pal.length; pal.push(P.farben[zn.key]); } });
   const klasseP = new Uint8Array(klasse2.length); for (let k = 0; k < klasse2.length; k++) klasseP[k] = map[klasse2[k]];
   const mesh = reliefMesh({ nx, ny: ny2, pitch, z: z2, klasse: klasseP, sockel: 0, reihen, praegung });
-  return { mesh, pal, nx, ny, pitch, m, klasse, hM, schild, leiste, sockel, xs, hTotal: (ny2 - 1) * pitch };
+  return { mesh, pal, nx, ny, pitch, m, klasse, hM, schild, leiste, sockel, xs, hTotal: (ny2 - 1) * pitch, baeche: baeche.length };
 }
 // Schild: flache Platte mit buendigem Text (Zellfarben), separat gedruckt.
 // Hoehe nach Wunsch, aber so, dass die Tasche unter dem tiefsten Randpunkt
@@ -527,7 +526,7 @@ function geoAus(mesh, pal) {
   return g;
 }
 function rebuild() {
-  regeln(); syncUI();
+  regeln(); autoWerte(); syncUI();
   while (gruppe.children.length) { const c = gruppe.children.pop(); c.geometry.dispose(); }
   if (!daten) { $('hud').innerHTML = 'Noch kein Relief geladen — Ausschnitt wählen und «Relief laden» drücken.'; preisAnzeigen(); return; }
   const { mesh, pal, m, nx, ny, schild, hTotal, sockel, xs } = bau(VORSCHAU);
@@ -665,8 +664,8 @@ $('cart').addEventListener('click', () => busy($('cart'), async () => {
   await cart.add({
     typ: 'relief', titel, menge: P.menge, gesamtRappen: Math.round(pi.total * 100), stueckRappen: Math.round(pi.total * 100),
     konfig: { E: P.E, N: P.N, km: P.km, format: P.format, ort, breite: +m.W.toFixed(1), hoehe: +m.H.toFixed(1), massstab: m.massstab,
-              ueberh: P.ueberh, sockel: P.sockel, glatt: P.glatt, zonen, farben: pal, schnee: P.an.schnee ? P.schnee : undefined,
-              fels: P.an.fels ? P.fels : undefined, hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined, flussB: P.an.wasser && P.fluesse ? P.flussB : undefined,
+              ueberh: P.ueberh, ueberhAuto: P.ueberhAuto, sockel: P.sockel, glatt: P.glatt, zonen, farben: pal, schnee: P.an.schnee ? P.schnee : undefined,
+              hausH: P.an.gebaeude ? P.hausH : undefined, route: !!(P.an.route && route), fluesse: P.an.wasser ? P.fluesse : undefined, flussB: P.an.wasser && P.fluesse ? P.flussB : undefined,
               bachMin: P.an.wasser && P.fluesse ? P.bachMin : undefined, nurHaupt: P.an.wasser && P.fluesse ? P.nurHaupt : undefined,
               text: P.text.trim(), schild: schildInfo ? { breite: +schildInfo.W.toFixed(1), hoehe: +schildInfo.H.toFixed(1), farbe: P.schildFarbe, schrift: P.textFarbe, lage: P.schildLage, pos: P.schildPos } : null,
               quelle: `swissALTI3D ${daten.aufl} m, ${daten.kacheln} Kacheln`, raster: lang, menge: P.menge },
@@ -687,7 +686,7 @@ function mkBtns(hostId, liste, key, nach) {
   });
 }
 const EINH = [['km', 'km', ' km'], ['breite', 'breite', ' mm'], ['ueberh', 'ueberh', '×'], ['sockel', 'sockel', ' mm'], ['glatt', 'glatt', ''],
-              ['schnee', 'schnee', ' m'], ['fels', 'fels', '°'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm'], ['flussB', 'flussB', ' mm'],
+              ['schnee', 'schnee', ' m'], ['hausH', 'hausH', ' m'], ['routeB', 'routeB', ' mm'], ['routeH', 'routeH', ' mm'], ['flussB', 'flussB', ' mm'],
               ['bachMin', 'bachMin', ' m'], ['schildH', 'schildH', ' mm']];
 function slider(id, key, nach) {
   $(id).value = P[key];
@@ -705,16 +704,18 @@ function syncUI() {
   $('hauptWrap').style.display = flOn ? 'flex' : 'none';
   $('bachNote').style.display = flOn ? 'block' : 'none';
   if ($('nurHaupt').checked !== P.nurHaupt) $('nurHaupt').checked = P.nurHaupt;
-  $('bachMinV').textContent = P.bachMin === 0 ? 'alle' : `ab ${P.bachMin} m`;
+  $('bachMinV').textContent = P.bachMin === 0 ? 'alle' : `${P.bachMin} m`;
+  $('bachAuto').classList.toggle('active', !!P.bachAuto);
+  $('ueberhAuto').classList.toggle('active', !!P.ueberhAuto);
+  $('schneeV').textContent = P.schnee >= 4200 ? 'aus' : `${P.schnee} m`;
   $('bachNote').textContent = P.nurHaupt
-    ? 'Nur Gewässer, die auch auf der Landeskarte 1:200 000 stehen — im Hügelland bleiben dann meist ein bis drei Bäche.'
-    : `Seitenbäche, die im Ausschnitt kürzer als ${P.bachMin} m sind, werden weggelassen. Bäche, die durchs ganze Gebiet laufen, bleiben immer.`;
+    ? 'Nur Flüsse und grosse Bäche (Flussordnung ab 4) — im Hügelland bleiben meist ein bis drei.'
+    : `Ein Bach erscheint, sobald sein Lauf ab der Quelle ${P.bachMin} m lang ist — er ist dann immer bis zum Fluss oder See verbunden. «auto» passt das dem Massstab an.`;
   $('schildFk').textContent = farbName(P.schildFarbe); $('textFk').textContent = farbName(P.textFarbe);
   document.querySelectorAll('#lageBtns button').forEach((b) => b.classList.toggle('active', b.dataset.val === P.schildLage));
   document.querySelectorAll('#posBtns button').forEach((b) => b.classList.toggle('active', b.dataset.val === P.schildPos));
   if ($('fluesse').checked !== P.fluesse) $('fluesse').checked = P.fluesse;
   $('schneeRow').style.display = P.an.schnee ? 'flex' : 'none';
-  $('felsRow').style.display = P.an.fels ? 'flex' : 'none';
   $('hausRow').style.display = P.an.gebaeude ? 'flex' : 'none';
   const voll = farbenZahl() >= FARBEN_MAX;
   document.querySelectorAll('#zonen .zone').forEach((el) => {
@@ -822,6 +823,10 @@ $('menge').value = P.menge; $('mengeV').textContent = P.menge + ' Stk';
 $('menge').addEventListener('input', () => { P.menge = parseInt($('menge').value); $('mengeV').textContent = P.menge + ' Stk'; preisAnzeigen(); });
 $('text').value = P.text; $('text').addEventListener('input', () => { P.text = $('text').value; rebuildBald(); });
 $('fluesse').checked = P.fluesse; $('fluesse').addEventListener('change', () => { P.fluesse = $('fluesse').checked; rebuild(); });
+$('ueberh').addEventListener('input', () => { P.ueberhAuto = false; });
+$('bachMin').addEventListener('input', () => { P.bachAuto = false; });
+$('ueberhAuto').addEventListener('click', () => { P.ueberhAuto = !P.ueberhAuto; rebuild(); });
+$('bachAuto').addEventListener('click', () => { P.bachAuto = !P.bachAuto; rebuild(); });
 $('nurHaupt').checked = P.nurHaupt; $('nurHaupt').addEventListener('change', () => { P.nurHaupt = $('nurHaupt').checked; rebuild(); });
 swSync.push(swatches($('schildFarbeSw'), () => P.schildFarbe, (hex) => { P.schildFarbe = hex; }, 'Schildfarbe'));
 swSync.push(swatches($('textFarbeSw'), () => P.textFarbe, (hex) => { P.textFarbe = hex; }, 'Schriftfarbe'));
