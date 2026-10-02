@@ -8,7 +8,7 @@
 //                                              Projekt-Daten/kohlilab-relief
 import { zipSync, strToU8 } from 'fflate';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { reliefMesh, praegungAus, pruefe, modelXml, farbklassen, linienZellen, waehleBaeche, bachBreite, bereinige, zellMaske, gauss, KLASSEN, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
+import { reliefMesh, praegungAus, pruefe, modelXml, farbklassen, linienZellen, waehleBaeche, bachBreite, bereinige, zellMaske, gauss, weicheKanten, KLASSEN, CONTENT_TYPES, RELS } from '../public/relief-app/mesh.js';
 
 // --- Baeche als Vektorlinien, Auswahl, Bereinigung (Neubau 02.10.2026) ------
 {
@@ -57,7 +57,7 @@ function gelaende(nx, ny) {
   }
   return h;
 }
-function bau(nx, ny, W, sockel, mitSchrift) {
+function bau(nx, ny, W, sockel, mitSchrift, weichAn = false) {
   const pitch = W / (nx - 1);
   const hM = gelaende(nx, ny);
   let hmin = Infinity; for (const v of hM) if (v < hmin) hmin = v;
@@ -85,7 +85,8 @@ function bau(nx, ny, W, sockel, mitSchrift) {
     const zellen = reihen.map((zz, r) => { const row = new Uint8Array(nx); if (r >= 1 && r < reihen.length - 1) for (let i = Math.round(nx * 0.2); i < Math.round(nx * 0.8); i++) row[i] = 1; return row; });
     praegung = praegungAus(zellen, -1.4, null);
   }
-  return reliefMesh({ nx, ny, pitch, z, klasse, sockel: 0, reihen, praegung });
+  const weich = weichAn ? weicheKanten(klasse, nx, ny, 0.9, new Set([5, 6])) : null;
+  return reliefMesh({ nx, ny, pitch, z, klasse, sockel: 0, reihen, praegung, weich });
 }
 function dreiMF(mesh) {
   const xml = modelXml([{ name: 'Relief', mesh, palette: ['#C8C2A0', '#3E7A4C', '#2A6F97', '#7A7E7A', '#FBFBF9', '#B04A3A', '#E63946'] }]);
@@ -96,6 +97,8 @@ const faelle = [
   ['klein 40x30 mit Schrift', () => bau(40, 30, 100, 5, true)],
   ['mittel 200x150 mit Schrift', () => bau(200, 150, 180, 6, true)],
   ['druck 346x346 mit Schrift', () => bau(346, 346, 200, 6, true)],
+  ['weich 120x90 mit Schrift', () => bau(120, 90, 150, 6, true, true)],
+  ['weich druck 324x324', () => bau(324, 324, 180, 6, true, true)],
 ];
 let letztes = null;
 for (const [name, fn] of faelle) {

@@ -28,10 +28,13 @@
  *   praegung   { tiefe (mm), maske(i, r) -> true wenn Punkt (Spalte i der
  *              Suedkante, Zwischenreihe r) erhaben ist, klasse (Farbindex
  *              der Schrift oder null = Sockelfarbe) } oder null
+ *   weich      { L, S } aus weicheKanten() oder null: Farbgrenzen laufen dann
+ *              als glatte Linie DURCH die Dreiecke statt die Zellkanten
+ *              entlang (Form unveraendert, nur feiner zerlegt)
  * Rueckgabe { pos, idx, farbe (Uint8Array je Dreieck), topCount }
  */
 export function reliefMesh(o) {
-  const { nx, ny, pitch, z, klasse, sockel = 0, reihen = [], praegung = null } = o;
+  const { nx, ny, pitch, z, klasse, sockel = 0, reihen = [], praegung = null, weich = null } = o;
   const W = (nx - 1) * pitch, H = (ny - 1) * pitch;
   const pos = [], idx = [], farbe = [];
   const push = (x, y, zz) => { pos.push(x, y, zz); return pos.length / 3 - 1; };
@@ -40,14 +43,50 @@ export function reliefMesh(o) {
   // Deckflaeche
   const top = new Int32Array(nx * ny);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) top[j * nx + i] = push(i * pitch - W / 2, j * pitch - H / 2, z[j * nx + i]);
+  // Weiche Grenzen: jede Kante zwischen zwei Punkten verschiedener Farbe
+  // bekommt genau EINEN Teilungspunkt (Schluessel = Kante), an dem die beiden
+  // geglaetteten Farbfelder gleich stark sind. Beide Nachbardreiecke nutzen
+  // denselben Punkt — das Netz bleibt wasserdicht. Der Punkt liegt auf der
+  // Kante, die Oberflaeche aendert sich also nicht.
+  const teil = new Map();
+  const teilung = (a, b) => {
+    const lo = a < b ? a : b, hi = a < b ? b : a, key = lo * nx * ny + hi;
+    let q = teil.get(key);
+    if (q === undefined) {
+      const A = weich.L[lo], B = weich.L[hi];
+      const fa = weich.S[A][lo] - weich.S[B][lo], fb = weich.S[A][hi] - weich.S[B][hi];
+      let t = fa - fb > 1e-9 ? fa / (fa - fb) : 0.5; t = Math.min(0.92, Math.max(0.08, t));
+      q = push(pos[lo * 3] + (pos[hi * 3] - pos[lo * 3]) * t, pos[lo * 3 + 1] + (pos[hi * 3 + 1] - pos[lo * 3 + 1]) * t, pos[lo * 3 + 2] + (pos[hi * 3 + 2] - pos[lo * 3 + 2]) * t);
+      teil.set(key, q);
+    }
+    return q;
+  };
+  // Dreieck (a,b,c) nach den Punktfarben zerlegen; Umlaufsinn bleibt erhalten
+  const fach = (poly, f) => { for (let q = 1; q < poly.length - 1; q++) tri(poly[0], poly[q], poly[q + 1], f); };
+  const triW = (a, b, c, k) => {
+    if (!weich) { tri(a, b, c, k); return; }
+    const La = weich.L[a], Lb = weich.L[b], Lc = weich.L[c];
+    if (La === Lb && Lb === Lc) { tri(a, b, c, La); return; }
+    if (La !== Lb && Lb !== Lc && La !== Lc) {
+      // drei Farben: Mittelpunkt dazu (gehoert nur diesem Dreieck)
+      const g = push((pos[a * 3] + pos[b * 3] + pos[c * 3]) / 3, (pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3, (pos[a * 3 + 2] + pos[b * 3 + 2] + pos[c * 3 + 2]) / 3);
+      const pab = teilung(a, b), pbc = teilung(b, c), pca = teilung(c, a);
+      fach([a, pab, g, pca], La); fach([pab, b, pbc, g], Lb); fach([pbc, c, pca, g], Lc);
+      return;
+    }
+    // zwei Farben: die allein stehende Ecke abschneiden
+    let [x, y, w] = La === Lb ? [c, a, b] : Lb === Lc ? [a, b, c] : [b, c, a];   // x = Einzelecke, Umlauf x -> y -> w
+    const pxy = teilung(x, y), pwx = teilung(w, x);
+    fach([x, pxy, pwx], weich.L[x]); fach([pxy, y, w, pwx], weich.L[y]);
+  };
   for (let cj = 0; cj < ny - 1; cj++) for (let ci = 0; ci < nx - 1; ci++) {
     const a = top[cj * nx + ci], b = top[cj * nx + ci + 1], c = top[(cj + 1) * nx + ci], d = top[(cj + 1) * nx + ci + 1];
     const k = klasse[cj * (nx - 1) + ci];
     // Diagonale entlang der kleineren Hoehendifferenz: Grate und Taeler
     // bleiben scharf statt zu Saegezaehnen zu werden.
     const za = z[cj * nx + ci], zb = z[cj * nx + ci + 1], zc = z[(cj + 1) * nx + ci], zd = z[(cj + 1) * nx + ci + 1];
-    if (Math.abs(za - zd) <= Math.abs(zb - zc)) { tri(a, b, d, k); tri(a, d, c, k); }
-    else { tri(a, b, c, k); tri(b, d, c, k); }
+    if (Math.abs(za - zd) <= Math.abs(zb - zc)) { triW(a, b, d, k); triW(a, d, c, k); }
+    else { triW(a, b, c, k); triW(b, d, c, k); }
   }
   const topCount = pos.length / 3;
 
@@ -83,7 +122,11 @@ export function reliefMesh(o) {
       // Schriftfarbe: Zelle gilt als Schrift, wenn ihre obere Kante erhaben ist
       if (r < R && (erhaben(k, r + 1) || erhaben(k2, r + 1))) f = praegung.klasse;
     }
-    tri(u0, l0, u1, f); tri(u1, l0, l1, f);
+    // oberste Wandreihe: ist die Randkante der Deckflaeche geteilt, den
+    // Teilungspunkt mitnehmen (sonst offene Kante)
+    const sp = weich && r === R ? teil.get(Math.min(u0, u1) * nx * ny + Math.max(u0, u1)) : undefined;
+    if (sp !== undefined) { tri(u0, l0, sp, f); tri(sp, l0, l1, f); tri(sp, l1, u1, f); }
+    else { tri(u0, l0, u1, f); tri(u1, l0, l1, f); }
   }
   // Boden: Faecher um die Mitte
   const c = push(0, 0, 0);
@@ -92,6 +135,39 @@ export function reliefMesh(o) {
   const mesh = { pos: new Float32Array(pos), idx: new Uint32Array(idx), farbe: new Uint8Array(farbe), topCount };
   orientiere(mesh);
   return mesh;
+}
+
+/**
+ * Glatte Farbgrenzen vorbereiten. Aus der Zellkarte (Farbindex je Zelle)
+ * wird je Farbe ein weichgezeichnetes Feld (Gauss, sigma Zellen) und daraus
+ * je Rasterpunkt die staerkste Farbe. reliefMesh teilt die Dreiecke dann
+ * dort, wo zwei Felder gleich stark sind: gerade Grenzen bleiben, wo sie
+ * waren, Treppen werden zu Kurven (Manolo 02.10.2026: "Raender pixelig").
+ *   hart  Farbindizes ohne Weichzeichnen (Kloetzchen, Route: ihre Farbe
+ *         folgt genau den angehobenen Punkten)
+ * Rueckgabe { L: Uint8Array nx*ny, S: [Float32Array nx*ny | undefined je Farbe] }
+ */
+export function weicheKanten(klasse, nx, ny, sigma, hart = new Set()) {
+  const w = nx - 1, h = ny - 1, N = nx * ny;
+  const farben = [...new Set(klasse)];
+  const S = [];
+  for (const c of farben) {
+    const ind = new Float32Array(w * h); for (let q = 0; q < ind.length; q++) ind[q] = klasse[q] === c ? 1 : 0;
+    const g = hart.has(c) ? ind : gauss(ind, w, h, sigma);
+    const p = new Float32Array(N);
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      let sum = 0, n = 0, mx = 0;
+      for (let dj = -1; dj <= 0; dj++) for (let di = -1; di <= 0; di++) {
+        const ci = i + di, cj = j + dj; if (ci < 0 || cj < 0 || ci >= w || cj >= h) continue;
+        const v = g[cj * w + ci]; sum += v; n++; if (v > mx) mx = v;
+      }
+      p[j * nx + i] = hart.has(c) ? mx : sum / n;
+    }
+    S[c] = p;
+  }
+  const L = new Uint8Array(N);
+  for (let k = 0; k < N; k++) { let best = farben[0], bv = -1; for (const c of farben) if (S[c][k] > bv) { bv = S[c][k]; best = c; } L[k] = best; }
+  return { L, S };
 }
 
 /**

@@ -167,7 +167,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mobilModus } from '/konfig-mobil.js';
-import { reliefMesh, volumen, modelXml, farbklassen, hoehenFuer, zellMaske, linienZellen, waehleBaeche, bachBreite, bachMinAuto, punkteAn, baecheEinpassen, rinne, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
+import { reliefMesh, volumen, modelXml, farbklassen, hoehenFuer, zellMaske, linienZellen, waehleBaeche, bachBreite, bachMinAuto, punkteAn, baecheEinpassen, rinne, weicheKanten, KLASSEN, CONTENT_TYPES, RELS } from './mesh.js';
 import { wgs2lv95, lv952wgs, hoehenRaster, wmsMaske, wmsMasken, gewaesserLinien, LAYER, SEEN_FILTER, PRIMAER_FILTER, gpxPunkte, SUCHE } from './geo.js';
 let mobil = null;
 
@@ -184,7 +184,8 @@ const PREIS = { grund: 15, filamentKg: 30, stundensatz: 0.5, durchsatz: 18, dich
 const FORMATE = [['1:1', 1], ['3:2', 3 / 2], ['2:3', 2 / 3]];
 const MASTER = 480;                                 // Datenraster (laengere Seite)
 const VORSCHAU = 220;                               // 3D-Ansicht (laengere Seite)
-const PITCH_MIN = 0.45, DREIECK_BUDGET = 210000;    // Druckdatei: Groessenwache (4.5 MB je Bestellung)
+const PITCH_MIN = 0.45, DREIECK_BUDGET = 190000;    // Druckdatei: Groessenwache (4.5 MB je Bestellung); Reserve fuer die
+                                                    // Teilungsdreiecke der weichen Farbgrenzen (+10–17 %)
 const FARBEN_MAX = 4;                               // AMS: 4 Slots
 // Feste Filamentpalette (wie Schilder-Konfigurator) — keine freien RGB-Werte,
 // gedruckt wird, was auf der Spule ist (Manolo 08.09.2026).
@@ -367,6 +368,8 @@ function farbenZahl() { return aktiveZonen().length; }
 // Rasterweite — vorher glaettete derselbe Regler die Vorschau doppelt so
 // stark wie den Druck)
 const GLATT_MM = [0, 0.3, 0.5, 0.8];
+// Farbgrenzen: Weichzeichnen der Zonen vor dem Teilen der Dreiecke (mm)
+const KANTE_MM = 0.5;
 // Ueberhoehung automatisch: waechst mit dem Massstab (1:12'500 -> 1.2,
 // 1:25'000 -> 1.8, 1:50'000 -> 2.4), wird aber begrenzt — das Relief soll
 // hoechstens ein Drittel der Breite hoch sein (Alpen: sonst Nadeln statt
@@ -451,7 +454,10 @@ function bau(lang, fuerDruck = false) {
   const pal = [], map = new Uint8Array(KLASSEN.length);
   ZONEN.forEach((zn, i) => { if (benutzt.has(i)) { map[i] = pal.length; pal.push(P.farben[zn.key]); } });
   const klasseP = new Uint8Array(klasse2.length); for (let k = 0; k < klasse2.length; k++) klasseP[k] = map[klasse2[k]];
-  const mesh = reliefMesh({ nx, ny: ny2, pitch, z: z2, klasse: klasseP, sockel: 0, reihen, praegung });
+  // Farbgrenzen glatt (Rundung ~0.5 mm), Kloetzchen und Route bleiben kantig
+  const hart = new Set(); for (const c of [5, 6]) if (benutzt.has(c)) hart.add(map[c]);
+  const weich = weicheKanten(klasseP, nx, ny2, Math.max(0.7, KANTE_MM / pitch), hart);
+  const mesh = reliefMesh({ nx, ny: ny2, pitch, z: z2, klasse: klasseP, sockel: 0, reihen, praegung, weich });
   return { mesh, pal, nx, ny, pitch, m, klasse, hM, schild, leiste, sockel, xs, hTotal: (ny2 - 1) * pitch, baeche: baeche.length };
 }
 // Schild: flache Platte mit buendigem Text (Zellfarben), separat gedruckt.
