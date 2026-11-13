@@ -1,0 +1,210 @@
+---
+// Zählerleser – Teaser-Seite «Werkstatt» (Manolo, 13.11.2026): Vorschau und Werbung, «bald erhältlich».
+// Kein Shop, keine Preise, keine Liefertermine. Das Meldefeld schickt über /api/kontakt eine Mail an die Shop-Adresse.
+// Inhalt und Stil sind erzeugt: Quelle ist der Entwurf im Projekt RaspiCam (zaehler/e450/gemeinsam/webseite/teaser/3-werkstatt),
+// Werkzeug teaser/werkzeuge/einbau_kohlilab.py. Änderungen dort machen und neu erzeugen, nicht hier von Hand.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import '../styles/zaehlerleser.css';
+
+const titel = 'Zählerleser für den Smart Meter E450 — bald bei KohliLab';
+const beschreibung = 'Der Zählerleser hält mit einem Magneten an deinem Smart Meter E450, liest ihn über die Kundenschnittstelle (RJ12) lokal aus und gibt die Werte per WLAN weiter: an Home Assistant, per MQTT, als JSON oder für Prometheus. Als Eule, Spinne oder Astronaut. Bald erhältlich bei KohliLab.';
+---
+<BaseLayout title={titel} description={beschreibung} bild="/zaehlerleser-medien/og.jpg">
+  <div class="zl">
+
+
+  <section class="held" aria-labelledby="t-held">
+    <div class="held-film film">
+      <video id="film-hero" data-lazy data-start="6.72" muted loop playsinline preload="none" width="960" height="540"
+             poster="/zaehlerleser-medien/hero_poster.webp"
+             aria-label="Animation: Eine Eule rastet auf dem Stromzähler ein, ihre Augen beginnen zu leuchten. Danach erwachen Spinne und Astronaut auf den Zählern daneben.">
+        <source data-src="/zaehlerleser-medien/hero.mp4" type="video/mp4">
+        <source data-src="/zaehlerleser-medien/hero.webm" type="video/webm">
+      </video>
+      <button class="film-knopf" type="button" data-video-knopf="#film-hero" aria-pressed="true" aria-label="Video abspielen"><span aria-hidden="true"></span></button>
+    </div>
+    <div class="held-inhalt">
+      <div class="held-text">
+        <p class="marke-zeile" data-zeig>Zählerleser · für den Smart Meter E450</p>
+        <h1 id="t-held" data-zeig="1"><span>Aufsetzen<i>.</i></span> <span>Einstecken<i>.</i></span> <span>Ablesen<i>.</i></span></h1>
+        <p class="vorspann" data-zeig="2">Ein Leser für deinen Stromzähler. Er hält mit einem Magneten, liest lokal aus und gibt die Werte per WLAN weiter: an Home Assistant, per MQTT, als JSON oder für Prometheus.</p>
+        <p class="held-knoepfe" data-zeig="3">
+          <a class="knopf" href="#melden">Benachrichtigen, wenn verfügbar</a>
+          <a class="knopf knopf-rand" href="#technik">Technik ansehen</a>
+        </p>
+      </div>
+      <dl class="typenschild platte" data-zeig="3" aria-label="Kurzangaben">
+        <div><dt>Typ</dt><dd>Zählerleser</dd></div>
+        <div><dt>Für</dt><dd>Landis+Gyr E450</dd></div>
+        <div><dt>Liest</dt><dd>RJ12 am Zähler</dd></div>
+        <div><dt>Funk</dt><dd>WLAN</dd></div>
+        <div class="breit"><dt>Spricht</dt><dd>Home Assistant · MQTT · JSON · Prometheus</dd></div>
+        <div><dt>Strom</dt><dd>Zähler oder USB-C</dd></div>
+        <div><dt>Status</dt><dd class="amber">bald erhältlich</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <div class="warnband" aria-hidden="true"></div>
+
+  <section class="abschnitt" id="ablauf" aria-labelledby="t-ablauf">
+    <header class="abschnitt-kopf">
+      <p class="schild" data-zeig>01 · Ablauf</p>
+      <h2 id="t-ablauf" data-zeig="1">Drei Arbeitsschritte. Kein Werkzeug.</h2>
+    </header>
+    <ol class="schritte">
+      <li data-zeig="1"><span class="ziffer" aria-hidden="true">1</span><h3>Aufsetzen</h3><p>Ein Ringmagnet hält den Leser auf der optischen Schnittstelle deines Zählers. Nichts wird geklebt oder geschraubt.</p></li>
+      <li data-zeig="2"><span class="ziffer" aria-hidden="true">2</span><h3>Einstecken</h3><p>Ein kurzes Kabel verbindet ihn mit der Kundenschnittstelle des Zählers (RJ12). Über dieses Kabel liest er die Daten.</p></li>
+      <li data-zeig="3"><span class="ziffer" aria-hidden="true">3</span><h3>Ablesen</h3><p>Die Werte kommen per WLAN bei dir an: im Dashboard des Lesers, in Home Assistant oder in einem anderen System.</p></li>
+    </ol>
+  </section>
+
+  <section class="wand" id="figuren" aria-labelledby="t-figuren">
+    <div class="abschnitt">
+      <header class="abschnitt-kopf">
+        <p class="schild" data-zeig>02 · Figuren</p>
+        <h2 id="t-figuren" data-zeig="1">Drei an der Werkzeugwand.</h2>
+        <p class="vorspann" data-zeig="2">Dieselbe Technik in drei Hüllen, gedruckt bei KohliLab. Zwei LEDs leuchten durch Lichtleiter in die Augen aus durchscheinendem Orange.</p>
+      </header>
+      <ul class="haken">
+        <li data-zeig="1">
+          <div class="haken-bild"><img src="/zaehlerleser-medien/figur_eule_links.webp" width="900" height="900" loading="lazy" decoding="async" alt="Die Eule: schwarze Hülle, grosse orange Augen, oranger Schnabel."></div>
+          <div class="anhaenger"><h3>Eule</h3><p>Die Ruhige. Schwarz, mit grossen Augen. Ihr Schnabel ist die Taste.</p></div>
+        </li>
+        <li data-zeig="2">
+          <div class="haken-bild"><img src="/zaehlerleser-medien/figur_spinne_vorne.webp" width="900" height="900" loading="lazy" decoding="async" alt="Die Spinne: schwarze Hülle mit acht Beinen, acht orangen Augen und einem Lächeln."></div>
+          <div class="anhaenger"><h3>Spinne</h3><p>Die Wache. Acht Augen, acht Beine, ein Lächeln.</p></div>
+        </li>
+        <li data-zeig="3">
+          <div class="haken-bild"><img src="/zaehlerleser-medien/figur_astronaut_rechts.webp" width="900" height="900" loading="lazy" decoding="async" alt="Der Astronaut: helle Hülle, dunkles Visier mit zwei leuchtenden Augen, Antenne."></div>
+          <div class="anhaenger"><h3>Astronaut</h3><p>Der Neugierige. Helles Gehäuse, dunkles Visier, Antenne.</p></div>
+        </li>
+      </ul>
+      <figure class="rahmen breit" data-zeig="1">
+        <img src="/zaehlerleser-medien/bild_trio.webp" width="1600" height="900" loading="lazy" decoding="async"
+             alt="Drei Stromzähler nebeneinander im dunklen Zählerkasten. Auf jedem sitzt eine Figur mit leuchtenden Augen: Eule, Spinne und Astronaut.">
+        <figcaption>Am Zähler: Im dunklen Kasten sieht man nur noch die Augen.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="abschnitt" id="technik" aria-labelledby="t-technik">
+    <header class="abschnitt-kopf">
+      <p class="schild" data-zeig>03 · Technik</p>
+      <h2 id="t-technik" data-zeig="1">Zerlegt in sechs Teile.</h2>
+      <p class="vorspann" data-zeig="2">Der Film zeigt zuerst die Explosion, dann den Röntgenblick: Die Hülle wird durchsichtig, und das Licht läuft von der LED durch den Lichtleiter ins Auge.</p>
+    </header>
+    <div class="technik-raster">
+      <figure class="rahmen" data-zeig="1">
+        <div class="film">
+          <video id="film-technik" data-lazy muted loop playsinline preload="none" width="960" height="540"
+                 poster="/zaehlerleser-medien/technik_poster.webp"
+                 aria-label="Animation: Der Zählerleser wird in seine Teile zerlegt und wieder zusammengesetzt. Danach wird die Hülle durchsichtig, und das Licht läuft von der LED durch den Lichtleiter ins Auge.">
+            <source data-src="/zaehlerleser-medien/technik.mp4" type="video/mp4">
+            <source data-src="/zaehlerleser-medien/technik.webm" type="video/webm">
+          </video>
+          <button class="film-knopf" type="button" data-video-knopf="#film-technik" aria-pressed="true" aria-label="Video abspielen"><span aria-hidden="true"></span></button>
+        </div>
+        <figcaption class="takt" data-takt="#film-technik">
+          <span data-von="2" data-bis="7.4">Explosion</span><span data-von="7.4" data-bis="10">Zusammenbau</span><span data-von="10" data-bis="15.6">Röntgenblick</span>
+        </figcaption>
+      </figure>
+      <ol class="teile">
+        <li data-zeig="1"><b>1</b><div><h3>Hülle</h3><p>Gedruckt aus PETG, vorne ganz plan, in drei Farben.</p></div></li>
+        <li data-zeig="1"><b>2</b><div><h3>Federzunge</h3><p>Die Taste ist ein Teil der Hülle: Sie gibt nach und federt zurück. Kein Zusatzteil.</p></div></li>
+        <li data-zeig="2"><b>3</b><div><h3>Lichtleiter</h3><p>Zwei Einsätze führen das Licht der LEDs nach vorne in die Augen.</p></div></li>
+        <li data-zeig="2"><b>4</b><div><h3>Platine</h3><p>Eigene Platine mit RJ12-Buchse, USB-C-Buchse, WLAN, zwei LEDs und einem Taster.</p></div></li>
+        <li data-zeig="3"><b>5</b><div><h3>Innenteil</h3><p>Trägt die Platine und sitzt auf dem Magnetteller.</p></div></li>
+        <li data-zeig="3"><b>6</b><div><h3>Magnetteller</h3><p>Ein Ringmagnet hält alles am Stahlring der optischen Schnittstelle.</p></div></li>
+      </ol>
+    </div>
+
+    <div class="datenweg">
+      <div class="datenweg-kopf">
+        <p class="klein" data-zeig>Datenweg</p>
+        <h3 id="t-datenweg" data-zeig="1">Gelesen wird an der RJ12-Buchse.</h3>
+        <p data-zeig="2">Der Zähler gibt seine Werte an der Kundenschnittstelle aus. Das ist die RJ12-Buchse vorne am Klemmendeckel. Dort liest der Leser mit, über ein kurzes Kabel.</p>
+      </div>
+      <figure class="rahmen datenweg-bild" data-zeig="1">
+        <div class="bild-marken">
+          <img src="/zaehlerleser-medien/bild_rj12.webp" width="1200" height="1200" loading="lazy" decoding="async"
+               alt="Die Eule sitzt am Zähler. Von ihrem linken Fuss führt ein schwarzes Kabel nach unten zur RJ12-Buchse am Klemmendeckel.">
+          <span class="marke marke-buchse" aria-hidden="true"><i></i><b>RJ12-Buchse</b></span>
+          <span class="marke marke-leser" aria-hidden="true"><i></i><b>Leser</b></span>
+        </div>
+        <figcaption>Das Kabel führt von der RJ12-Buchse des Zählers in den linken Fuss der Figur.</figcaption>
+      </figure>
+      <ol class="kette" aria-labelledby="t-datenweg">
+        <li data-zeig="1"><b aria-hidden="true">1</b><h4>Zähler</h4><p>Gibt seine Werte an der Kundenschnittstelle aus: der RJ12-Buchse.</p></li>
+        <li data-zeig="2"><b aria-hidden="true">2</b><h4>RJ12-Kabel</h4><p>Führt die Daten in den Leser. Nur über dieses Kabel wird gelesen.</p></li>
+        <li data-zeig="3"><b aria-hidden="true">3</b><h4>Leser</h4><p>Die Platine nimmt die Daten entgegen und funkt sie per WLAN weiter.</p></li>
+        <li data-zeig="4"><b aria-hidden="true">4</b><h4>Dein System</h4><p>Home Assistant, ein MQTT-Broker, ein Abruf per HTTP oder Prometheus. Alle Anschlüsse stehen gleich darunter.</p></li>
+      </ol>
+      <p class="datenweg-notiz" data-zeig="1">Die optische Schnittstelle des Zählers nutzt der Leser nicht zum Lesen. Ihr Stahlring ist nur der Halt für den Magneten.</p>
+    </div>
+  </section>
+
+  <section class="abschnitt" id="anschluesse" aria-labelledby="t-anschluesse">
+    <header class="abschnitt-kopf">
+      <p class="schild" data-zeig>04 · Anschlüsse</p>
+      <h2 id="t-anschluesse" data-zeig="1">Spricht nicht nur Home Assistant.</h2>
+      <p class="vorspann" data-zeig="2">Der Leser gibt die Werte über offene Protokolle weiter. Du bist an kein System gebunden und kannst mehrere Wege gleichzeitig nutzen.</p>
+    </header>
+    <ul class="klemmen">
+      <li data-zeig="1"><span class="klemme" aria-hidden="true">X1</span><h3>Home Assistant</h3><p>Der Leser meldet sich über MQTT-Discovery selbst an. Die Werte erscheinen als Sensoren.</p></li>
+      <li data-zeig="2"><span class="klemme" aria-hidden="true">X2</span><h3>MQTT</h3><p>Messwerte als JSON an deinen Broker. Passt zum Beispiel zu ioBroker, openHAB oder Node-RED.</p></li>
+      <li data-zeig="3"><span class="klemme" aria-hidden="true">X3</span><h3>JSON über HTTP</h3><p>Die aktuellen Werte zum Abholen im lokalen Netz. Passt zum Beispiel zu evcc, Loxone oder eigenen Skripten.</p></li>
+      <li data-zeig="2"><span class="klemme" aria-hidden="true">X4</span><h3>Prometheus</h3><p>Messwerte im Prometheus-Format, zum Beispiel für Grafana.</p></li>
+      <li data-zeig="3"><span class="klemme" aria-hidden="true">X5</span><h3>Dashboard im Browser</h3><p>Eine eigene Seite direkt auf dem Gerät. Sie zeigt die Werte auch ganz ohne weiteres System.</p></li>
+    </ul>
+    <p class="datenweg-notiz" data-zeig="1">Im Test läuft der Leser bisher mit Home Assistant. Die anderen Systeme sind Beispiele: Sie nutzen dieselben offenen Protokolle.</p>
+  </section>
+
+  <section class="abschnitt" id="vorteile" aria-labelledby="t-vorteile">
+    <header class="abschnitt-kopf">
+      <p class="schild" data-zeig>05 · Vorteile</p>
+      <h2 id="t-vorteile" data-zeig="1">Was er dir bringt.</h2>
+    </header>
+    <ul class="platten">
+      <li class="platte" data-zeig="1"><p class="klein">Daten</p><h3>Lokal</h3><p>Deine Werte bleiben in deinem Netz. Keine Cloud, kein Konto.</p></li>
+      <li class="platte" data-zeig="2"><p class="klein">Funk</p><h3>WLAN</h3><p>Funkt in deinem Heim-WLAN. Am Zähler braucht es kein Netzwerkkabel.</p></li>
+      <li class="platte" data-zeig="3"><p class="klein">Anbindung</p><h3>Offen</h3><p>Home Assistant, MQTT, JSON über HTTP und Prometheus. Du bist an kein System gebunden.</p></li>
+      <li class="platte" data-zeig="1"><p class="klein">Strom</p><h3>Zwei Wege</h3><p>Speisung über den Zähler, sofern der Netzbetreiber das erlaubt. Oder über USB-C mit einem Netzteil.</p></li>
+      <li class="platte" data-zeig="2"><p class="klein">Montage</p><h3>Ohne Werkzeug</h3><p>Magnet statt Schrauben. Der Leser lässt sich jederzeit wieder abnehmen.</p></li>
+      <li class="platte" data-zeig="3"><p class="klein">Herkunft</p><h3>Aus dem Drucker</h3><p>Jede Figur entsteht bei KohliLab im 3D-Druck.</p></li>
+    </ul>
+    <aside class="hinweis" aria-labelledby="t-wissen" data-zeig="1">
+      <h3 id="t-wissen">Gut zu wissen</h3>
+      <ul>
+        <li>Passt zum Smart Meter Landis+Gyr E450.</li>
+        <li>Die Kundenschnittstelle des Zählers muss beim Netzbetreiber freigeschaltet sein.</li>
+        <li>Speisung über den Zähler, sofern der Netzbetreiber das erlaubt. Sonst über die USB-C-Buchse unten an der Figur, mit einem USB-C-Netzteil (5 V).</li>
+        <li>Der Zählerleser ist in Entwicklung. Angaben können sich bis zum Verkaufsstart ändern.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <div class="warnband" aria-hidden="true"></div>
+
+  <section class="schluss" id="melden" aria-labelledby="t-schluss">
+    <div class="abschnitt">
+      <p class="lampe" data-zeig><i aria-hidden="true"></i>Status</p>
+      <h2 id="t-schluss" data-zeig="1">Bald erhältlich.</h2>
+      <p class="vorspann" data-zeig="2">Der Zählerleser ist noch nicht im Verkauf. Hinterlass deine E-Mail-Adresse, dann melden wir uns, sobald es so weit ist.</p>
+      <form class="melden platte" data-melden data-ziel="/api/kontakt" novalidate data-zeig="2">
+        <label for="zl-mail">E-Mail-Adresse</label>
+        <div class="melden-zeile">
+          <input id="zl-mail" name="email" type="email" autocomplete="email" inputmode="email" required maxlength="120" placeholder="name@beispiel.ch" aria-describedby="zl-mail-hinweis">
+          <button class="knopf" type="submit">Benachrichtigen, wenn verfügbar</button>
+        </div>
+        <label class="melden-honig" aria-hidden="true">Firma<input type="text" name="firma" tabindex="-1" autocomplete="off"></label>
+        <p id="zl-mail-hinweis" class="melden-hinweis">Wir schreiben dir nur zu diesem Produkt. Mehr dazu in der <a href="/datenschutz">Datenschutzerklärung</a>.</p>
+        <p class="melden-meldung" data-meldung role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+
+  </div>
+  <script is:inline src="/zaehlerleser-medien/zaehlerleser.js" defer></script>
+</BaseLayout>
