@@ -2,6 +2,8 @@
   --bg:#141517; --bg2:#1c1e21; --panel:#232629; --line:#33373c; --line2:#4a4f56;
   --ink:#e8e6e1; --muted:#9a9a93;
   --acc:#ff6b1a; --acc2:#ffb347;
+  /* Smart Home (Manolo 14.11.2026): eigener Akzent, elektrisches Türkis auf der schwarzen Basis */
+  --sh:#22e3e8; --sh2:#a2f4f3;
   --disp:"Oswald", "Arial Narrow", system-ui, sans-serif;
   --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
   --body:"Inter", system-ui, sans-serif;
@@ -131,3 +133,99 @@ footer a:hover { color:var(--acc); }
   .band > div:last-child { border-bottom:0; }
   .navlinks { display:none; }
 }
+
+/* Smart Home (Manolo 14.11.2026): innerhalb von .sh-akzent zeigen --acc und --acc2 auf Türkis. Knöpfe, Kicker,
+   Hervorhebungen und Linien färben sich so von selbst um; Kopf- und Fusszeile bleiben KohliLab-Orange. */
+.sh-akzent { --acc:var(--sh); --acc2:var(--sh2); }
+.card .tag.tag-sh { background:var(--sh); color:#061617; }
+.btn.primary:focus-visible, .btn.ghost:focus-visible { outline:2px solid var(--acc2); outline-offset:3px; }
+
+/* Seitenwechsel ohne weissen Blitz (Manolo 14.11.2026): View Transitions zwischen den Seiten, vom Browser selbst.
+   Laufen nur, wenn die Eule die Startseite verlässt (Abflug, bei «weniger Bewegung» sanftes Ausblenden). Bei allen
+   anderen Seitenwechseln überspringt das kleine Skript im Kopf von BaseLayout den Übergang: dort bleibt alles wie bisher.
+   Die Regeln müssen auf jeder Seite stehen, denn die Übergangs-Ebenen gehören zur NEUEN Seite. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: kl-vt-aus .3s cubic-bezier(.4,0,1,1) both; }
+::view-transition-new(root) { animation: kl-vt-ein .42s cubic-bezier(.2,.7,.2,1) .05s both; }
+/* Die Eule (Name «kl-eule» setzt eule.js beim Abflug): fliegt in ihrer Richtung weiter in die Tiefe, während die neue
+   Seite schon einblendet */
+::view-transition-group(kl-eule) { animation-duration: 0s; }
+::view-transition-old(kl-eule) { animation: kl-eule-fort .36s cubic-bezier(.5,0,.85,.6) both; }
+@keyframes kl-vt-aus { to { opacity:0; } }
+@keyframes kl-vt-ein { from { opacity:0; } }
+@keyframes kl-eule-fort { 60% { opacity:.85; } to { opacity:0; transform:translate(-16%, -21%) scale(.2); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-old(kl-eule) { animation: kl-vt-aus .32s ease both; }
+  ::view-transition-new(root) { animation: kl-vt-ein .32s ease both; }
+}
+
+/* Produktübersicht in zwei Bereichen (ProduktLinien.astro). Hier statt im Baustein: ein eigenes Stylesheet für die
+   Startseite wäre eine zusätzliche Anfrage, die den ersten Bildaufbau auf langsamen Netzen bremst. */
+.bereich + .bereich { margin-top: 44px; }
+.bereich-kopf { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 16px;
+  padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.bereich-name { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase;
+  color: var(--acc); display: flex; align-items: center; gap: 9px; }
+.bereich-name::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); flex: none; }
+.bereich-sh .bereich-name::before { box-shadow: 0 0 10px var(--sh); }
+.bereich-neu { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: #061617; background: var(--sh); border-radius: 3px; padding: 2px 6px; }
+.bereich-zeile { color: var(--muted); font-size: 13px; }
+.bereich-mehr { margin-left: auto; font-family: var(--mono); font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--acc); padding: 10px 0; }
+.bereich-mehr:hover { color: var(--acc2); }
+.bereich-sh .card:hover { border-color: var(--sh); }
+.bereich-sh .card .thumb { background: radial-gradient(circle at 50% 45%, #1d2e30, #191c1f 72%); }
+.bereich-sh .ds-bald { color: var(--sh2); margin-top: 6px; font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.2px; text-transform: uppercase; }
+.card-folgt { background: transparent; border-style: dashed; }
+.card-folgt:hover { transform: none; }
+.bereich-sh .card-folgt:hover { border-color: var(--line); }
+.card-folgt .thumb { color: #36676a; background: transparent !important; }
+.card.linie.card-folgt .ds { min-height: 0; }
+@media (max-width: 860px) { .bereich-mehr { margin-left: 0; } }
+
+/* Kachel «Smart Home» unten auf der Startseite (SmartHomeKachel.astro), aus demselben Grund hier */
+.sh-kachel-block { padding-top: 8px; }
+.sh-kachel { position: relative; display: grid; grid-template-columns: 1.15fr 1fr; align-items: stretch;
+  background: linear-gradient(135deg, #182224 0%, #1c1e21 55%); border: 1px solid #284a4c; border-radius: 10px;
+  overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.45), 0 0 80px rgba(34,227,232,.07);
+  transition: border-color .18s, box-shadow .18s; }
+.sh-kachel:hover, .sh-kachel:focus-within { border-color: var(--sh);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.45), 0 0 90px rgba(34,227,232,.14); }
+.sh-kachel-film { position: relative; aspect-ratio: 16 / 9; background: #0e1012; }
+.sh-kachel-film img, .sh-kachel-film video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* das Video deckt das Standbild erst, wenn es wirklich läuft (kein schwarzes Bild dazwischen) */
+.sh-kachel-film video { opacity: 0; transition: opacity .35s; }
+.sh-kachel-film video.laeuft { opacity: 1; }
+.sh-kachel-film::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent 70%, rgba(24,34,36,.85)); }
+.sh-kachel-text { padding: 30px 32px 28px 26px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.sh-kachel-kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 2.6px; text-transform: uppercase; color: var(--sh);
+  display: flex; align-items: center; gap: 10px; }
+.sh-kachel-kicker::before { content: ""; width: 24px; height: 2px; background: var(--sh); box-shadow: 0 0 8px var(--sh); }
+.sh-kachel h2 { font-family: var(--disp); font-weight: 600; font-size: 40px; line-height: 1.02; text-transform: uppercase; letter-spacing: .6px; }
+.sh-kachel h2 i { font-style: normal; color: var(--sh); }
+/* ganze Kachel klickbar, ein einziger Link für Tastatur und Screenreader */
+.sh-kachel-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.sh-kachel-link:focus-visible { outline: none; }
+.sh-kachel:has(.sh-kachel-link:focus-visible) { outline: 2px solid var(--sh2); outline-offset: 4px; }
+.sh-kachel-satz { color: var(--muted); font-size: 15px; line-height: 1.65; max-width: 44ch; }
+.sh-kachel-knopf { align-self: flex-start; margin-top: 6px; font-family: var(--mono); font-size: 13px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: #061617; background: var(--sh); padding: 12px 20px; border-radius: 4px; }
+.sh-kachel:hover .sh-kachel-knopf { background: var(--sh2); }
+.sh-kachel-unten { margin-top: 14px; text-align: right; }
+.sh-kachel-unten a { font-family: var(--mono); font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--sh);
+  display: inline-block; padding: 10px 0; }
+.sh-kachel-unten a:hover { color: var(--sh2); }
+@media (max-width: 860px) {
+  .sh-kachel { grid-template-columns: 1fr; }
+  .sh-kachel-film::after { background: linear-gradient(180deg, transparent 70%, rgba(24,34,36,.85)); }
+  .sh-kachel-text { padding: 20px 20px 22px; }
+  .sh-kachel h2 { font-size: 32px; }
+  .sh-kachel-unten { text-align: left; }
+}
+
+/* Luft im Seitenfuss für die Eule (Startseite): eule.js setzt --kl-eule-luft; ohne Eule ist der Wert 0 */
+/* Luft im Seitenfuss für die Eule: eule.js setzt --kl-eule-luft auf ihre Höhe, wenn sie sonst über der letzten
+   Zeile der Fusszeile (Links) sässe. Nur auf der Startseite. */
+.page > footer { padding-bottom: calc(22px + var(--kl-eule-luft, 0px)); }

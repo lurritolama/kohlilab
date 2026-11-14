@@ -52,6 +52,12 @@ const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/ind
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={bildAbs} />
     <title>{title}</title>
+    <script is:inline>
+      // Seitenübergang (global.css, @view-transition) nur beim Abflug der Eule von der Startseite: eule.js setzt dann
+      // window.klUebergang. Bei allen anderen Seitenwechseln wird er übersprungen, dort bleibt alles wie bisher.
+      // (ready.catch: ein übersprungener Übergang lehnt «ready» ab, das soll nicht als Fehler in der Konsole landen)
+      addEventListener('pageswap', function (e) { var v = e.viewTransition; if (v && !window.klUebergang) { v.ready.catch(function () {}); v.skipTransition(); } });
+    </script>
   </head>
   <body>
     <div class="bg-tex"></div>

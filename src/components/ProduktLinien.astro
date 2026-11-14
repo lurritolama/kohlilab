@@ -1,137 +1,61 @@
 ---
-// Zentrale Produktlinien-Übersicht. Neue Konfiguratoren/Linien hier
-// ergänzen — jede Linie bekommt eine eigene Unterseite.
-//
-// Das Titelbild steht bei der Linie selbst statt in einer Bedingungskette
-// in der Darstellung: die war schon vierfach verschachtelt und musste bei
-// jedem neuen Bild aufgebohrt werden.
-import { inTestphase } from '../lib/testphase';
-// status 'test' kommt aus der zentralen Testphase-Liste (src/lib/testphase.ts).
-const linien = [
-  {
-    slug: 'qr-schilder',
-    name: 'QR-Schilder',
-    status: inTestphase('schild') ? 'test' : 'live',
-    beschreibung:
-      'Dein QR-Schild im Konfigurator: Form, Farben, WLAN/URL/vCard, Text und Logo — mehrfarbig 3D-gedruckt.',
-    href: '/qr-schilder',
-    bild: '/bilder/qr-schilder-titel.jpg',
-    alt: 'Neun frisch gedruckte QR-Marker auf dem Druckbett',
-    breite: 576, hoehe: 360,
-  },
-  {
-    slug: 'organizer',
-    name: 'Schubladen-Organizer',
-    status: 'live',   // Manolo 19.08.2026: gleiches LIVE-Kennzeichen wie die anderen fertigen Linien
-    beschreibung:
-      'Dein Schubladeneinsatz nach Mass: Innenmass eingeben, Fächer frei einteilen — für Besteck, Büro, Werkzeug und mehr.',
-    href: '/organizer',
-    bild: '/bilder/organizer-titel.jpg',
-    alt: 'Gedruckter Schubladen-Organizer mit Trennwänden auf dem Druckbett',
-    breite: 930, hoehe: 581,
-  },
-  {
-    slug: 'kuechenschrank',
-    name: 'Küchenschrank-Einsatz',
-    status: inTestphase('schrank') ? 'test' : 'live',    // Testphase (14.09.2026): Drucktest der Schwalbenschwanz-Passung offen
-    beschreibung:
-      'Gitter für den Schrank-Korpus nach Mass: Trennwände längs und quer, die mit Schwalbenschwänzen ineinandergreifen — frei hineinstellen, jederzeit umsetzen, Bodenplatte optional.',
-    href: '/kuechenschrank',
-    // Titelbild folgt (Render aus dem Konfigurator, spaeter Foto von Manolo)
-    bild: null,
-    alt: 'Küchenschrank-Einsatz-Konfigurator',
-    breite: 1200, hoehe: 750,
-  },
-  {
-    slug: 'ventilkappen',
-    name: 'Ventilkappen',
-    status: 'live',
-    beschreibung:
-      'Kleine Skulpturen mit Ventilgewinde aus der KI-Mikrofabrik — Schrader oder Presta, neue Sujets laufend, jedes von Hand freigegeben.',
-    href: '/ventilkappen',
-    bild: '/bilder/ventilkappen-titel.jpg',
-    alt: 'Vier frisch gedruckte Glace-Ventilkappen auf dem Druckbett',
-    breite: 820, hoehe: 512,
-  },
-  {
-    slug: 'golf-tees',
-    name: 'Golf-Tees',
-    status: 'live',
-    beschreibung:
-      'Dein Golf-Tee nach Mass: Länge, Kopfform, Schaft und Farben im Konfigurator einstellen — 3D-gedruckt, zweiteilig gesteckt, ab 10 Stück.',
-    href: '/golf-tees',
-    // Render aus dem Konfigurator; Foto folgt (Manolo)
-    bild: '/bilder/golf-tees-titel.jpg',
-    alt: 'Gerenderte Golf-Tees in mehreren Farben mit Cup- und Augen-Kopf',
-    breite: 1200, hoehe: 750,
-  },
-  {
-    slug: 'lochwand',
-    name: 'Lochwand-Planer',
-    status: inTestphase('lochwand') ? 'test' : 'live',    // Testphase (Manolo 18.08.2026): Drucke und Bestellablauf noch in Abnahme
-    beschreibung:
-      'Module für IKEA Skådis: Wannen, Halter, Haken und Klemmen frei auf der Platte platzieren, beschriften, als Set bestellen.',
-    href: '/lochwand',
-    // Render aus dem Planer selbst (Etappe 3) — endgültige Fotos folgen (Manolo).
-    bild: '/bilder/lochwand-titel.jpg',
-    alt: 'Gerenderte Skådis-Lochwand mit Wannen, Haltern, Haken und Klemmen in Orange, Schwarz und Grau',
-    breite: 1200, hoehe: 750,
-  },
-  {
-    slug: 'relief',
-    name: 'Relief — dein Stück Schweiz',
-    status: inTestphase('relief') ? 'test' : 'live',    // Testphase (07.09.2026): Drucktests der Farbzonen und der Praegung offen
-    beschreibung:
-      'Dein Dorf, dein Haus oder deine Tour als Relief: Ausschnitt auf der Karte wählen, Seen, Wald, Fels und Schnee in Farbe, optional die GPX-Route — aus den swisstopo-Höhendaten.',
-    href: '/relief',
-    // Titelbild folgt (Render aus dem Konfigurator, spaeter Foto von Manolo)
-    bild: null,
-    alt: 'Relief-Konfigurator',
-    breite: 1200, hoehe: 750,
-  },
-  {
-    slug: 'spezialanfertigung',
-    name: 'Spezialanfertigung',
-    status: 'live',
-    beschreibung:
-      'Ersatzteil, Halterung, Einzelstück oder dein fertiges 3D-Modell: Anfrage schicken, wir prüfen kostenlos die Machbarkeit.',
-    href: '/spezialanfertigung',
-    // Querformat-Zuschnitt desselben Fotos: die Karten sind 16:10, das
-    // Hochformat der Unterseite haette hier nur einen schmalen Streifen
-    // gefuellt. Die Teile liegen im Bild waagrecht, der Zuschnitt kostet
-    // also nichts (Manolo 14.08.2026).
-    bild: '/bilder/spezial-titel-quer.webp',
-    alt: 'Gedruckte Schutzhalterungen mit Klemmringen, frisch vom Druckbett',
-    breite: 1400, hoehe: 875,
-  },
-];
+// Zentrale Produktlinien-Übersicht auf der Startseite, in zwei Bereichen (Manolo 14.11.2026): «3D-Druck» (Schwarz/Orange)
+// und «Smart Home» (Akzent Türkis). Die Linien stehen in src/data/produktlinien.ts — neue Linien dort ergänzen, jede
+// Linie bekommt eine eigene Unterseite.
+import { BEREICHE, linienIn, type Bereich } from '../data/produktlinien';
+const bereiche: Bereich[] = ['3d-druck', 'smart-home'];
 ---
 <section class="block" id="produkte">
   <h2>Produktlinien</h2>
-  <p class="lead">Alles aus einer Werkstatt — jede Linie mit eigenem Konfigurator oder eigener Fabrik dahinter.</p>
-  <div class="cards">
-    {linien.map((l) => (
-      <a class={`card linie ${l.href ? '' : 'stumm'}`} href={l.href ?? undefined}>
-        <div class="thumb linie-thumb">
-          {l.status === 'live' && <span class="tag">LIVE</span>}
-          {l.status === 'test' && <span class="tag tag-test">TEST</span>}
-          {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
-          {l.bild ? (
-            <img src={l.bild} alt={l.alt} loading="lazy" width={l.breite} height={l.hoehe} />
-          ) : l.status === 'bald' ? (
-            <svg width="84" height="100" viewBox="0 0 90 110"><rect x="20" y="30" width="50" height="50" rx="6" fill="none" stroke="#9a9a93" stroke-width="4" stroke-dasharray="8 6"/><text x="45" y="63" text-anchor="middle" fill="#9a9a93" font-size="26" font-family="monospace">?</text></svg>
-          ) : (
-            <svg width="84" height="100" viewBox="0 0 90 110"><path d="M45 25 v40 M25 45 h40" stroke="#ff6b1a" stroke-width="5" stroke-linecap="round"/><circle cx="45" cy="45" r="34" fill="none" stroke="#e8e6e1" stroke-width="4"/></svg>
-          )}
-        </div>
-        <div class="meta">
-          <div>
-            <div class="nm">{l.name}</div>
-            <div class="ds">{l.beschreibung}</div>
-            {l.status === 'test' && <div class="ds" style="color:#c9a6ec;margin-top:5px">Testphase — ausprobieren ja, bestellen noch nicht</div>}
+  <p class="lead">Alles aus einer Werkstatt, in zwei Bereichen: 3D-Druck nach Mass, jede Linie mit eigenem Konfigurator oder eigener Fabrik dahinter, und neu Smart Home.</p>
+  {bereiche.map((b) => (
+    <div class={`bereich ${b === 'smart-home' ? 'bereich-sh sh-akzent' : ''}`} id={BEREICHE[b].anker}>
+      <div class="bereich-kopf">
+        <h3 class="bereich-name">{BEREICHE[b].name}</h3>
+        {b === 'smart-home' && <span class="bereich-neu">Neu</span>}
+        <span class="bereich-zeile">{BEREICHE[b].zeile}</span>
+        {b === 'smart-home' && <a class="bereich-mehr" href="/smart-home">Alles zu Smart Home →</a>}
+      </div>
+      <div class="cards">
+        {linienIn(b).map((l) => (
+          <a class={`card linie ${l.href ? '' : 'stumm'}`} href={l.href ?? undefined}>
+            <div class="thumb linie-thumb">
+              {b === 'smart-home' ? (
+                <span class="tag tag-sh">{l.status === 'bald' ? 'SMART HOME · BALD' : 'SMART HOME'}</span>
+              ) : (
+                <>
+                  {l.status === 'live' && <span class="tag">LIVE</span>}
+                  {l.status === 'test' && <span class="tag tag-test">TEST</span>}
+                  {l.status === 'bald' && <span class="tag tag-dim">BALD</span>}
+                </>
+              )}
+              {l.bild ? (
+                <img src={l.bild} alt={l.alt} loading="lazy" decoding="async" width={l.breite} height={l.hoehe} />
+              ) : l.status === 'bald' ? (
+                <svg width="84" height="100" viewBox="0 0 90 110" aria-hidden="true"><rect x="20" y="30" width="50" height="50" rx="6" fill="none" stroke="#9a9a93" stroke-width="4" stroke-dasharray="8 6"/><text x="45" y="63" text-anchor="middle" fill="#9a9a93" font-size="26" font-family="monospace">?</text></svg>
+              ) : (
+                <svg width="84" height="100" viewBox="0 0 90 110" aria-hidden="true"><path d="M45 25 v40 M25 45 h40" stroke="#ff6b1a" stroke-width="5" stroke-linecap="round"/><circle cx="45" cy="45" r="34" fill="none" stroke="#e8e6e1" stroke-width="4"/></svg>
+              )}
+            </div>
+            <div class="meta">
+              <div>
+                <div class="nm">{l.name}</div>
+                <div class="ds">{l.beschreibung}</div>
+                {l.status === 'test' && <div class="ds" style="color:#c9a6ec;margin-top:5px">Testphase — ausprobieren ja, bestellen noch nicht</div>}
+                {l.status === 'bald' && b === 'smart-home' && <div class="ds ds-bald">Bald erhältlich</div>}
+              </div>
+            </div>
+          </a>
+        ))}
+        {b === 'smart-home' && (
+          <div class="card linie card-folgt">
+            <div class="thumb linie-thumb">
+              <svg width="96" height="96" viewBox="0 0 96 96" aria-hidden="true"><rect x="14" y="14" width="68" height="68" rx="10" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="7 6"/><path d="M48 34 v28 M34 48 h28" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+            </div>
+            <div class="meta"><div><div class="nm">Das nächste Gerät</div><div class="ds">entsteht gerade in der Werkstatt.</div></div></div>
           </div>
-        </div>
-      </a>
-    ))}
-  </div>
+        )}
+      </div>
+    </div>
+  ))}
 </section>

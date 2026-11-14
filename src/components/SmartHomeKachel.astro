@@ -1,0 +1,63 @@
+---
+// Grosse Kachel «Smart Home» unten auf der Startseite (Auftrag Zählerleser/Eule, Punkt 3; Manolo 14.11.2026):
+// kurzer Ausschnitt aus dem Hero-Film (die Eule rastet ein, ihre Augen glühen auf), Link zur Produktseite.
+// Das echte Produkt hat orange Augen; Türkis ist nur der Akzent des Bereichs.
+//
+// Video: lädt erst, wenn die Kachel ins Bild kommt (preload="none", kein Byte vorher), spielt einmal (rund 2,5 s) und
+// bleibt auf dem letzten Bild mit leuchtenden Augen stehen. Bei Mauszeiger oder Fokus auf der Kachel nochmals.
+// Bei «weniger Bewegung» und im Datensparmodus bleibt das Standbild. Kein Ton, keine Bedienelemente.
+---
+<section class="block sh-kachel-block sh-akzent" aria-labelledby="sh-kachel-titel">
+  <article class="sh-kachel" data-sh-kachel>
+    <div class="sh-kachel-film">
+      <!-- Standbild als faules <img> statt poster: ein poster lädt sofort mit der Seite, das Bild erst in der Nähe -->
+      <img src="/smarthome-medien/kachel_glut.webp" width="960" height="540" loading="lazy" decoding="async" alt="" />
+      <video muted playsinline preload="none" width="1024" height="576" aria-hidden="true" tabindex="-1"
+             data-quellen="/smarthome-medien/kachel.webm|video/webm,/smarthome-medien/kachel.mp4|video/mp4"></video>
+    </div>
+    <div class="sh-kachel-text">
+      <p class="sh-kachel-kicker">Smart Home · neu bei KohliLab</p>
+      <h2 id="sh-kachel-titel"><a class="sh-kachel-link" href="/zaehlerleser">Der Zählerleser<i>.</i></a></h2>
+      <p class="sh-kachel-satz">
+        Eine Eule für deinen Stromzähler: Sie hält mit einem Magneten am Smart Meter E450, liest ihn lokal aus und schickt
+        die Werte per WLAN an Home Assistant. Das Gehäuse kommt aus unserem eigenen Drucklabor.
+      </p>
+      <span class="sh-kachel-knopf" aria-hidden="true">Zum Zählerleser →</span>
+    </div>
+  </article>
+  <p class="sh-kachel-unten"><a href="/smart-home">Alles zu Smart Home →</a></p>
+</section>
+
+<script is:inline>
+  (function () {
+    var k = document.querySelector('[data-sh-kachel]');
+    if (!k || !('IntersectionObserver' in window)) return;
+    var v = k.querySelector('video');
+    var ruhig = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var sparen = navigator.connection && navigator.connection.saveData;
+    if (ruhig || sparen) return;
+    var geladen = false;
+    v.addEventListener('playing', function () { v.classList.add('laeuft'); });
+    function spielen() {
+      if (!geladen) {
+        geladen = true;
+        v.dataset.quellen.split(',').forEach(function (q) {
+          var t = q.split('|'), s = document.createElement('source');
+          s.src = t[0]; s.type = t[1]; v.appendChild(s);
+        });
+        v.load();
+      }
+      try { v.currentTime = 0; } catch (e) {}
+      v.playbackRate = 0.9;
+      var p = v.play();
+      if (p && p.catch) p.catch(function () {});
+    }
+    var io = new IntersectionObserver(function (e) {
+      if (e[0].isIntersecting) { io.disconnect(); spielen(); }
+    }, { threshold: 0.55 });
+    io.observe(k);
+    var nochmal = function () { if (geladen && v.ended) spielen(); };
+    k.addEventListener('pointerenter', nochmal);
+    k.addEventListener('focusin', nochmal);
+  })();
+</script>

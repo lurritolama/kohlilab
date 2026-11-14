@@ -3,9 +3,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import HeroZentral from '../components/HeroZentral.astro';
 import PipelineBand from '../components/PipelineBand.astro';
 import ProduktLinien from '../components/ProduktLinien.astro';
+import SmartHomeKachel from '../components/SmartHomeKachel.astro';
 ---
 <BaseLayout>
   <HeroZentral />
   <PipelineBand />
   <ProduktLinien />
+  <SmartHomeKachel />
+  <!-- Fliegende Eule (Manolo 14.11.2026): nur auf der Startseite. Das Skript wird erst 1,2 s nach dem Laden der Seite
+       geholt, damit es auf langsamen Netzen nicht mit Schriften und Hero-Bild um die Leitung konkurriert; danach wartet es
+       selbst noch auf Leerlauf. Quelle: RaspiCam, zaehler/e450/gemeinsam/webseite/eule_flug/final (eule.js, glut.js,
+       Tafeln), eingebaut mit werkzeuge/einbau_kohlilab.py. Dort ändern und neu einbauen, nicht hier unter public/eule/. -->
+  <script is:inline>
+    (function () {
+      function laden() {
+        var s = document.createElement('script');
+        s.src = '/eule/eule.js';
+        s.dataset.medien = '/eule/gleitflug/'; s.dataset.blick = '/eule/blick/';
+        s.dataset.abflug = '/eule/abflug/'; s.dataset.ziel = '/smart-home';
+        document.body.appendChild(s);
+      }
+      function spaeter() { setTimeout(laden, 1200); }
+      if (document.readyState === 'complete') spaeter(); else addEventListener('load', spaeter, { once: true });
+    })();
+  </script>
 </BaseLayout>

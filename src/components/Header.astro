@@ -36,6 +36,7 @@
     </div>
     <a href="/ventilkappen">Ventilkappen</a>
     <a href="/spezialanfertigung">Spezialanfertigung</a>
+    <a class="nav-sh" href="/smart-home">Smart Home</a>
     <a href="/kontakt">Kontakt</a>
   </div>
   <div class="navrechts">
@@ -58,6 +59,10 @@
   <a href="/lochwand">Lochwand-Planer <em>Test</em></a>
   <a href="/relief">Relief <em>Test</em></a>
   <a class="mn-alle" href="/#produkte">Alle Produktlinien →</a>
+  <div class="mn-trenn"></div>
+  <div class="mn-gruppe mn-gruppe-sh">Smart Home <span class="mn-neu">Neu</span></div>
+  <a href="/zaehlerleser">Zählerleser E450 <em class="em-sh">Bald</em></a>
+  <a class="mn-alle mn-alle-sh" href="/smart-home">Alles zu Smart Home →</a>
   <div class="mn-trenn"></div>
   <a href="/ventilkappen">Ventilkappen</a>
   <a href="/spezialanfertigung">Spezialanfertigung</a>
@@ -140,6 +145,18 @@
     color: var(--acc2); text-transform: uppercase; }
   .mn-alle { color: var(--acc); }
   .mn-trenn { border-top: 1px solid var(--line); margin: 8px 26px; }
+
+  /* Smart Home (Manolo 14.11.2026): eigener Bereich mit türkisem Akzent, direkt zur Bereichsseite */
+  .navlinks a.nav-sh { color: var(--ink); display: inline-flex; align-items: center; gap: 7px; }
+  .navlinks a.nav-sh::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sh);
+    box-shadow: 0 0 8px var(--sh); flex: none; }
+  .navlinks a.nav-sh:hover { color: var(--sh); }
+  .mn-gruppe-sh { color: var(--sh); display: flex; align-items: center; gap: 8px; }
+  .mn-neu { font-size: 9px; letter-spacing: 1px; color: #061617; background: var(--sh); border-radius: 3px; padding: 1px 5px; }
+  .mobilnav em.em-sh { background: var(--sh); color: #061617; }
+  .mobilnav a.mn-alle-sh { color: var(--sh); }
+  .mobilnav a.mn-alle-sh:hover { color: var(--sh2); }
+  @media (min-width: 861px) and (max-width: 1040px) { .navlinks { gap: 18px; } }
   @media (max-width: 860px) {
     .burger { display: flex; }
     .mobilnav:not([hidden]) { display: block; }
