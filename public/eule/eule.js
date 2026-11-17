@@ -1,16 +1,24 @@
 /* Fliegende Eule für die Startseite von kohlilab.ch — Final (Manolo 14.11.2026)
  *
  * Gleitflug, Landung unten rechts, Augen türkis (Akzent «Smart Home»), glimmen schon im Anflug. Klick auf die Eule:
- * Tafel «Neu bei KohliLab: Smart Home · Entdecken →» mit Link zur Bereichsseite. X blendet sie für diesen Besuch aus.
+ * Tafel «Neu bei KohliLab: der Zählerleser · Entdecken →» mit Link direkt auf die ausführliche Zählerleser-Seite
+ * /smart-home/zaehlerleser (Manolo 17.11.2026; vorher die Bereichsseite /smart-home). X blendet sie für diesen Besuch aus.
  * Fliegt nur einmal pro Besuch, danach sitzt sie gleich da. Nie über Bedienelementen: kommt ein Link, Knopf oder Feld
  * unter sie, duckt sie sich hinter den Fensterrand (nur noch die Augen schauen hervor) oder verschwindet ganz.
  * Auf schmalen Fenstern kleiner, unten bekommt die Fusszeile Luft (--kl-eule-luft).
  * Abflug: Klick auf einen Link zu einer anderen Seite von kohlilab.ch -> sie hebt ab und fliegt in die Tiefe, die neue
  * Seite blendet währenddessen ein (View Transition zwischen den Dokumenten, Regeln in global.css). Zurück-Knopf, Tab
  * schliessen, externe Links, neue Tabs: kein Abflug. «Weniger Bewegung»: kein Flug, kein Abflug, nur sanftes Ausblenden.
+ * Vorhang (17.11.2026): Klick auf «Entdecken» in der Tafel -> sie fliegt kurz hoch, greift eine Vorhangschnur und zieht;
+ * ein Theatervorhang schliesst sich über der Startseite und geht über der Zählerleser-Seite wieder auf. Das alles steckt in
+ * vorhang/<fassung>/vorhang.js und wird erst geholt, wenn man sich der Eule zuwendet (Zeiger, Fokus, Tafel). Ist es beim Klick
+ * nicht bereit oder nicht eingebaut, bleibt es beim Abflug. Quelle: zaehler/e450/gemeinsam/webseite/eule_vorhang.
  *
  * Einbau: <script src="/eule/eule.js" defer data-medien="/eule/gleitflug/" data-blick="/eule/blick/"
- *                 data-abflug="/eule/abflug/" data-ziel="/smart-home"></script>
+ *                 data-abflug="/eule/abflug/" data-ziel="/smart-home/zaehlerleser"
+ *                 data-vorlade="/zaehlerleser-medien/hero_poster.webp"></script>
+ * data-vorlade (wahlweise, mit Komma getrennt): holt der Browser zusammen mit der Zielseite vor, sobald man sich der Eule
+ * zuwendet, z. B. das erste Bild der Zielseite, damit es hinter dem Vorhang schon steht.
  * Auf kohlilab.ch setzt ein kleines Inline-Skript in src/pages/index.astro dieses Tag erst 1,2 s nach dem Laden der Seite.
  * Quelle: RaspiCam, zaehler/e450/gemeinsam/webseite/eule_flug/final/eule.js; eingebaut mit werkzeuge/einbau_kohlilab.py.
  *
@@ -30,12 +38,18 @@
     medien: D.medien || 'medien/',
     blick: D.blick || '../blick/medien/',
     abflug: D.abflug || '',
-    ziel: D.ziel || '/smart-home',
+    ziel: D.ziel || '/smart-home/zaehlerleser',
+    vorlade: (D.vorlade || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
     // Vorschau-Schalter: ?modus=flug (immer fliegen), sitzt (wie beim zweiten Seitenaufruf), ruhig (wie «weniger Bewegung»)
     modus: frage.get('modus') || '',
     hand: frage.has('hand'),          // Uhr von aussen stellen (für Standbilder)
     merken: !frage.has('modus')       // nur ohne Schalter wird «schon geflogen» und «ausgeblendet» gemerkt
   };
+  // Vorhang-Übergang: Unterordner von vorhang/ neben eule.js. Den Namen (Prüfsumme der Dateien) setzt einbau_kohlilab.py
+  // beim Einbau hier ein: so darf der Browser die Dateien ein Jahr behalten, und ein neuer Stand hat neue Adressen.
+  // Ohne Einbau (Platzhalter steht noch da) gibt es keinen Vorhang, ausser data-vorhang nennt den Ordner.
+  var FASSUNG = '124ec61dfd';
+  K.vorhang = D.vorhang || (FASSUNG.charAt(0) !== '@' && skript && skript.src ? skript.src.replace(/eule\.js(\?.*)?$/, 'vorhang/' + FASSUNG + '/') : '');
   var HALT = 0.80;                    // s Pause nach dem Nachfedern: die Augen glühen auf, dann dreht sie sich
   var GIER_MAX = 15, NICK_MAX = 5;    // so weit folgt der Blick dem Mauszeiger (Grad)
   // Abflug: so lange spielt die Eule, bevor der Browser die neue Seite holt. Mit Übergang zwischen den Dokumenten fliegt
@@ -229,8 +243,8 @@
       '<div class="kl-eule-schein" aria-hidden="true"></div>' +
       '<div class="kl-eule-schatten" aria-hidden="true"></div>' +
       '<canvas aria-hidden="true"></canvas>' +
-      '<button type="button" class="kl-eule-knopf" aria-expanded="false" aria-controls="kl-eule-tafel" aria-label="Eule: Neu bei KohliLab ist Smart Home. Hinweis zeigen"></button>' +
-      '<a class="kl-eule-tafel" id="kl-eule-tafel" tabindex="-1"><b>Neu bei KohliLab: <i>Smart Home</i></b> <em>Entdecken →</em></a>' +
+      '<button type="button" class="kl-eule-knopf" aria-expanded="false" aria-controls="kl-eule-tafel" aria-label="Eule: Neu bei KohliLab ist der Zählerleser. Hinweis zeigen"></button>' +
+      '<a class="kl-eule-tafel" id="kl-eule-tafel" tabindex="-1"><b>Neu bei KohliLab: der <i>Zählerleser</i></b> <em>Entdecken →</em></a>' +
       '<button type="button" class="kl-eule-zu" aria-label="Eule für diesen Besuch ausblenden">×</button>';
     this.schein = w.children[0]; this.schatten = w.children[1];
     this.cv = w.children[2]; this.knopf = w.children[3]; this.tafel = w.children[4]; this.zu = w.children[5];
@@ -240,8 +254,14 @@
     this.bedienelemente();
     var ich = this;
     this.knopf.addEventListener('click', function () { ich.klick(); });
-    this.knopf.addEventListener('pointerenter', function () { ich.nah = true; ich.wurzel.classList.add('nah'); });
-    this.knopf.addEventListener('pointerleave', function () { ich.nah = false; ich.zeitNah = ich.T; });
+    // Vorhang holen, wenn der Zeiger auf ihr verweilt (nicht beim blossen Überfahren auf dem Weg zum Rollbalken)
+    this.knopf.addEventListener('pointerenter', function () {
+      ich.nah = true; ich.wurzel.classList.add('nah');
+      clearTimeout(ich.vorhangBald);
+      ich.vorhangBald = setTimeout(function () { ich.vorhangLaden(); }, 150);
+    });
+    this.knopf.addEventListener('focus', function () { ich.vorhangLaden(); });
+    this.knopf.addEventListener('pointerleave', function () { ich.nah = false; ich.zeitNah = ich.T; clearTimeout(ich.vorhangBald); });
     this.zu.addEventListener('pointerenter', function () { ich.nah = true; });
     this.zu.addEventListener('click', function () { ich.ausblenden(); });
     window.addEventListener('pointermove', function (e) {
@@ -265,12 +285,14 @@
       try { url = new URL(a.href, location.href); } catch (f) { return; }
       if (url.origin !== location.origin || !/^https?:$/.test(url.protocol)) return;
       if (url.pathname === location.pathname && url.search === location.search) return;   // Anker auf dieser Seite
+      if (a === ich.tafel && ich.vorhangKlick(url.href, e)) return;                        // «Entdecken»: Vorhang
       ich.abfliegen(url.href, e);
     });
     // Zurück auf die Startseite aus dem Zwischenspeicher (Zurück-Knopf): sie sitzt wieder da
     window.addEventListener('pageshow', function (e) {
       if (!e.persisted) return;
-      if (ich.zustand === 'abflug' || ich.zustand === 'fort') ich.zurueck();
+      if (window.KLVorhang) window.KLVorhang.zurueck();          // kein Vorhang-Rest
+      if (ich.zustand === 'abflug' || ich.zustand === 'fort' || ich.zustand === 'sonder') ich.zurueck();
       else { window.klUebergang = false; ich.cv.style.viewTransitionName = ''; }
     });
   };
@@ -285,7 +307,7 @@
     var vw = document.documentElement.clientWidth, vh = window.innerHeight;
     var handy = istHandy(vw);
     var sitz = sitzHoehe(vw);
-    var B = this.blickD, F = this.flugD, A = this.abflugD;
+    var B = this.blickD, F = this.flugD, A = this.abflugD, S = this.sonderD;
     var fuss = F ? F.fuss : this.fussMerk || [1490, 900];
     var k = sitz / B.sitz;
     var m = this.m = { vw: vw, vh: vh, k: k, kx: vw / B.buehne[0], ky: vh / B.buehne[1], sitz: sitz, handy: handy, fu: fuss[0], fv: fuss[1] };
@@ -299,6 +321,7 @@
     function dazu(D) { for (var j = 0; j < D.b.length; j++) { quellen.push([D.b[j], D.bahn[j]]); quellen.push([D.g[j], D.bahn[j]]); } }
     if (this.zustand !== 'wach' && F) dazu(F);
     if (A) dazu(A);
+    if (S) dazu(S);
     for (i = 0; i < B.bilder.length; i++) { quellen.push([B.bilder[i].b, [B.bilder[i].u, B.bilder[i].v]]); quellen.push([B.bilder[i].g, [B.bilder[i].u, B.bilder[i].v]]); }
     for (i = 0; i < quellen.length; i++) {
       e = quellen[i][0]; if (!e) continue;
@@ -322,6 +345,8 @@
     if (F) { var le = F.b[F.marken.ende]; m.df = le[6] + le[8] - F.fuss[1]; }
     m.dfA = 0;
     if (A) { var a0 = A.b[0]; m.dfA = a0[6] + a0[8] - A.fuss[1]; }
+    m.dfS = 0;
+    if (S) { var s0 = S.b[0]; m.dfS = s0[6] + s0[8] - S.fuss[1]; }
     // Luft im Seitenfuss: nur nötig, wenn sie über der Seite sitzt (nicht im freien Rand daneben)
     var p = document.querySelector('.page');
     var ueber = !p || m.lx - sitz * 0.5 < p.getBoundingClientRect().right - 26;
@@ -401,14 +426,16 @@
         this.lage(B, b0.g, b0.u, b0.v, 1 / b0.s, glut * f, 'screen');
         ox = misch(ox, m.rx, f); oy = misch(oy, m.ry, f);
       }
-    } else if (this.zustand === 'abflug') {
-      var xa = this.tA * A.fps;
-      // die ersten Hundertstel: vom Blick-Raster (Blick dorthin, wo sie gerade hinschaut) ins erste Bild des Abflugs
+    } else if (this.zustand === 'abflug' || this.zustand === 'sonder') {
+      var sonder = this.zustand === 'sonder', Q = sonder ? this.sonderD : A;   // Abflug oder Sonderflug (greift die Schnur)
+      var xa = this.tA * Q.fps;
+      // die ersten Hundertstel: vom Blick-Raster (Blick dorthin, wo sie gerade hinschaut) ins erste Bild der Folge
       var ueber = 1 - weich(0, 0.07, this.tA);
       if (ueber > 0) this.rasterZeichnen(ueber * deck, glut * ueber);
-      var ra = this.folge(A, xa, m.dfA, deck * (1 - ueber), glut * (1 - ueber), fern);
+      var ra = this.folge(Q, xa, sonder ? m.dfS : m.dfA, deck * (1 - ueber), glut * (1 - ueber), fern);
       ox = misch(ra.x, m.rx, ueber); oy = misch(ra.y, m.ry, ueber); s = ra.s; hoch = ra.hoch; deck = ra.deck;
       oy += this.sink;
+      if (sonder && this.sonderRueck) this.sonderRueck(this.tA, ox, oy, s);
     } else {                                                    // wach: Blick aus dem Raster
       this.rasterZeichnen(deck, glut);
       ox = m.rx; oy = m.ry + this.sink;
@@ -510,6 +537,8 @@
     } else if (this.zustand === 'abflug') {
       this.tA += dt;
       if (this.tA >= (this.abflugD.bahn.length - 1) / this.abflugD.fps + 0.05) { this.zustand = 'fort'; this.wurzel.style.visibility = 'hidden'; }
+    } else if (this.zustand === 'sonder') {
+      this.tA += dt;                                             // am Ende bleibt das letzte Bild stehen, bis verdeckt() kommt
     } else if (this.zustand === 'wach') {
       if (!this.ruhig) {
         // Blick: dem Mauszeiger nach; ohne Zeiger ab und zu ein Blick zur Seite
@@ -595,7 +624,7 @@
     this.wurzel.classList.toggle('offen', an);
     this.knopf.setAttribute('aria-expanded', an ? 'true' : 'false');
     this.tafel.tabIndex = an ? 0 : -1;
-    if (an) this.bedienung();
+    if (an) { this.bedienung(); this.vorhangLaden(); }
   };
 
   P.ausblenden = function () {
@@ -609,14 +638,15 @@
 
   // Abflug beim Verlassen der Startseite über einen Link. Ohne Flug (weniger Bewegung, noch im Anflug, abgetaucht,
   // Bilder noch nicht da) läuft die Seite normal weiter, und der Übergang blendet die Eule nur sanft aus.
+  // e fehlt, wenn der Klick schon abgefangen wurde (Vorhang war nicht rechtzeitig bereit): dann wechselt die Seite hier.
   P.abfliegen = function (ziel, e) {
-    if (this.zustand === 'laden' || this.zustand === 'weg' || this.zustand === 'fort' || this.zustand === 'abflug') return;
+    if (this.zustand === 'laden' || this.zustand === 'weg' || this.zustand === 'fort' || this.zustand === 'abflug' || this.zustand === 'sonder') return;
     window.klUebergang = true;                                 // Übergang zwischen den Seiten erlauben (BaseLayout)
     this.cv.style.viewTransitionName = 'kl-eule';
     var fliegen = !this.ruhig && this.abflugD && this.zustand === 'wach' && this.sink < this.m.sitz * 0.3 &&
       document.visibilityState === 'visible';
-    if (!fliegen) return;
-    e.preventDefault();
+    if (!fliegen) { if (!e) location.assign(ziel); return; }
+    if (e) e.preventDefault();
     try {                                                       // Seite schon holen, während sie abhebt
       var l = document.createElement('link');
       l.rel = 'prefetch'; l.href = ziel;
@@ -629,6 +659,62 @@
     setTimeout(function () { location.assign(ziel); }, ABFLUG_HALTEN * 1000);
     // Kam die neue Seite nicht (abgebrochen, offline): nach einer Weile sitzt sie wieder da
     this.notfall = setTimeout(function () { if (ich.zustand === 'abflug' || ich.zustand === 'fort') ich.zurueck(); }, 6000);
+  };
+
+  // ---------------------------------------------------------------- Vorhang (vorhang.js)
+  // Holen, sobald man sich der Eule zuwendet (Zeiger verweilt auf ihr, Tastaturfokus, Tafel offen): nie beim Seitenaufbau,
+  // nicht im Datensparmodus, nicht bei «weniger Bewegung». Die Zielseite holt der Browser dabei schon vor.
+  P.vorhangLaden = function () {
+    if (this.vorhangLaeuft || this.ruhig || !K.vorhang || this.zustand !== 'wach') return;
+    if (navigator.connection && navigator.connection.saveData) return;
+    this.vorhangLaeuft = true;
+    var s = document.createElement('script');
+    s.src = K.vorhang + 'vorhang.js';
+    s.onerror = function () { window.KLVorhang = { kaputt: true, bereit: function () { return false; }, zurueck: function () {} }; };
+    document.head.appendChild(s);
+    [K.ziel].concat(K.vorlade).forEach(function (u) {           // Zielseite und ihr erstes Bild (data-vorlade)
+      try {
+        var l = document.createElement('link');
+        l.rel = 'prefetch'; l.href = u;
+        document.head.appendChild(l);
+      } catch (f) { /* egal */ }
+    });
+  };
+
+  // Klick auf «Entdecken». Rückgabe true: der Vorhang übernimmt (auch den Seitenwechsel). Ist er noch am Laden, wartet
+  // sie höchstens 0,7 s (Augen blitzen) und fliegt sonst wie bei jedem anderen Link ab.
+  P.vorhangKlick = function (ziel, e) {
+    var V = window.KLVorhang;
+    if (this.ruhig || !K.vorhang || this.zustand !== 'wach' || this.sink > this.m.sitz * 0.3 || document.visibilityState !== 'visible') return false;
+    if (!this.vorhangLaeuft || (V && V.kaputt)) return false;
+    e.preventDefault();
+    if (this.vorhangWartet) return true;                          // zweiter Klick, während sie noch wartet
+    var ich = this, seit = performance.now();
+    this.vorhangWartet = true;
+    this.blitz = this.T;
+    (function warten() {
+      var W = window.KLVorhang;
+      if (ich.zustand !== 'wach') { ich.vorhangWartet = false; return; }
+      if (W && !W.kaputt && W.bereit()) { ich.vorhangWartet = false; W.start(ziel); return; }
+      if ((W && W.kaputt) || performance.now() - seit > 700) { ich.vorhangWartet = false; ich.abfliegen(ziel, null); return; }
+      requestAnimationFrame(warten);
+    })();
+    return true;
+  };
+
+  // Sonderflug: eine weitere Bildfolge ab der sitzenden Eule (wie der Abflug), z. B. «greift die Schnur». Am Ende bleibt
+  // das letzte Bild stehen, bis verdeckt() sie wegnimmt. rueck(t, x, y, s) kommt bei jedem gezeichneten Bild: Zeit seit
+  // dem Start und Körpermitte im Fenster.
+  P.sonderflug = function (D, rueck) {
+    this.sonderD = D; this.sonderRueck = rueck;
+    this.mass();
+    this.tafelZeigen(false);
+    this.wurzel.classList.remove('wach', 'nah');
+    this.zustand = 'sonder'; this.tA = 0; this.zeichen = '';
+  };
+
+  P.verdeckt = function () {          // der Vorhang ist vor ihr zu
+    if (this.zustand === 'sonder') { this.zustand = 'fort'; this.wurzel.style.visibility = 'hidden'; }
   };
 
   P.zurueck = function () {           // nach dem Zurück-Knopf oder wenn der Seitenwechsel ausblieb
@@ -715,7 +801,12 @@
         return h[0].tagName.toLowerCase() + (h[0].className ? '.' + String(h[0].className).split(' ').join('.') : '') + ' «' + (h[0].textContent || '').trim().slice(0, 30) + '» ' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(',');
       });
     },
-    stand: function () { return { zustand: eule.zustand, T: eule.T, glut: eule.glut, gier: eule.gier, sink: eule.sink, sinkZiel: eule.sinkZiel, abflug: !!eule.abflugD, m: eule.m }; }
+    stand: function () {
+      return { zustand: eule.zustand, T: eule.T, glut: eule.glut, gier: eule.gier, sink: eule.sink, sinkZiel: eule.sinkZiel, abflug: !!eule.abflugD, m: eule.m,
+        vorhang: !K.vorhang ? 'aus' : !eule.vorhangLaeuft ? 'wartet' : !window.KLVorhang ? 'lädt' : window.KLVorhang.kaputt ? 'kaputt' : window.KLVorhang.bereit() ? 'bereit' : 'lädt' };
+    },
+    // für vorhang.js: die Eule selbst und der Lader für Bildfolgen
+    intern: { eule: eule, satz: satz, K: K }
   };
 
   // Erst wenn die Seite steht: frühestens 1,6 s nach dem Laden und im Leerlauf. So konkurriert die Eule nie mit dem

@@ -65,3 +65,14 @@
 
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# Vorhang-Übergang der Eule (public/eule/vorhang/<fassung>/…, 17.11.2026): der Ordnername
+# ist die Prüfsumme der Dateien (einbau_kohlilab.py setzt sie auch in eule.js ein),
+# ein neuer Stand hat also neue Adressen. Darum ein Jahr und 'immutable' wie bei
+# /_astro/: die Zielseite holt Skript und Film dann ohne Rückfrage beim Server aus
+# dem Zwischenspeicher, der Vorhang geht ohne Wartezeit auf.
+[[headers]]
+  for = "/eule/vorhang/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -52,11 +52,34 @@ const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/ind
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={bildAbs} />
     <title>{title}</title>
+    {/* Zweiter Teil des Skripts: Vorhang-Übergang von der Startseite (Manolo 17.11.2026). Hat die Eule dort eben den
+        Theatervorhang zugezogen (public/eule/vorhang/…/vorhang.js), steht im sessionStorage das Merkzeichen «kl_vorhang»
+        (Zeit, Zielpfad, Fassung der Dateien). Nur dann, nur auf der Zielseite und nur wenige Sekunden lang beginnt die
+        Seite hinter einer dunklen Decke, hält das Bild der alten Seite (Vorhang zu) fest und holt den Film «auf» (liegt
+        schon im Zwischenspeicher) und vorhang.js, das den Vorhang aufzieht. Kommt es nicht (Fehler, 2,5 s), fällt die
+        Decke von selbst. Bei jedem normalen Aufruf fehlt das Merkzeichen und es passiert nichts.
+        Quelle und Beschrieb: RaspiCam, zaehler/e450/gemeinsam/webseite/eule_vorhang. */}
     <script is:inline>
       // Seitenübergang (global.css, @view-transition) nur beim Abflug der Eule von der Startseite: eule.js setzt dann
       // window.klUebergang. Bei allen anderen Seitenwechseln wird er übersprungen, dort bleibt alles wie bisher.
       // (ready.catch: ein übersprungener Übergang lehnt «ready» ab, das soll nicht als Fehler in der Konsole landen)
       addEventListener('pageswap', function (e) { var v = e.viewTransition; if (v && !window.klUebergang) { v.ready.catch(function () {}); v.skipTransition(); } });
+      (function () {
+        try {
+          var m = JSON.parse(sessionStorage.getItem('kl_vorhang')), d = document, h = d.documentElement;
+          if (!m) return;
+          sessionStorage.removeItem('kl_vorhang');
+          if (Date.now() - m.t > 9e3 || m.z !== location.pathname || !/^[a-z0-9]{6,20}$/.test(m.v)) return;
+          var st = d.createElement('style'), s = d.createElement('script'), f = m.f = d.createElement('video'), p = '/eule/vorhang/' + m.v + '/';
+          st.textContent = 'html.kl-vh::before{content:"";position:fixed;inset:0;z-index:2147483646;background:#0c1a1d}html.kl-vh::view-transition-old(root){animation:kl-vh 6s both}html.kl-vh::view-transition-new(root){animation:none;opacity:0}@keyframes kl-vh{from,to{opacity:1}}';
+          f.muted = f.playsInline = true; f.preload = 'auto'; f.src = p + (m.q == 'hoch' ? 'auf-hoch.mp4' : 'auf-quer.mp4');
+          m.weg = function () { h.classList.remove('kl-vh'); try { m.vt.skipTransition(); } catch (e) {} };
+          addEventListener('pagereveal', function (e) { if ((m.vt = e.viewTransition)) m.vt.ready.catch(function () {}); });
+          s.src = p + 'vorhang.js'; s.onerror = m.weg;
+          setTimeout(function () { m.da || m.weg(); }, 2500);
+          window.klVorhang = m; h.classList.add('kl-vh'); d.head.append(st, s);
+        } catch (e) {}
+      })();
     </script>
   </head>
   <body>

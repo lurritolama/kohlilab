@@ -21,7 +21,10 @@ import SmartHomeKachel from '../components/SmartHomeKachel.astro';
         var s = document.createElement('script');
         s.src = '/eule/eule.js';
         s.dataset.medien = '/eule/gleitflug/'; s.dataset.blick = '/eule/blick/';
-        s.dataset.abflug = '/eule/abflug/'; s.dataset.ziel = '/smart-home';
+        s.dataset.abflug = '/eule/abflug/';
+        // Eule und Tafel «Entdecken» führen direkt auf die ausführliche Zählerleser-Seite (Manolo 17.11.2026), mit
+        // Vorhang-Übergang; deren erstes Bild holt der Browser vor, sobald man sich der Eule zuwendet.
+        s.dataset.ziel = '/smart-home/zaehlerleser'; s.dataset.vorlade = '/zaehlerleser-medien/hero_poster.webp';
         document.body.appendChild(s);
       }
       function spaeter() { setTimeout(laden, 1200); }
