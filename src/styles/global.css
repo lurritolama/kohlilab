@@ -184,45 +184,51 @@ footer a:hover { color:var(--acc); }
 .card.linie.card-folgt .ds { min-height: 0; }
 @media (max-width: 860px) { .bereich-mehr { margin-left: 0; } }
 
-/* Kachel «Smart Home» unten auf der Startseite (SmartHomeKachel.astro), aus demselben Grund hier */
-.sh-kachel-block { padding-top: 8px; }
-.sh-kachel { position: relative; display: grid; grid-template-columns: 1.15fr 1fr; align-items: stretch;
-  background: linear-gradient(135deg, #182224 0%, #1c1e21 55%); border: 1px solid #284a4c; border-radius: 10px;
-  overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.45), 0 0 80px rgba(34,227,232,.07);
+/* Kurzer Teaser «Smart Home» unten auf der Startseite (SmartHomeKachel.astro; Manolo 17.11.2026, vorher grosse Kachel),
+   aus demselben Grund hier. Ein schmales Band: Film links, ein Satz, Knopf zur Produktseite. */
+.sh-teaser-block { padding-top: 8px; }
+.sh-teaser { position: relative; display: grid; grid-template-columns: 300px minmax(0, 1fr) auto; grid-template-areas: "film text knopf";
+  align-items: center; background: linear-gradient(135deg, #182224 0%, #1c1e21 55%); border: 1px solid #284a4c; border-radius: 10px;
+  overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 18px 44px rgba(0,0,0,.4), 0 0 70px rgba(34,227,232,.06);
   transition: border-color .18s, box-shadow .18s; }
-.sh-kachel:hover, .sh-kachel:focus-within { border-color: var(--sh);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 24px 60px rgba(0,0,0,.45), 0 0 90px rgba(34,227,232,.14); }
-.sh-kachel-film { position: relative; aspect-ratio: 16 / 9; background: #0e1012; }
-.sh-kachel-film img, .sh-kachel-film video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.sh-teaser:hover, .sh-teaser:focus-within { border-color: var(--sh);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 18px 44px rgba(0,0,0,.4), 0 0 80px rgba(34,227,232,.13); }
+.sh-teaser-film { grid-area: film; position: relative; align-self: stretch; aspect-ratio: 16 / 9; background: #0e1012; }
+.sh-teaser-film img, .sh-teaser-film video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 /* das Video deckt das Standbild erst, wenn es wirklich läuft (kein schwarzes Bild dazwischen) */
-.sh-kachel-film video { opacity: 0; transition: opacity .35s; }
-.sh-kachel-film video.laeuft { opacity: 1; }
-.sh-kachel-film::after { content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(90deg, transparent 70%, rgba(24,34,36,.85)); }
-.sh-kachel-text { padding: 30px 32px 28px 26px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
-.sh-kachel-kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 2.6px; text-transform: uppercase; color: var(--sh);
-  display: flex; align-items: center; gap: 10px; }
-.sh-kachel-kicker::before { content: ""; width: 24px; height: 2px; background: var(--sh); box-shadow: 0 0 8px var(--sh); }
-.sh-kachel h2 { font-family: var(--disp); font-weight: 600; font-size: 40px; line-height: 1.02; text-transform: uppercase; letter-spacing: .6px; }
-.sh-kachel h2 i { font-style: normal; color: var(--sh); }
-/* ganze Kachel klickbar, ein einziger Link für Tastatur und Screenreader */
-.sh-kachel-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
-.sh-kachel-link:focus-visible { outline: none; }
-.sh-kachel:has(.sh-kachel-link:focus-visible) { outline: 2px solid var(--sh2); outline-offset: 4px; }
-.sh-kachel-satz { color: var(--muted); font-size: 15px; line-height: 1.65; max-width: 44ch; }
-.sh-kachel-knopf { align-self: flex-start; margin-top: 6px; font-family: var(--mono); font-size: 13px; font-weight: 700;
-  letter-spacing: 1px; text-transform: uppercase; color: #061617; background: var(--sh); padding: 12px 20px; border-radius: 4px; }
-.sh-kachel:hover .sh-kachel-knopf { background: var(--sh2); }
-.sh-kachel-unten { margin-top: 14px; text-align: right; }
-.sh-kachel-unten a { font-family: var(--mono); font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--sh);
-  display: inline-block; padding: 10px 0; }
-.sh-kachel-unten a:hover { color: var(--sh2); }
+.sh-teaser-film video { opacity: 0; transition: opacity .35s; }
+.sh-teaser-film video.laeuft { opacity: 1; }
+.sh-teaser-film::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent 62%, rgba(24,34,36,.92)); }
+.sh-teaser-text { grid-area: text; padding: 18px 12px 18px 24px; display: grid; gap: 6px; }
+.sh-teaser-kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--sh);
+  display: flex; align-items: center; gap: 9px; }
+.sh-teaser-kicker::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sh); box-shadow: 0 0 8px var(--sh); flex: none; }
+.sh-teaser h2 { font-family: var(--disp); font-weight: 600; font-size: 30px; line-height: 1.05; text-transform: uppercase; letter-spacing: .6px; }
+.sh-teaser h2 i { font-style: normal; color: var(--sh); }
+/* ganze Fläche klickbar, ein einziger Link für Tastatur und Screenreader */
+.sh-teaser-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.sh-teaser-link:focus-visible { outline: none; }
+.sh-teaser:has(.sh-teaser-link:focus-visible) { outline: 2px solid var(--sh2); outline-offset: 4px; }
+.sh-teaser-satz { color: var(--muted); font-size: 14.5px; line-height: 1.55; max-width: 52ch; }
+.sh-teaser-knopf { grid-area: knopf; margin: 0 26px 0 8px; font-family: var(--mono); font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  letter-spacing: 1px; text-transform: uppercase; color: #061617; background: var(--sh); padding: 11px 18px; border-radius: 4px; }
+.sh-teaser:hover .sh-teaser-knopf { background: var(--sh2); }
 @media (max-width: 860px) {
-  .sh-kachel { grid-template-columns: 1fr; }
-  .sh-kachel-film::after { background: linear-gradient(180deg, transparent 70%, rgba(24,34,36,.85)); }
-  .sh-kachel-text { padding: 20px 20px 22px; }
-  .sh-kachel h2 { font-size: 32px; }
-  .sh-kachel-unten { text-align: left; }
+  .sh-teaser { grid-template-columns: 220px minmax(0, 1fr); grid-template-areas: "film text" "film knopf"; }
+  .sh-teaser-film { aspect-ratio: auto; min-height: 150px; }
+  .sh-teaser-text { padding: 16px 16px 6px 18px; align-self: end; }
+  .sh-teaser-knopf { justify-self: start; align-self: start; margin: 6px 16px 16px 18px; }
+  .sh-teaser h2 { font-size: 26px; }
+}
+@media (max-width: 520px) {
+  .sh-teaser { grid-template-columns: 104px minmax(0, 1fr); }
+  .sh-teaser-film::after { background: linear-gradient(90deg, transparent 50%, rgba(24,34,36,.92)); }
+  .sh-teaser-text { padding: 14px 14px 4px 14px; gap: 4px; }
+  .sh-teaser-kicker { font-size: 10.5px; letter-spacing: 1.8px; }
+  .sh-teaser h2 { font-size: 22px; }
+  .sh-teaser-satz { font-size: 13px; line-height: 1.5; }
+  .sh-teaser-knopf { margin: 6px 14px 14px; padding: 9px 13px; font-size: 11.5px; }
 }
 
 /* Luft im Seitenfuss für die Eule (Startseite): eule.js setzt --kl-eule-luft; ohne Eule ist der Wert 0 */

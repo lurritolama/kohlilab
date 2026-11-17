@@ -138,7 +138,7 @@
         const honig = f.querySelector("[name=firma]");
         const r = await fetch(f.dataset.ziel, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
           name: "Zählerleser-Interesse", email: feld.value.trim(), telefon: "", firma: honig ? honig.value : "",
-          nachricht: "Bitte benachrichtigt mich, sobald der Zählerleser erhältlich ist. (Meldefeld auf kohlilab.ch/zaehlerleser)" }) });
+          nachricht: "Bitte benachrichtigt mich, sobald der Zählerleser erhältlich ist. (Meldefeld auf kohlilab.ch" + location.pathname + ")" }) });
         const d = await r.json().catch(() => ({}));
         if (r.ok && d.ok) { sage("ok", "Danke! Wir melden uns, sobald der Zählerleser erhältlich ist."); f.reset(); }
         else sage("fehler", d.fehler || "Das hat nicht geklappt. Schreib uns bitte über die Kontaktseite.");

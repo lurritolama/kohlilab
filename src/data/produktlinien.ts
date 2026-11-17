@@ -141,10 +141,10 @@ export const linien: Linie[] = [
     slug: 'zaehlerleser',
     name: 'Zählerleser E450',
     bereich: 'smart-home',
-    status: 'bald',   // Teaser-Seite, noch nicht im Verkauf (Manolo 13.11.2026)
+    status: 'bald',   // Produktseite unter Smart Home, noch nicht im Verkauf (Manolo 13./17.11.2026)
     beschreibung:
       'Hält mit einem Magneten am Smart Meter E450, liest ihn lokal aus und schickt die Werte per WLAN an Home Assistant, MQTT oder Prometheus. Das Gehäuse — Eule, Spinne oder Astronaut — kommt aus dem eigenen Drucklabor.',
-    href: '/zaehlerleser',
+    href: '/smart-home/zaehlerleser',
     bild: '/zaehlerleser-medien/bild_trio.webp',
     alt: 'Drei Zählerleser als Eule, Spinne und Astronaut auf Stromzählern',
     breite: 1600, hoehe: 900,

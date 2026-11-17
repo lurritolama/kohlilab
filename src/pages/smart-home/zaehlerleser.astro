@@ -1,15 +1,32 @@
 ---
-// Zählerleser – Teaser-Seite «Werkstatt» (Manolo, 13.11.2026): Vorschau und Werbung, «bald erhältlich».
-// Kein Shop, keine Preise, keine Liefertermine. Das Meldefeld schickt über /api/kontakt eine Mail an die Shop-Adresse.
+// Zählerleser E450 – DIE Produktseite (Manolo 17.11.2026: «nur noch eine vollständige Produktseite»), Entwurf «Werkstatt»
+// vom 13.11.2026: Vorschau und Werbung, «bald erhältlich». Kein Shop, keine Preise, keine Liefertermine. Das Meldefeld
+// schickt über /api/kontakt eine Mail an die Shop-Adresse. Gehört zum Bereich Smart Home: Brotkrumen und Rahmen türkis,
+// das Produkt selbst orange. Die frühere Adresse /zaehlerleser leitet per 301 hierher (astro.config.mjs, redirects).
 // Inhalt und Stil sind erzeugt: Quelle ist der Entwurf im Projekt RaspiCam (zaehler/e450/gemeinsam/webseite/teaser/3-werkstatt),
 // Werkzeug teaser/werkzeuge/einbau_kohlilab.py. Änderungen dort machen und neu erzeugen, nicht hier von Hand.
-import BaseLayout from '../layouts/BaseLayout.astro';
-import '../styles/zaehlerleser.css';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import '../../styles/zaehlerleser.css';
 
 const titel = 'Zählerleser für den Smart Meter E450 — bald bei KohliLab';
 const beschreibung = 'Der Zählerleser hält mit einem Magneten an deinem Smart Meter E450, liest ihn über die Kundenschnittstelle (RJ12) lokal aus und gibt die Werte per WLAN weiter: an Home Assistant, per MQTT, als JSON oder für Prometheus. Als Eule, Spinne oder Astronaut. Bald erhältlich bei KohliLab.';
+// Brotkrumen auch für Suchmaschinen (schema.org BreadcrumbList)
+const pfad = JSON.stringify({
+  '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Smart Home', item: 'https://kohlilab.ch/smart-home' },
+    { '@type': 'ListItem', position: 2, name: 'Zählerleser E450', item: 'https://kohlilab.ch/smart-home/zaehlerleser' },
+  ],
+});
 ---
 <BaseLayout title={titel} description={beschreibung} bild="/zaehlerleser-medien/og.jpg">
+  <nav class="zl-pfad sh-akzent" aria-label="Brotkrumen">
+    <ol>
+      <li><a href="/smart-home">Smart Home</a></li>
+      <li aria-current="page">Zählerleser E450</li>
+    </ol>
+    <a class="zl-pfad-alle" href="/smart-home#geraete">Alle Smart-Home-Geräte →</a>
+  </nav>
   <div class="zl">
 
 
@@ -206,5 +223,13 @@ const beschreibung = 'Der Zählerleser hält mit einem Magneten an deinem Smart 
 
 
   </div>
+  <aside class="zl-bereich sh-akzent" aria-label="Smart Home bei KohliLab">
+    <div class="zl-bereich-text">
+      <p class="zl-bereich-kicker">Smart Home bei KohliLab</p>
+      <p>Der Zählerleser ist das erste Gerät im Bereich Smart Home: lokal, ohne Cloud, Gehäuse aus dem eigenen Drucklabor. Das nächste entsteht gerade in der Werkstatt.</p>
+    </div>
+    <a href="/smart-home">Alles zu Smart Home →</a>
+  </aside>
+  <script is:inline type="application/ld+json" set:html={pfad}></script>
   <script is:inline src="/zaehlerleser-medien/zaehlerleser.js" defer></script>
 </BaseLayout>

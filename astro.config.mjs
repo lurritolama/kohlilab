@@ -20,6 +20,13 @@ export default defineConfig({
   // liefert Netlify /golf-tees direkt aus (Pretty URLs), ohne Umleitung.
   trailingSlash: 'never',
   build: { format: 'file' },
+  // Dauerhafte Weiterleitungen. Der Netlify-Adapter schreibt sie beim Bauen als echte 301 in dist/_redirects (keine
+  // HTML-Zwischenseite); der Dev-Server leitet ebenfalls weiter.
+  // Zählerleser (Manolo 17.11.2026): nur noch EINE Produktseite, im Bereich Smart Home. Die frühere Adresse bleibt
+  // erreichbar, damit geteilte Links und Suchmaschinen nicht ins Leere gehen.
+  redirects: {
+    '/zaehlerleser': { status: 301, destination: '/smart-home/zaehlerleser' },
+  },
   integrations: [
     sitemap({
       filter: (seite) => !NICHT_IN_SITEMAP.some((p) => seite.includes(p)),

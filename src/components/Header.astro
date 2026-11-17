@@ -12,6 +12,10 @@
  * Testphasen-Linien tragen ein kleines TEST-Kennzeichen; bei Freigabe
  * einfach das <em> entfernen.
  */
+// Im Bereich Smart Home (/smart-home und Produktseiten darunter) leuchtet «Smart Home» in der Leiste (Manolo 17.11.2026).
+// Beim Bauen heisst der Pfad /smart-home.html bzw. /smart-home/zaehlerleser.html, im Dev-Server ohne Endung.
+const pfad = Astro.url.pathname.replace(/\.html$/, '');
+const imSmartHome = pfad === '/smart-home' || pfad.startsWith('/smart-home/');
 ---
 <nav>
   <a class="logo" href="/">
@@ -36,7 +40,8 @@
     </div>
     <a href="/ventilkappen">Ventilkappen</a>
     <a href="/spezialanfertigung">Spezialanfertigung</a>
-    <a class="nav-sh" href="/smart-home">Smart Home</a>
+    <a class:list={['nav-sh', { 'nav-hier': imSmartHome }]} href="/smart-home"
+       aria-current={imSmartHome ? (pfad === '/smart-home' ? 'page' : 'true') : undefined}>Smart Home</a>
     <a href="/kontakt">Kontakt</a>
   </div>
   <div class="navrechts">
@@ -61,7 +66,7 @@
   <a class="mn-alle" href="/#produkte">Alle Produktlinien →</a>
   <div class="mn-trenn"></div>
   <div class="mn-gruppe mn-gruppe-sh">Smart Home <span class="mn-neu">Neu</span></div>
-  <a href="/zaehlerleser">Zählerleser E450 <em class="em-sh">Bald</em></a>
+  <a href="/smart-home/zaehlerleser">Zählerleser E450 <em class="em-sh">Bald</em></a>
   <a class="mn-alle mn-alle-sh" href="/smart-home">Alles zu Smart Home →</a>
   <div class="mn-trenn"></div>
   <a href="/ventilkappen">Ventilkappen</a>
@@ -151,6 +156,7 @@
   .navlinks a.nav-sh::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sh);
     box-shadow: 0 0 8px var(--sh); flex: none; }
   .navlinks a.nav-sh:hover { color: var(--sh); }
+  .navlinks a.nav-sh.nav-hier { color: var(--sh); text-decoration: underline 1px; text-underline-offset: 7px; }
   .mn-gruppe-sh { color: var(--sh); display: flex; align-items: center; gap: 8px; }
   .mn-neu { font-size: 9px; letter-spacing: 1px; color: #061617; background: var(--sh); border-radius: 3px; padding: 1px 5px; }
   .mobilnav em.em-sh { background: var(--sh); color: #061617; }

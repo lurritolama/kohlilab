@@ -1,31 +1,28 @@
 ---
-// Grosse Kachel «Smart Home» unten auf der Startseite (Auftrag Zählerleser/Eule, Punkt 3; Manolo 14.11.2026):
-// kurzer Ausschnitt aus dem Hero-Film (die Eule rastet ein, ihre Augen glühen auf), Link zur Produktseite.
-// Das echte Produkt hat orange Augen; Türkis ist nur der Akzent des Bereichs.
+// Kurzer Teaser «Smart Home» unten auf der Startseite (Manolo 17.11.2026; vorher grosse Kachel vom 14.11.2026): ein
+// schmales Band mit dem Ausschnitt aus dem Hero-Film (die Eule rastet ein, ihre Augen glühen auf), einem Satz und dem
+// Weg auf DIE eine Produktseite /smart-home/zaehlerleser. Die ganze Fläche ist ein einziger Link.
+// Das echte Produkt hat orange Augen; Türkis ist nur der Akzent des Bereichs. Stil in global.css (.sh-teaser).
 //
-// Video: lädt erst, wenn die Kachel ins Bild kommt (preload="none", kein Byte vorher), spielt einmal (rund 2,5 s) und
-// bleibt auf dem letzten Bild mit leuchtenden Augen stehen. Bei Mauszeiger oder Fokus auf der Kachel nochmals.
+// Video: lädt erst, wenn das Band ins Bild kommt (preload="none", kein Byte vorher), spielt einmal (rund 2,5 s) und
+// bleibt auf dem letzten Bild mit leuchtenden Augen stehen. Bei Mauszeiger oder Fokus nochmals.
 // Bei «weniger Bewegung» und im Datensparmodus bleibt das Standbild. Kein Ton, keine Bedienelemente.
 ---
-<section class="block sh-kachel-block sh-akzent" aria-labelledby="sh-kachel-titel">
-  <article class="sh-kachel" data-sh-kachel>
-    <div class="sh-kachel-film">
+<section class="block sh-teaser-block sh-akzent" aria-labelledby="sh-teaser-titel">
+  <article class="sh-teaser" data-sh-kachel>
+    <div class="sh-teaser-film">
       <!-- Standbild als faules <img> statt poster: ein poster lädt sofort mit der Seite, das Bild erst in der Nähe -->
       <img src="/smarthome-medien/kachel_glut.webp" width="960" height="540" loading="lazy" decoding="async" alt="" />
       <video muted playsinline preload="none" width="1024" height="576" aria-hidden="true" tabindex="-1"
              data-quellen="/smarthome-medien/kachel.webm|video/webm,/smarthome-medien/kachel.mp4|video/mp4"></video>
     </div>
-    <div class="sh-kachel-text">
-      <p class="sh-kachel-kicker">Smart Home · neu bei KohliLab</p>
-      <h2 id="sh-kachel-titel"><a class="sh-kachel-link" href="/zaehlerleser">Der Zählerleser<i>.</i></a></h2>
-      <p class="sh-kachel-satz">
-        Eine Eule für deinen Stromzähler: Sie hält mit einem Magneten am Smart Meter E450, liest ihn lokal aus und schickt
-        die Werte per WLAN an Home Assistant. Das Gehäuse kommt aus unserem eigenen Drucklabor.
-      </p>
-      <span class="sh-kachel-knopf" aria-hidden="true">Zum Zählerleser →</span>
+    <div class="sh-teaser-text">
+      <p class="sh-teaser-kicker">Smart Home · Bald</p>
+      <h2 id="sh-teaser-titel"><a class="sh-teaser-link" href="/smart-home/zaehlerleser">Zählerleser E450<i>.</i></a></h2>
+      <p class="sh-teaser-satz">Hält mit einem Magneten am Smart Meter, liest ihn lokal aus und schickt die Werte per WLAN an Home Assistant.</p>
     </div>
+    <span class="sh-teaser-knopf" aria-hidden="true">Zur Produktseite →</span>
   </article>
-  <p class="sh-kachel-unten"><a href="/smart-home">Alles zu Smart Home →</a></p>
 </section>
 
 <script is:inline>

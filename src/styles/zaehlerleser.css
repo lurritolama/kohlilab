@@ -192,3 +192,32 @@
 .zl .melden-hinweis a { text-decoration: underline; }
 .zl .melden button[disabled] { opacity: .6; cursor: progress; }
 @media (max-width: 480px) { .zl .knopf { font-size: 1rem; letter-spacing: .03em; padding-inline: 1em; } }
+
+/* Rahmen des Bereichs Smart Home (Manolo 17.11.2026): oben die Brotkrumen «Smart Home › Zählerleser E450», unten der
+   Weg zurück in den Bereich, beide türkis wie Smart Home. Das Produkt dazwischen bleibt orange wie das echte Gerät. */
+.zl-pfad { --pfad-rand: clamp(18px, 3vw, 26px); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 6px 18px; padding: 11px var(--pfad-rand); border-bottom: 1px solid #24494b; position: relative;
+  background: linear-gradient(90deg, rgba(34, 227, 232, .09), rgba(34, 227, 232, .02) 55%, transparent); }
+.zl-pfad::before { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, var(--sh), rgba(34, 227, 232, .25) 45%, transparent 85%); box-shadow: 0 0 10px rgba(34, 227, 232, .45); }
+.zl-pfad ol { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; }
+.zl-pfad li { display: flex; align-items: center; gap: 10px; color: var(--ink); }
+.zl-pfad li + li::before { content: "›"; color: #4f7f81; font-size: 15px; line-height: 1; }
+.zl-pfad a { color: var(--sh); display: inline-flex; align-items: center; gap: 8px; padding: 8px 0; }
+.zl-pfad a:hover { color: var(--sh2); }
+.zl-pfad ol a::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sh); box-shadow: 0 0 8px var(--sh); }
+.zl-pfad a:focus-visible, .zl-bereich a:focus-visible { outline: 2px solid var(--sh2); outline-offset: 3px; }
+.zl-pfad-alle { font-family: var(--mono); font-size: 11.5px; letter-spacing: 1.2px; text-transform: uppercase; }
+.zl-bereich { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 28px;
+  margin: 0 clamp(18px, 3vw, 26px) 34px; padding: 22px 24px; border: 1px solid #284a4c; border-radius: 10px;
+  background: linear-gradient(135deg, #182224 0%, #1c1e21 60%); box-shadow: 0 0 60px rgba(34, 227, 232, .06); }
+.zl-bereich-text { display: grid; gap: 4px; max-width: 60ch; }
+.zl-bereich p { color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+.zl-bereich .zl-bereich-kicker { font-family: var(--mono); font-size: 11.5px; line-height: 1.4; letter-spacing: 2.4px; text-transform: uppercase;
+  color: var(--sh); display: flex; align-items: center; gap: 9px; }
+.zl-bereich-kicker::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sh); box-shadow: 0 0 8px var(--sh); }
+.zl-bereich a { flex: none; font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  color: #061617; background: var(--sh); padding: 11px 18px; border-radius: 4px; }
+.zl-bereich a:hover { background: var(--sh2); }
+@media (max-width: 640px) { .zl-pfad .zl-pfad-alle { display: none; } .zl-bereich { padding: 18px; } }
