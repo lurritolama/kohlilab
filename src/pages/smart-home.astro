@@ -6,6 +6,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { linienIn } from '../data/produktlinien';
 
 const geraete = linienIn('smart-home');
+// «Zum 3D-Druck →» führt wie jeder interne Link mit dem 3D-Druck-Übergang weiter (Manolo 18.11.2026), hier auf die
+// Produktübersicht der Startseite. Deren erste Kachelbilder holt der Browser vor, sobald man sich dem Link zuwendet
+// (druck.js liest data-vorlade): so stehen sie schon da, wenn die Seite «gedruckt» wird.
+const druckVorlade = linienIn('3d-druck').filter((l) => l.bild).slice(0, 6).map((l) => l.bild).join(' ');
 const titel = 'Smart Home — KohliLab';
 const beschreibung = 'Smart Home von KohliLab: kleine Geräte, die lokal arbeiten, ohne Cloud und ohne Konto, mit Gehäusen aus dem eigenen Drucklabor in Bühler AR. Als Erstes der Zählerleser für den Smart Meter E450.';
 const figuren = [
@@ -86,7 +90,7 @@ const figuren = [
           wie unsere Organizer, Ventilkappen und Golf-Tees. Smart Home und 3D-Druck sind bei KohliLab zwei Bereiche
           aus einer Hand.
         </p>
-        <a class="sh-zum-druck" href="/#produkte-3d-druck">Zum 3D-Druck →</a>
+        <a class="sh-zum-druck" href="/#produkte-3d-druck" data-vorlade={druckVorlade}>Zum 3D-Druck →</a>
       </div>
       <ul class="sh-figuren">
         {figuren.map((f) => (

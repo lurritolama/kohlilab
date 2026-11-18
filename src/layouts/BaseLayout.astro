@@ -59,9 +59,20 @@ const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/ind
         schon im Zwischenspeicher) und vorhang.js, das den Vorhang aufzieht. Kommt es nicht (Fehler, 2,5 s), fällt die
         Decke von selbst. Bei jedem normalen Aufruf fehlt das Merkzeichen und es passiert nichts.
         Quelle und Beschrieb: RaspiCam, zaehler/e450/gemeinsam/webseite/eule_vorhang. */}
+    {/* Dritter Teil des Skripts: 3D-Druck-Übergang «Schicht für Schicht», Ankunft (Manolo 18.11.2026). Er ist der
+        Standard-Übergang zwischen den Seiten: die alte Seite wird zur dunklen Druckplatte, die neue wird von einer Düse
+        Bahn um Bahn gedruckt (public/druck/…/druck.js). Wie beim Vorhang steht nach der Abfahrt ein Merkzeichen im
+        sessionStorage («kl_druck»: Zeit, Zielpfad, Fassung). Nur dann, nur auf der Zielseite und nur wenige Sekunden lang
+        beginnt die Seite hinter der dunklen Platte und holt druck.js (liegt schon im Zwischenspeicher). Kommt es nicht
+        (Fehler, 2,5 s), fällt die Decke von selbst. Die Zeile davor (pageswap, pagereveal) fängt nur ab, dass ein vom
+        Browser abgebrochener Übergang (Tab im Hintergrund) als Fehler in der Konsole landet. Der Teil für die Abfahrt
+        steht am Ende von <body>: er wird für den Seitenaufbau nicht gebraucht. Die Fassung (Ordnername, Prüfsumme von
+        druck.js und dem Bild der Düse) setzt einbau_druck.py an beiden Stellen ein. Die Erklärungen stehen hier und nicht
+        im Skript, damit sie nicht mit jeder Seite ausgeliefert werden. Quelle und Beschrieb: RaspiCam,
+        zaehler/e450/gemeinsam/webseite/druck_uebergang. */}
     <script is:inline>
-      // Seitenübergang (global.css, @view-transition) nur beim Abflug der Eule von der Startseite: eule.js setzt dann
-      // window.klUebergang. Bei allen anderen Seitenwechseln wird er übersprungen, dort bleibt alles wie bisher.
+      // Seitenübergang (global.css, @view-transition) nur, wenn ihn jemand mit window.klUebergang verlangt (eule.js beim
+      // Abflug, der Druck-Übergang, sein Rückfall «nur überblenden»). Bei allen anderen Seitenwechseln wird er übersprungen.
       // (ready.catch: ein übersprungener Übergang lehnt «ready» ab, das soll nicht als Fehler in der Konsole landen)
       addEventListener('pageswap', function (e) { var v = e.viewTransition; if (v && !window.klUebergang) { v.ready.catch(function () {}); v.skipTransition(); } });
       (function () {
@@ -78,6 +89,22 @@ const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/ind
           s.src = p + 'vorhang.js'; s.onerror = m.weg;
           setTimeout(function () { m.da || m.weg(); }, 2500);
           window.klVorhang = m; h.classList.add('kl-vh'); d.head.append(st, s);
+        } catch (e) {}
+      })();
+      ['pageswap', 'pagereveal'].forEach(function (n) { addEventListener(n, function (e) { var v = e.viewTransition; if (v) v.ready.catch(function () {}); }); });
+      (function () {
+        try {
+          var m = JSON.parse(sessionStorage.getItem('kl_druck')), d = document, h = d.documentElement, F = /* DRUCK-FASSUNG */ 'b4939ebd9f';
+          if (!m) return;
+          sessionStorage.removeItem('kl_druck');
+          if (Date.now() - m.t > 9e3 || m.z !== location.pathname || m.v !== F) return;
+          var st = d.createElement('style'), s = d.createElement('script');
+          st.textContent = 'html.kl-dr{scroll-behavior:auto}html.kl-dr::before{content:"";position:fixed;inset:0;z-index:2147483646;background:#0b0c0e}html.kl-dr::view-transition-old(root){animation:kl-dr-halt 6s both}html.kl-dr::view-transition-new(root){animation:none;opacity:0}@keyframes kl-dr-halt{from,to{opacity:1}}';
+          m.weg = function () { h.classList.remove('kl-dr'); try { m.vt.skipTransition(); } catch (e) {} };
+          addEventListener('pagereveal', function (e) { if ((m.vt = e.viewTransition)) m.vt.ready.catch(function () {}); });
+          s.src = '/druck/' + F + '/druck.js'; s.onerror = m.weg;
+          setTimeout(function () { m.da || m.weg(); }, 2500);
+          window.klDruck = m; h.classList.add('kl-dr'); d.head.append(st, s);
         } catch (e) {}
       })();
     </script>
@@ -113,6 +140,65 @@ const seiteAbs = site + Astro.url.pathname.replace(/\.html$/, '').replace(/\/ind
       (function(){
         async function upd(){ try { const n = await window.KCart.count(); const b = document.querySelector('[data-cart-count]'); if(b){ b.textContent = n; b.style.display = n>0 ? 'inline-flex' : 'none'; } } catch(e){} }
         window.addEventListener('pageshow', upd); document.addEventListener('DOMContentLoaded', upd); upd();
+      })();
+    </script>
+    {/* 3D-Druck-Übergang, Abfahrt (Manolo 18.11.2026): der Standard-Übergang bei jedem Wechsel auf eine andere Seite dieser
+        Website. Die Regel steht hier einmal für alle Links, auch für künftige Seiten: jeder Link auf eine andere eigene
+        Seite bekommt ihn. Ausgenommen sind Links in einen Bereich mit eigenem Übergang (AUS: Smart Home behält den Vorhang
+        der Eule), neue Tabs, Downloads, Dateien, /api/ und Links mit data-uebergang="aus" (auch an einem umgebenden
+        Element). Der Zurück-Knopf und fremde Websites sind keine Klicks auf solche Links und bleiben, wie sie sind.
+        Beim Aufbau der Seite meldet dieses Skript nur den Klick an und tut sonst nichts: kein Lauscher fürs Zuwenden,
+        keine Abfrage, kein Laden. Das alles beginnt erst mit dem load-Ereignis (der Konfigurator auf den Produktseiten soll
+        beim Start nicht gestört werden). druck.js wird also nie beim Seitenaufbau geholt: erst wenn man sich nach dem
+        Laden einem solchen Link zuwendet (Zeiger, Finger, Tastatur) oder zwei Sekunden nach dem Laden im Leerlauf. Ist es
+        beim Klick noch nicht da, oder gilt «weniger Bewegung» bzw. der Datensparmodus, blendet die Seite nur über. Hat ein
+        anderes Skript den Klick schon übernommen (preventDefault), passiert hier nichts. Auf der Startseite kommt dieses
+        Skript vor dem der Eule: läuft der Druck, bleibt sie sitzen. Ankunft: Skript im Kopf (dritter Teil).
+        Die Teile: seite() gibt die Adresse zurück, wenn der Link auf eine andere eigene Seite mit Druck-Übergang führt,
+        sonst null. zuwenden() holt druck.js und holt die Zielseite vor, sobald der Zeiger 0,09 s auf dem Link verweilt
+        (Finger und Tastatur: sofort); beim Finger nimmt es dem Link den grauen Tipp-Schatten, dort glüht gleich die Düse
+        auf. geladen() läuft mit dem load-Ereignis. Der Klick: KLDruck.start() spielt den Druck und wechselt die Seite
+        selbst; gibt es ihn nicht oder lehnt er ab, wechselt der Browser normal und blendet über (window.klUebergang,
+        global.css). pageshow: kommt die Seite über den Zurück-Knopf aus dem Zwischenspeicher des Browsers wieder, gilt
+        die Bitte ums Überblenden nicht mehr. Erklärt wird hier und nicht im Skript: so wird es nicht mit ausgeliefert. */}
+    <script is:inline>
+      (function () {
+        var d = document, F = /* DRUCK-FASSUNG */ 'b4939ebd9f', geholt = !!window.klDruck, vor = {}, uhr = 0, ruhig;
+        var AUS = /^\/(smart-home|zaehlerleser)(\/|$)/;
+        function link(e) { return e.target && e.target.closest ? e.target.closest('a[href]') : null; }
+        function seite(a) {
+          if (!a || typeof a.href !== 'string' || (a.target && a.target !== '_self') || a.hasAttribute('download') || a.closest('[data-uebergang="aus"]')) return null;
+          var u;
+          try { u = new URL(a.href, location.href); } catch (x) { return null; }
+          return u.origin === location.origin && /^https?:$/.test(u.protocol) && u.pathname !== location.pathname && !AUS.test(u.pathname) &&
+            !/^\/api\//.test(u.pathname) && !/\.(?!html?$)[a-z0-9]{1,8}$/i.test(u.pathname) ? u : null;
+        }
+        function holen() { if (geholt) return; geholt = true; var s = d.createElement('script'); s.src = '/druck/' + F + '/druck.js'; d.head.appendChild(s); }
+        function vorholen(u) { var p = u.pathname + u.search; if (vor[p]) return; vor[p] = 1; var l = d.createElement('link'); l.rel = 'prefetch'; l.href = p; d.head.appendChild(l); }
+        function zuwenden(e) {
+          var a = link(e), u = seite(a);
+          clearTimeout(uhr);
+          if (!u) return;
+          holen();
+          if (e.type === 'pointerover') uhr = setTimeout(function () { vorholen(u); }, 90); else vorholen(u);
+          if (e.type === 'touchstart' && window.KLDruck) a.style.webkitTapHighlightColor = 'transparent';
+        }
+        function geladen() {
+          ruhig = !!((window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || (navigator.connection && navigator.connection.saveData));
+          if (ruhig) return;
+          ['pointerover', 'touchstart', 'focusin'].forEach(function (n) { addEventListener(n, zuwenden, { passive: true, capture: true }); });
+          setTimeout(function () { (window.requestIdleCallback || setTimeout)(holen); }, 2000);
+        }
+        if (d.readyState === 'complete') geladen(); else addEventListener('load', geladen);
+        d.addEventListener('click', function (e) {
+          if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          var a = link(e), u = seite(a);
+          if (!u) return;
+          if (ruhig === false) vorholen(u);
+          if (window.KLDruck && window.KLDruck.start(u, a, e)) return;
+          window.klUebergang = true;
+        });
+        addEventListener('pageshow', function (e) { if (e.persisted) window.klUebergang = false; });
       })();
     </script>
   </body>

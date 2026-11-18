@@ -76,3 +76,13 @@
 
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# 3D-Druck-Übergang (public/druck/<fassung>/: druck.js und das Bild der Düse, 18.11.2026): wie
+# beim Vorhang ist der Ordnername die Prüfsumme der Dateien (einbau_druck.py setzt sie auch in
+# BaseLayout.astro ein). Darum ein Jahr und 'immutable': die Zielseite holt Skript und Bild ohne
+# Rückfrage beim Server aus dem Zwischenspeicher, der Druck beginnt ohne Wartezeit.
+[[headers]]
+  for = "/druck/*"
+
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
